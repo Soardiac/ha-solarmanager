@@ -1,6 +1,7 @@
 # Solarmanager – Home Assistant (Custom Integration)
 
-**Inoffiziell — nicht mit Solarmanager verbunden.**  
+**Inoffiziell — nicht mit Solarmanager verbunden.**
+
 Stellt Live-Daten (PV, Verbrauch, Batterie, Netz, Geräte) und Batterie-Eco-Limits als Entitäten bereit.
 Verwendet die Cloud-API von Solarmanager. Du brauchst einen Account dort.
 
@@ -26,3 +27,4 @@ logger:
   default: info
   logs:
     custom_components.solarmanager: debug
+
