@@ -1,0 +1,11 @@
+{
+  "domain": "solarmanager",
+  "name": "Solarmanager",
+  "version": "0.3.0",
+  "documentation": "https://cloud.solar-manager.ch/swagger",
+  "iot_class": "cloud_polling",
+  "codeowners": ["@soardiac"],
+  "requirements": [],
+  "config_flow": true,
+  "loggers": ["custom_components.solarmanager"]
+}

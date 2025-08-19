@@ -1,0 +1,7 @@
+{
+  "name": "Solarmanager",
+  "domain": "solarmanager",
+  "render_readme": true,
+  "iot_class": "cloud_polling",
+  "country": ["CH","DE","AT"]
+}
