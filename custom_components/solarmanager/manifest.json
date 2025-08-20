@@ -8,4 +8,5 @@
   "requirements": [],
   "config_flow": true,
   "loggers": ["custom_components.solarmanager"]
+  "issue_tracker": "https://github.com/Soardiac/ha-solarmanager/issues"
 }
