@@ -21,10 +21,9 @@ Verwendet die Cloud-API von Solarmanager. Du brauchst einen Account dort.
 - `sensor.solarmanager_*`: PV-Leistung, Verbrauch, Grid, Batterie-SOC, Tages-Energien, Gerätewerte.
 - `number.*`: *Eco Entlade-Limit*, *Eco Morgen-Limit*, *Eco Lade-Limit* (setzt `PUT /v2/control/battery/{sensorId}` mit `batteryMode=1`).
 
-## Debug
-```yaml
-logger:
-  default: info
-  logs:
-    custom_components.solarmanager: debug
-
+## Issues
+- Code ist für mich geschrieben, es gibt viele Dinge, die für "ein Produkt" fehlen.
+- Robusteres Refresh/Login
+- Übersetzungen
+- QA (Testing, Linting, Tools,...)
+- weitere API endpoints
