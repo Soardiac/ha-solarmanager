@@ -2,11 +2,11 @@
   "domain": "solarmanager",
   "name": "Solarmanager",
   "version": "0.3.0",
-  "documentation": "https://cloud.solar-manager.ch/swagger",
+  "documentation": "https://github.com/Soardiac/ha-solarmanager#readme",
+  "issue_tracker": "https://github.com/Soardiac/ha-solarmanager/issues",
+  "codeowners": ["@Soardiac"],
   "iot_class": "cloud_polling",
-  "codeowners": ["@soardiac"],
   "requirements": [],
   "config_flow": true,
   "loggers": ["custom_components.solarmanager"]
-  "issue_tracker": "https://github.com/Soardiac/ha-solarmanager/issues"
 }
