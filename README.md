@@ -3,7 +3,7 @@
 **Inoffiziell — nicht mit Solarmanager verbunden.**
 
 Stellt Live-Daten (PV, Verbrauch, Batterie, Netz, Geräte) und Batterie-Eco-Limits als Entitäten bereit.
-Verwendet die Cloud-API von Solarmanager. Du brauchst einen Account dort.
+Verwendet die Cloud-API von Solarmanager. Du brauchst einen Account dort. Siehe https://external-web.solar-manager.ch/swagger
 
 ## Installation
 **HACS (empfohlen)**
