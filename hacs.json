@@ -1,5 +1,6 @@
 {
   "name": "Solarmanager",
   "render_readme": true,
-  "country": ["CH", "DE", "AT"]
+  "country": ["CH", "DE", "AT"],
+  "domains": ["sensor", "number"]
 }
