@@ -28,12 +28,12 @@ POWER_SENSORS = [
 
 # Achtung: …Wh-Felder kommen bereits als kWh (z. B. 23.48) – KEINE /1000-Umrechnung!
 ENERGY_SENSORS = [
-    ("pWh", "PV-Energie heute", "kWh"),
-    ("cWh", "Verbrauch heute", "kWh"),
-    ("iWh", "Netzbezug heute", "kWh"),
-    ("eWh", "Netzeinspeisung heute", "kWh"),
-    ("bcWh", "Batterie geladen heute", "kWh"),
-    ("bdWh", "Batterie entladen heute", "kWh"),
+    ("pWh", "PV-Energie (Interval)", "kWh"),
+    ("cWh", "Verbrauch (Interval)", "kWh"),
+    ("iWh", "Netzbezug (Interval)", "kWh"),
+    ("eWh", "Netzeinspeisung (Interval)", "kWh"),
+    ("bcWh", "Batterie geladen (Interval)", "kWh"),
+    ("bdWh", "Batterie entladen (Interval)", "kWh"),
 ]
 
 
