@@ -1,7 +1,7 @@
 {
   "domain": "solarmanager",
   "name": "Solarmanager",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "documentation": "https://github.com/Soardiac/ha-solarmanager#readme",
   "issue_tracker": "https://github.com/Soardiac/ha-solarmanager/issues",
   "codeowners": ["@Soardiac"],
