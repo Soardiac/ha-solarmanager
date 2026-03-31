@@ -26,15 +26,13 @@ POWER_SENSORS = [
     ("gridW", "Netzleistung (+Bezug/-Einspeisung)", "W", SensorDeviceClass.POWER),
 ]
 
-# Achtung: …Wh-Felder kommen bereits als kWh (z. B. 23.48) – KEINE /1000-Umrechnung!
 ENERGY_SENSORS = [
-    ("pWh", "PV-Energie (Interval)", "kWh"),
-    ("cWh", "Verbrauch (Interval)", "kWh"),
-    ("iWh", "Netzbezug (Interval)", "kWh"),
-    ("eWh", "Netzeinspeisung (Interval)", "kWh"),
-    ("bcWh", "Batterie geladen (Interval)", "kWh"),
-    ("bdWh", "Batterie entladen (Interval)", "kWh"),
-]
+    ("pWh", "PV-Energie (Interval)", "Wh"),
+    ("cWh", "Verbrauch (Interval)", "Wh"),
+    ("iWh", "Netzbezug (Interval)", "Wh"),
+    ("eWh", "Netzeinspeisung (Interval)", "Wh"),
+    ("bcWh", "Batterie geladen (Interval)", "Wh"),
+    ("bdWh", "Batterie entladen (Interval)", "Wh"),
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
