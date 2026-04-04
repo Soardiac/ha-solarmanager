@@ -33,7 +33,7 @@ ENERGY_SENSORS = [
     ("eWh", "Netzeinspeisung (Interval)", "Wh"),
     ("bcWh", "Batterie geladen (Interval)", "Wh"),
     ("bdWh", "Batterie entladen (Interval)", "Wh"),
-
+]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: SolarmanagerCoordinator = hass.data[DOMAIN][entry.entry_id]
