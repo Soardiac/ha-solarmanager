@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Solarmanager einrichten",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "sm_id": "System-ID (smId)",
+          "api_key": "API-Key (optional)"
+        },
+        "data_description": {
+          "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
+          "api_key": "Nur erforderlich wenn Basic-Auth statt OAuth genutzt wird."
+        }
+      }
+    },
+    "error": {
+      "auth": "Ungültige Anmeldedaten. Bitte E-Mail und Passwort prüfen.",
+      "cannot_connect": "Verbindung zur Solarmanager Cloud fehlgeschlagen.",
+      "unknown": "Unbekannter Fehler. Bitte Logs prüfen."
+    },
+    "abort": {
+      "already_configured": "Dieses Solarmanager-System ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Optionen",
+        "data": {
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        },
+        "data_description": {
+          "scan_interval": "Wie oft die API abgefragt wird. Empfohlen: 10 Sekunden."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Solarmanager",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "sm_id": "System ID (smId)",
+          "api_key": "API Key (optional)"
+        },
+        "data_description": {
+          "sm_id": "The smId of your Solarmanager system from the cloud interface.",
+          "api_key": "Only required if Basic Auth is used instead of OAuth."
+        }
+      }
+    },
+    "error": {
+      "auth": "Invalid credentials. Please check your email and password.",
+      "cannot_connect": "Failed to connect to the Solarmanager Cloud.",
+      "unknown": "Unexpected error. Please check the logs."
+    },
+    "abort": {
+      "already_configured": "This Solarmanager system is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        },
+        "data_description": {
+          "scan_interval": "How often the API is polled. Recommended: 10 seconds."
+        }
+      }
+    }
+  }
+}
