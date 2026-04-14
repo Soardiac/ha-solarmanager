@@ -119,7 +119,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
 
     async def async_refresh_device_meta(self) -> None:
-        """Meta sofort neu laden und Coordinator refreshen (nach PUT)."""
+        """Meta sofort neu laden (z. B. nach einem PUT), dann Update anstoßen."""
         await self._load_device_meta()
         await self.async_request_refresh()
 
@@ -192,9 +192,4 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as err:
             _LOGGER.exception("Unexpected error in update: %s", err)
             raise UpdateFailed(f"Unexpected: {err}") from err
-            
-    async def async_refresh_device_meta(self) -> None:
-        """Meta sofort neu laden (z. B. nach einem PUT), dann Update anstoßen."""
-        await self._load_device_meta()
-        await self.async_request_refresh()
 
