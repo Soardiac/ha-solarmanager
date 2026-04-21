@@ -20,7 +20,7 @@ AUTH_REFRESH_PATH = "/v1/oauth/refresh"
 STREAM_PATH_TEMPLATE = "/v3/users/{sm_id}/data/stream"
 
 # Plattformen
-PLATFORMS = ["sensor", "number", "binary_sensor"]
+PLATFORMS = ["sensor", "number", "binary_sensor", "select"]
 
 # Branding (für device_info)
 MANUFACTURER = "Solarmanager"

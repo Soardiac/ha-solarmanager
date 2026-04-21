@@ -19,7 +19,7 @@ Ab v0.3.5 habe ich begonnen, unterstützt von Claude Code zu arbeiten. Wachsende
 
 ## Einrichtung
 - Einstellungen → Geräte & Dienste → Integration hinzufügen → **Solarmanager**
-- E-Mail, Passwort, **smId** eintragen.
+- E-Mail, Passwort, **Solar Manager ID (smId)** eintragen.
 
 ## Entitäten (Auszug)
 - `sensor.solarmanager_*`: PV-Leistung, Verbrauch, Grid, Batterie-SOC, Tages-Energien, Gerätewerte.

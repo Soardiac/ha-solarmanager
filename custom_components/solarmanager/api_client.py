@@ -159,20 +159,44 @@ class SolarmanagerCloud:
         await self._ensure_token()
         return await self._get_json(f"/v1/info/sensors/{self.sm_id}", self._bearer_headers())
 
-    async def put_battery_settings(self, sensor_id: str, payload: dict) -> None:
-        """PUT /v2/control/battery/{sensorId} – setzt Modus/Parameter der Batterie.
-        payload kann z.B. {"batteryMode": 1, "dischargeSocLimit": 30} sein.
-        """
+    async def _put_control(self, path: str, payload: dict) -> None:
+        """Generischer PUT-Helper für alle /control/… Endpunkte."""
         await self._ensure_token()
-        path = f"/v2/control/battery/{sensor_id}"
         url = f"{self._base}{path}"
-        headers = self._bearer_headers()
-        async with self._s.put(url, json=payload, headers=headers, timeout=30) as r:
-            if r.status in (204, 200):
+        async with self._s.put(url, json=payload, headers=self._bearer_headers(), timeout=30) as r:
+            if r.status in (200, 204):
                 return
             if r.status == 401:
-                raise SolarmanagerAuthError("Unauthorized battery control")
+                raise SolarmanagerAuthError(f"Unauthorized: {path}")
             text = await r.text()
             raise SolarmanagerApiError(f"PUT {path} failed {r.status}: {text}")
+
+    async def put_battery_settings(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v2/control/battery/{sensorId}"""
+        await self._put_control(f"/v2/control/battery/{sensor_id}", payload)
+
+    async def put_car_charger_mode(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v1/control/car-charger/{sensorId}"""
+        await self._put_control(f"/v1/control/car-charger/{sensor_id}", payload)
+
+    async def put_heat_pump_mode(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v1/control/heat-pump/{sensorId}"""
+        await self._put_control(f"/v1/control/heat-pump/{sensor_id}", payload)
+
+    async def put_water_heater_mode(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v1/control/water-heater/{sensorId}"""
+        await self._put_control(f"/v1/control/water-heater/{sensor_id}", payload)
+
+    async def put_smart_plug_mode(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v1/control/smart-plug/{sensorId}"""
+        await self._put_control(f"/v1/control/smart-plug/{sensor_id}", payload)
+
+    async def put_switch_mode(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v1/control/switch/{sensorId}"""
+        await self._put_control(f"/v1/control/switch/{sensor_id}", payload)
+
+    async def put_v2x_mode(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v2/control/v2x/{sensorId}"""
+        await self._put_control(f"/v2/control/v2x/{sensor_id}", payload)
 
 
