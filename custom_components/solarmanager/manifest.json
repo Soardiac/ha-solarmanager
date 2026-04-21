@@ -8,5 +8,5 @@
   "issue_tracker": "https://github.com/Soardiac/ha-solarmanager/issues",
   "loggers": ["custom_components.solarmanager"],
   "requirements": [],
-  "version": "0.6.3"
+  "version": "1.0.0"
 }

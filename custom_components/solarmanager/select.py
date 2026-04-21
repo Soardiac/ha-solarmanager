@@ -12,17 +12,8 @@ from .const import DOMAIN, CONF_SM_ID
 from .coordinator import SolarmanagerCoordinator
 
 # ---------------------------------------------------------------------------
-# Gerättyp → Steuerungskonfiguration
+# Konfig-Objekte für Hauptmodi (ein Select pro Gerät)
 # key  = device.type.lower() aus /v1/info/sensors
-# ---------------------------------------------------------------------------
-# options: {str(int_wert): "Anzeigename"}
-# api_key: Feldname im PUT-Payload
-# put_method: Methode auf SolarmanagerCloud
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Geteilte Konfig-Objekte – einmal definiert, mehrfach referenziert
-# Cloud-API (/v1/info/sensors) nutzt "Title Case", lokale API lowercase/nospace
-# Beide Varianten werden als Keys eingetragen
 # ---------------------------------------------------------------------------
 
 _BATTERY_CFG = {
@@ -128,14 +119,11 @@ _SWITCH_CFG = {
     "put_method": "put_switch_mode",
 }
 
-# ---------------------------------------------------------------------------
-# Typ-Mapping: device.type.lower() → Konfig
-# Enthält beide Varianten: Cloud-API (mit Leerzeichen) und lokale API (lowercase/nospace)
-# ---------------------------------------------------------------------------
+# Haupt-Modus pro Gerätetyp (unique_id endet auf "_mode")
 DEVICE_MODE_CONFIG: dict[str, dict] = {
     # Batterie
     "battery": _BATTERY_CFG,
-    # Wallbox / Car Charger
+    # Wallbox / Car Charger (alle bekannten Typ-Varianten)
     "car": _CAR_CHARGER_CFG,           # Cloud-API (bestätigt)
     "car charger": _CAR_CHARGER_CFG,
     "carcharger": _CAR_CHARGER_CFG,
@@ -148,17 +136,37 @@ DEVICE_MODE_CONFIG: dict[str, dict] = {
     "v2x charger": _V2X_CFG,
     "v2xcharger": _V2X_CFG,
     # Wärmepumpe
-    "heat pump": _HEAT_PUMP_CFG,       # Cloud-API
-    "heatpump": _HEAT_PUMP_CFG,        # lokale API
+    "heat pump": _HEAT_PUMP_CFG,
+    "heatpump": _HEAT_PUMP_CFG,        # lokale API (bestätigt)
     "sg ready switch": _HEAT_PUMP_CFG,
     # Warmwasser
     "water heater": _WATER_HEATER_CFG,
     "waterheater": _WATER_HEATER_CFG,
     # Smart Plug
-    "smart plug": _SMART_PLUG_CFG,     # Cloud-API (funktioniert bereits)
-    "smartplug": _SMART_PLUG_CFG,      # lokale API
+    "smart plug": _SMART_PLUG_CFG,
+    "smartplug": _SMART_PLUG_CFG,
     # Switch
     "switch": _SWITCH_CFG,
+}
+
+# ---------------------------------------------------------------------------
+# Zusätzliche Selects pro Gerätetyp (Stufe 3b)
+# unique_id endet auf "_{api_key}"
+# ---------------------------------------------------------------------------
+
+_BATTERY_MANUAL_MODE_CFG = {
+    "label": "Manuell Richtung",
+    "options": {
+        "0": "Laden",
+        "1": "Entladen",
+        "2": "AUS",
+    },
+    "api_key": "batteryManualMode",
+    "put_method": "put_battery_settings",
+}
+
+DEVICE_EXTRA_SELECTS: dict[str, list[dict]] = {
+    "battery": [_BATTERY_MANUAL_MODE_CFG],
 }
 
 
@@ -172,41 +180,45 @@ async def async_setup_entry(
     entities: list[SelectEntity] = []
     for dev_id, meta in coord.device_meta.items():
         dev_type = (meta.get("type") or "").lower()
+
         if dev_type in DEVICE_MODE_CONFIG:
             entities.append(DeviceModeSelect(coord, dev_id, dev_type))
+
+        for cfg in DEVICE_EXTRA_SELECTS.get(dev_type, []):
+            entities.append(DeviceExtraSelect(coord, dev_id, cfg))
 
     async_add_entities(entities, True)
 
 
-class DeviceModeSelect(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity):
-    """Select-Entität für den Betriebsmodus eines Geräts."""
+# ---------------------------------------------------------------------------
+# Gemeinsame Basis
+# ---------------------------------------------------------------------------
 
+class _DeviceSelectBase(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity):
     _attr_has_entity_name = True
 
     def __init__(
         self,
         coordinator: SolarmanagerCoordinator,
         dev_id: str,
-        dev_type_key: str,
+        api_key: str,
+        put_method: str,
+        options_map: dict[str, str],
+        label: str,
+        uid_suffix: str,
     ) -> None:
         super().__init__(coordinator)
         self._dev_id = dev_id
-        cfg = DEVICE_MODE_CONFIG[dev_type_key]
-        self._api_key: str = cfg["api_key"]
-        self._put_method: str = cfg["put_method"]
-        self._options_map: dict[str, str] = cfg["options"]  # "0" → "Standard"
-        self._label: str = cfg["label"]
-
-        self._attr_options = list(cfg["options"].values())
-
-        short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
-        self._attr_name = f"Gerät {short} {self._label}"
-        self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_mode"
-
-        # Optimistischer Zustand – wird nach erfolgreichem PUT gesetzt
+        self._api_key = api_key
+        self._put_method = put_method
+        self._options_map = options_map
+        self._label = label
+        self._attr_options = list(options_map.values())
         self._optimistic: str | None = None
 
-    # --- Dynamischer Name (aus Coordinator-Meta) ---
+        short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_{uid_suffix}"
+        self._attr_name = f"Gerät {short} {label}"
 
     @property
     def name(self) -> str:
@@ -236,11 +248,8 @@ class DeviceModeSelect(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity)
             "via_device": (DOMAIN, f"site_{sm_id}"),
         }
 
-    # --- Aktueller Wert ---
-
     @property
     def current_option(self) -> str | None:
-        # Versuche Wert aus gecachten Device-Metadaten zu lesen
         meta = self.coordinator.device_meta.get(self._dev_id) or {}
         raw_data = (meta.get("raw") or {}).get("data") or {}
         val = raw_data.get(self._api_key)
@@ -251,20 +260,47 @@ class DeviceModeSelect(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity)
                     return label
             except (ValueError, TypeError):
                 pass
-        # Fallback: optimistischer Zustand aus letztem SET
         return self._optimistic
 
-    # --- Steuerung ---
-
     async def async_select_option(self, option: str) -> None:
-        # Label → Integerwert
         val = next((k for k, v in self._options_map.items() if v == option), None)
         if val is None:
             return
-
         payload = {self._api_key: int(val)}
         put_fn = getattr(self.coordinator.client, self._put_method)
         await put_fn(self._dev_id, payload)
-
         self._optimistic = option
         await self.coordinator.async_refresh_device_meta()
+
+
+class DeviceModeSelect(_DeviceSelectBase):
+    """Haupt-Betriebsmodus (unique_id endet auf _mode – stabil für Updates)."""
+
+    def __init__(
+        self,
+        coordinator: SolarmanagerCoordinator,
+        dev_id: str,
+        dev_type_key: str,
+    ) -> None:
+        cfg = DEVICE_MODE_CONFIG[dev_type_key]
+        super().__init__(
+            coordinator, dev_id,
+            cfg["api_key"], cfg["put_method"], cfg["options"], cfg["label"],
+            "mode",
+        )
+
+
+class DeviceExtraSelect(_DeviceSelectBase):
+    """Zusätzliche Select-Parameter (z. B. batteryManualMode)."""
+
+    def __init__(
+        self,
+        coordinator: SolarmanagerCoordinator,
+        dev_id: str,
+        cfg: dict,
+    ) -> None:
+        super().__init__(
+            coordinator, dev_id,
+            cfg["api_key"], cfg["put_method"], cfg["options"], cfg["label"],
+            cfg["api_key"],
+        )
