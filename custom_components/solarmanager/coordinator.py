@@ -181,8 +181,8 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             else:
                 data["gridW"] = None
 
-            # Meta alle 30 Minuten auffrischen
-            if time.time() - self._meta_last > 1800:
+            # Meta alle 5 Minuten auffrischen
+            if time.time() - self._meta_last > 300:
                 await self._load_device_meta()
 
             return data
