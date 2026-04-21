@@ -19,115 +19,146 @@ from .coordinator import SolarmanagerCoordinator
 # api_key: Feldname im PUT-Payload
 # put_method: Methode auf SolarmanagerCloud
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Geteilte Konfig-Objekte – einmal definiert, mehrfach referenziert
+# Cloud-API (/v1/info/sensors) nutzt "Title Case", lokale API lowercase/nospace
+# Beide Varianten werden als Keys eingetragen
+# ---------------------------------------------------------------------------
+
+_BATTERY_CFG = {
+    "label": "Batterie Modus",
+    "options": {
+        "0": "Standard",
+        "1": "Eco",
+        "2": "Peak-Shaving",
+        "3": "Manuell",
+        "4": "Tarif-Optimiert",
+        "5": "Standard (aktiv)",
+        "6": "KI-Optimierung",
+    },
+    "api_key": "batteryMode",
+    "put_method": "put_battery_settings",
+}
+
+_CAR_CHARGER_CFG = {
+    "label": "Wallbox Modus",
+    "options": {
+        "0": "Schnellladen",
+        "1": "Nur Solar",
+        "2": "Solar & Tarif",
+        "3": "Nicht laden",
+        "4": "Konstantstrom",
+        "5": "Minimal & Solar",
+        "6": "Mindestmenge",
+        "7": "Ladziel (%)",
+    },
+    "api_key": "chargingMode",
+    "put_method": "put_car_charger_mode",
+}
+
+_V2X_CFG = {
+    "label": "V2X Modus",
+    "options": {
+        "0": "Immer laden",
+        "1": "Solar-Optimiert",
+        "2": "Solar & Tarif",
+        "3": "Manuell",
+        "4": "Ziel-SOC",
+    },
+    "api_key": "v2xChargingMode",
+    "put_method": "put_v2x_mode",
+}
+
+_HEAT_PUMP_CFG = {
+    "label": "Wärmepumpe Modus",
+    "options": {
+        "0": "Kein Modus",
+        "1": "EIN",
+        "2": "AUS",
+        "3": "Nur Solar",
+        "4": "Solar & Tarif",
+        "5": "Keine Steuerung",
+        "6": "Normalbetrieb",
+        "7": "OEM 14",
+        "8": "KI-Optimierung",
+    },
+    "api_key": "heatPumpChargingMode",
+    "put_method": "put_heat_pump_mode",
+}
+
+_WATER_HEATER_CFG = {
+    "label": "Warmwasser Modus",
+    "options": {
+        "1": "EIN",
+        "2": "AUS",
+        "3": "Nur Solar",
+        "4": "Solar & Tarif",
+        "5": "Keine Steuerung",
+        "6": "ECO",
+        "7": "KI-Optimierung",
+    },
+    "api_key": "waterHeaterMode",
+    "put_method": "put_water_heater_mode",
+}
+
+_SMART_PLUG_CFG = {
+    "label": "Smart Plug Modus",
+    "options": {
+        "1": "EIN",
+        "2": "AUS",
+        "3": "Nur Solar",
+        "4": "Solar & Tarif",
+        "5": "Keine Steuerung",
+    },
+    "api_key": "chargingMode",
+    "put_method": "put_smart_plug_mode",
+}
+
+_SWITCH_CFG = {
+    "label": "Schalter Modus",
+    "options": {
+        "0": "Kein Modus",
+        "1": "EIN",
+        "2": "AUS",
+        "3": "Nur Solar",
+        "4": "Solar & Tarif",
+        "5": "Keine Steuerung",
+    },
+    "api_key": "chargingMode",
+    "put_method": "put_switch_mode",
+}
+
+# ---------------------------------------------------------------------------
+# Typ-Mapping: device.type.lower() → Konfig
+# Enthält beide Varianten: Cloud-API (mit Leerzeichen) und lokale API (lowercase/nospace)
+# ---------------------------------------------------------------------------
 DEVICE_MODE_CONFIG: dict[str, dict] = {
-    "battery": {
-        "label": "Batterie Modus",
-        "options": {
-            "0": "Standard",
-            "1": "Eco",
-            "2": "Peak-Shaving",
-            "3": "Manuell",
-            "4": "Tarif-Optimiert",
-            "5": "Standard (aktiv)",
-            "6": "KI-Optimierung",
-        },
-        "api_key": "batteryMode",
-        "put_method": "put_battery_settings",
-    },
-    "car charger": {
-        "label": "Wallbox Modus",
-        "options": {
-            "0": "Schnellladen",
-            "1": "Nur Solar",
-            "2": "Solar & Tarif",
-            "3": "Nicht laden",
-            "4": "Konstantstrom",
-            "5": "Minimal & Solar",
-            "6": "Mindestmenge",
-            "7": "Ladziel (%)",
-        },
-        "api_key": "chargingMode",
-        "put_method": "put_car_charger_mode",
-    },
-    "v2x": {
-        "label": "V2X Modus",
-        "options": {
-            "0": "Immer laden",
-            "1": "Solar-Optimiert",
-            "2": "Solar & Tarif",
-            "3": "Manuell",
-            "4": "Ziel-SOC",
-        },
-        "api_key": "v2xChargingMode",
-        "put_method": "put_v2x_mode",
-    },
-    "v2x charger": {
-        "label": "V2X Modus",
-        "options": {
-            "0": "Immer laden",
-            "1": "Solar-Optimiert",
-            "2": "Solar & Tarif",
-            "3": "Manuell",
-            "4": "Ziel-SOC",
-        },
-        "api_key": "v2xChargingMode",
-        "put_method": "put_v2x_mode",
-    },
-    "heat pump": {
-        "label": "Wärmepumpe Modus",
-        "options": {
-            "0": "Kein Modus",
-            "1": "EIN",
-            "2": "AUS",
-            "3": "Nur Solar",
-            "4": "Solar & Tarif",
-            "5": "Keine Steuerung",
-            "6": "Normalbetrieb",
-            "7": "OEM 14",
-            "8": "KI-Optimierung",
-        },
-        "api_key": "heatPumpChargingMode",
-        "put_method": "put_heat_pump_mode",
-    },
-    "water heater": {
-        "label": "Warmwasser Modus",
-        "options": {
-            "1": "EIN",
-            "2": "AUS",
-            "3": "Nur Solar",
-            "4": "Solar & Tarif",
-            "5": "Keine Steuerung",
-            "6": "ECO",
-            "7": "KI-Optimierung",
-        },
-        "api_key": "waterHeaterMode",
-        "put_method": "put_water_heater_mode",
-    },
-    "smart plug": {
-        "label": "Smart Plug Modus",
-        "options": {
-            "1": "EIN",
-            "2": "AUS",
-            "3": "Nur Solar",
-            "4": "Solar & Tarif",
-            "5": "Keine Steuerung",
-        },
-        "api_key": "chargingMode",
-        "put_method": "put_smart_plug_mode",
-    },
-    "switch": {
-        "label": "Schalter Modus",
-        "options": {
-            "0": "Kein Modus",
-            "1": "EIN",
-            "2": "AUS",
-            "3": "Nur Solar",
-            "4": "Solar & Tarif",
-            "5": "Keine Steuerung",
-        },
-        "api_key": "chargingMode",
-        "put_method": "put_switch_mode",
-    },
+    # Batterie
+    "battery": _BATTERY_CFG,
+    # Wallbox / Car Charger
+    "car": _CAR_CHARGER_CFG,           # Cloud-API (bestätigt)
+    "car charger": _CAR_CHARGER_CFG,
+    "carcharger": _CAR_CHARGER_CFG,
+    "carcharging": _CAR_CHARGER_CFG,   # lokale API (bestätigt)
+    "car charging": _CAR_CHARGER_CFG,  # Cloud-API (bestätigt)
+    "ocpp charger": _CAR_CHARGER_CFG,
+    "wallbox": _CAR_CHARGER_CFG,
+    # V2X
+    "v2x": _V2X_CFG,
+    "v2x charger": _V2X_CFG,
+    "v2xcharger": _V2X_CFG,
+    # Wärmepumpe
+    "heat pump": _HEAT_PUMP_CFG,       # Cloud-API
+    "heatpump": _HEAT_PUMP_CFG,        # lokale API
+    "sg ready switch": _HEAT_PUMP_CFG,
+    # Warmwasser
+    "water heater": _WATER_HEATER_CFG,
+    "waterheater": _WATER_HEATER_CFG,
+    # Smart Plug
+    "smart plug": _SMART_PLUG_CFG,     # Cloud-API (funktioniert bereits)
+    "smartplug": _SMART_PLUG_CFG,      # lokale API
+    # Switch
+    "switch": _SWITCH_CFG,
 }
 
 
