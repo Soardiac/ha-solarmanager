@@ -85,9 +85,8 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
         # Geändertes Feld überschreiben (als int)
         eco[self._field] = int(round(value))
 
-        # Immer alle drei Felder zusammen setzen, plus batteryMode=1 (Eco)
+        # Nur SOC-Limits setzen – Modus wird separat via select.BatteryModeSelect gesteuert
         payload = {
-            "batteryMode": 1,
             "dischargeSocLimit": eco["dischargeSocLimit"],
             "morningSocLimit":   eco["morningSocLimit"],
             "chargingSocLimit":  eco["chargingSocLimit"],
