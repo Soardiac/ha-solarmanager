@@ -6,6 +6,9 @@ Stellt Live-Daten (PV, Verbrauch, Batterie, Netz, Geräte) und Batterie-Eco-Limi
 Verwendet die Cloud-API von Solarmanager. Du brauchst einen Account dort.
 API Doku: https://external-web.solar-manager.ch/swagger
 
+## Hinweis
+Ab v0.3.5 habe ich begonnen, unterstützt von Claude Code zu arbeiten. Wachsende Teile des Codes stammen also von KI.
+
 ## Installation
 **HACS (empfohlen)**
 1. HACS → Integrations → `+` → **Custom repositories** → URL dieses Repos, Kategorie *Integration*.
