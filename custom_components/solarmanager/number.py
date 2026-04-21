@@ -21,7 +21,7 @@ ECO_FIELDS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Generische Geräteparameter (Stufe 3a)
+# Geräteparameter-Konfig
 #
 # key          : Feldname im API-Payload und in raw.data
 # label        : Anzeigename in HA
@@ -29,8 +29,8 @@ ECO_FIELDS = [
 # min/max/step : Wertebereich
 # put_method   : Methode auf SolarmanagerCloud
 # icon         : MDI-Icon
-# carry_fields : Felder aus raw.data, die mit in den Payload müssen
-#                (z. B. weil die API sie als required deklariert)
+# carry_fields : Felder aus raw.data, die im Payload mitgesendet werden müssen
+# value_type   : "float" für Dezimalwerte (Standard: int)
 # ---------------------------------------------------------------------------
 
 _INVERTER_NUMBERS = [
@@ -70,6 +70,7 @@ _WATER_HEATER_NUMBERS = [
 ]
 
 _BATTERY_NUMBERS = [
+    # Stufe 3a – allgemeine SOC-Grenzen
     {
         "key": "upperSocLimit",
         "label": "SOC-Obergrenze",
@@ -86,6 +87,82 @@ _BATTERY_NUMBERS = [
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_battery_settings",
         "icon": "mdi:battery-arrow-down-outline",
+        "carry_fields": [],
+    },
+    # Stufe 3b – Peak-Shaving
+    {
+        "key": "peakShavingMaxGridPower",
+        "label": "Peak-Shaving Netzlimit",
+        "unit": "W",
+        "min": 0, "max": 20000, "step": 100,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:transmission-tower",
+        "carry_fields": [],
+    },
+    {
+        "key": "peakShavingRechargePower",
+        "label": "Peak-Shaving Nachladepower",
+        "unit": "W",
+        "min": 0, "max": 20000, "step": 100,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:battery-charging-outline",
+        "carry_fields": [],
+    },
+    {
+        "key": "peakShavingSocDischargeLimit",
+        "label": "Peak-Shaving SOC-Entladegrenze",
+        "unit": "%",
+        "min": 0, "max": 100, "step": 1,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:battery-arrow-down-outline",
+        "carry_fields": [],
+    },
+    {
+        "key": "peakShavingSocMaxLimit",
+        "label": "Peak-Shaving SOC-Maximum",
+        "unit": "%",
+        "min": 0, "max": 100, "step": 1,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:battery-arrow-up-outline",
+        "carry_fields": [],
+    },
+    # Stufe 3b – Manuell
+    {
+        "key": "maxChargePower",
+        "label": "Manuell Ladeleistung",
+        "unit": "W",
+        "min": 0, "max": 20000, "step": 100,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:battery-charging-high",
+        "carry_fields": [],
+    },
+    {
+        "key": "maxDischargePower",
+        "label": "Manuell Entladeleistung",
+        "unit": "W",
+        "min": 0, "max": 20000, "step": 100,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:battery-minus-outline",
+        "carry_fields": [],
+    },
+    # Stufe 3b – Tarif-Optimiert
+    {
+        "key": "tariffPriceLimit",
+        "label": "Tarif Preislimit",
+        "unit": "CHF/kWh",
+        "min": 0.0, "max": 2.0, "step": 0.01,
+        "value_type": "float",
+        "put_method": "put_battery_settings",
+        "icon": "mdi:currency-usd",
+        "carry_fields": [],
+    },
+    {
+        "key": "tariffPriceLimitSocMax",
+        "label": "Tarif SOC-Maximum",
+        "unit": "%",
+        "min": 0, "max": 100, "step": 1,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:battery-clock-outline",
         "carry_fields": [],
     },
 ]
@@ -189,7 +266,7 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
 
 
 # ---------------------------------------------------------------------------
-# Generische Number-Entität für alle anderen Geräteparameter
+# Generische Number-Entität
 # ---------------------------------------------------------------------------
 
 class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity):
@@ -207,6 +284,7 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
         self._label: str = cfg["label"]
         self._put_method: str = cfg["put_method"]
         self._carry_fields: list[str] = cfg.get("carry_fields", [])
+        self._float_value: bool = cfg.get("value_type") == "float"
 
         self._attr_native_min_value = cfg["min"]
         self._attr_native_max_value = cfg["max"]
@@ -237,9 +315,9 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
             return None
 
     async def async_set_native_value(self, value: float) -> None:
-        payload: dict[str, Any] = {self._field: int(round(value))}
+        coerced: Any = round(value, 4) if self._float_value else int(round(value))
+        payload: dict[str, Any] = {self._field: coerced}
 
-        # Pflichtfelder aus aktuellen Metadaten mitlesen
         if self._carry_fields:
             raw_data = (
                 (self.coordinator.device_meta.get(self._dev_id) or {})
