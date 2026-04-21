@@ -210,11 +210,6 @@ class DevicesOverviewSensor(_Base, SensorEntity):
             })
         dd = dict(base) if base else {}
         dd["devices"] = compact
-        # Gerätetypen aus device_meta – hilft beim Debuggen fehlender select-Entitäten
-        dd["device_types"] = {
-            dev_id: m.get("type")
-            for dev_id, m in (self.coordinator.device_meta or {}).items()
-        }
         return dd
 
 

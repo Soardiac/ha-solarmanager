@@ -55,6 +55,24 @@ _CAR_CHARGER_NUMBERS = [
         "icon": "mdi:current-ac",
         "carry_fields": ["chargingMode"],
     },
+    {
+        "key": "chargingTargetSoc",
+        "label": "Ladziel SOC",
+        "unit": "%",
+        "min": 0, "max": 100, "step": 1,
+        "put_method": "put_car_charger_mode",
+        "icon": "mdi:battery-charging-100",
+        "carry_fields": ["chargingMode"],
+    },
+    {
+        "key": "minimumChargeQuantityTargetAmount",
+        "label": "Mindestmenge",
+        "unit": "%",
+        "min": 1, "max": 100, "step": 1,
+        "put_method": "put_car_charger_mode",
+        "icon": "mdi:battery-charging-low",
+        "carry_fields": ["chargingMode"],
+    },
 ]
 
 _WATER_HEATER_NUMBERS = [
