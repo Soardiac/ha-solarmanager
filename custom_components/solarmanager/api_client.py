@@ -199,4 +199,8 @@ class SolarmanagerCloud:
         """PUT /v2/control/v2x/{sensorId}"""
         await self._put_control(f"/v2/control/v2x/{sensor_id}", payload)
 
+    async def put_inverter_settings(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v1/control/inverter/{sensorId}"""
+        await self._put_control(f"/v1/control/inverter/{sensor_id}", payload)
+
 
