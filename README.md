@@ -1,9 +1,8 @@
 # Solarmanager – Home Assistant (Custom Integration)
-
-**Inoffiziell — nicht mit Solarmanager verbunden.**
-
+**--> Inoffiziell: Die Firma Solar Manager ist für diesen Code <ins>nicht</ins> verantwortlich.**
+#
 Stellt alle Felder für alle Geräte aus der API in HA zur Verfügung.
-Verwendet die Cloud-API von Solarmanager. Du brauchst einen Account dort.
+Verwendet die Cloud-API von Solar Manager. Du brauchst einen Account dort.
 API Doku: https://external-web.solar-manager.ch/swagger
 
 Die verschiedenen Betriebsmodi können gesetzt werden. Die Modi verwenden je unterschiedliche Parameter (zB Ladegrenzen etc.), so ist das in Solarmanager gelöst. In HA sind diese verschiedenen Parameter alle sichtbar. Die Werte greifen aber nur, wenn der entsprechende Modus gesetzt ist.
