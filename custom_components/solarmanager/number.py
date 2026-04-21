@@ -33,62 +33,79 @@ ECO_FIELDS = [
 #                (z. B. weil die API sie als required deklariert)
 # ---------------------------------------------------------------------------
 
+_INVERTER_NUMBERS = [
+    {
+        "key": "activePowerLimit",
+        "label": "Einspeisebegrenzung",
+        "unit": "%",
+        "min": 0, "max": 100, "step": 1,
+        "put_method": "put_inverter_settings",
+        "icon": "mdi:transmission-tower-export",
+        "carry_fields": [],
+    },
+]
+
+_CAR_CHARGER_NUMBERS = [
+    {
+        "key": "constantCurrentSetting",
+        "label": "Konstantstrom",
+        "unit": "A",
+        "min": 6, "max": 32, "step": 1,
+        "put_method": "put_car_charger_mode",
+        "icon": "mdi:current-ac",
+        "carry_fields": ["chargingMode"],
+    },
+]
+
+_WATER_HEATER_NUMBERS = [
+    {
+        "key": "powerSettingPercent",
+        "label": "Leistung",
+        "unit": "%",
+        "min": 0, "max": 100, "step": 1,
+        "put_method": "put_water_heater_mode",
+        "icon": "mdi:water-percent",
+        "carry_fields": [],
+    },
+]
+
+_BATTERY_NUMBERS = [
+    {
+        "key": "upperSocLimit",
+        "label": "SOC-Obergrenze",
+        "unit": "%",
+        "min": 0, "max": 100, "step": 1,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:battery-arrow-up-outline",
+        "carry_fields": [],
+    },
+    {
+        "key": "lowerSocLimit",
+        "label": "SOC-Untergrenze",
+        "unit": "%",
+        "min": 0, "max": 100, "step": 1,
+        "put_method": "put_battery_settings",
+        "icon": "mdi:battery-arrow-down-outline",
+        "carry_fields": [],
+    },
+]
+
 DEVICE_NUMBER_CONFIG: dict[str, list[dict]] = {
-    "inverter": [
-        {
-            "key": "activePowerLimit",
-            "label": "Einspeisebegrenzung",
-            "unit": "%",
-            "min": 0, "max": 100, "step": 1,
-            "put_method": "put_inverter_settings",
-            "icon": "mdi:transmission-tower-export",
-            "carry_fields": [],
-        },
-    ],
-    "car charger": [
-        {
-            "key": "constantCurrentSetting",
-            "label": "Konstantstrom",
-            "unit": "A",
-            "min": 6, "max": 32, "step": 1,
-            "put_method": "put_car_charger_mode",
-            "icon": "mdi:current-ac",
-            # chargingMode ist im CarChargerPayloadSchema required –
-            # aktuellen Wert mitlesen und im Payload mitschicken
-            "carry_fields": ["chargingMode"],
-        },
-    ],
-    "water heater": [
-        {
-            "key": "powerSettingPercent",
-            "label": "Leistung",
-            "unit": "%",
-            "min": 0, "max": 100, "step": 1,
-            "put_method": "put_water_heater_mode",
-            "icon": "mdi:water-percent",
-            "carry_fields": [],
-        },
-    ],
-    "battery": [
-        {
-            "key": "upperSocLimit",
-            "label": "SOC-Obergrenze",
-            "unit": "%",
-            "min": 0, "max": 100, "step": 1,
-            "put_method": "put_battery_settings",
-            "icon": "mdi:battery-arrow-up-outline",
-            "carry_fields": [],
-        },
-        {
-            "key": "lowerSocLimit",
-            "label": "SOC-Untergrenze",
-            "unit": "%",
-            "min": 0, "max": 100, "step": 1,
-            "put_method": "put_battery_settings",
-            "icon": "mdi:battery-arrow-down-outline",
-            "carry_fields": [],
-        },
-    ],
+    # Wechselrichter
+    "inverter": _INVERTER_NUMBERS,
+    # Wallbox / Car Charger (alle bekannten Typ-Varianten)
+    "car": _CAR_CHARGER_NUMBERS,           # Cloud-API (bestätigt)
+    "car charger": _CAR_CHARGER_NUMBERS,
+    "carcharger": _CAR_CHARGER_NUMBERS,
+    "carcharging": _CAR_CHARGER_NUMBERS,   # lokale API (bestätigt)
+    "car charging": _CAR_CHARGER_NUMBERS,  # Cloud-API (bestätigt)
+    "ocpp charger": _CAR_CHARGER_NUMBERS,
+    "wallbox": _CAR_CHARGER_NUMBERS,
+    # Warmwasser
+    "water heater": _WATER_HEATER_NUMBERS,
+    "waterheater": _WATER_HEATER_NUMBERS,
+    # Batterie
+    "battery": _BATTERY_NUMBERS,
 }
 
 
