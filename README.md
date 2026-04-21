@@ -2,9 +2,11 @@
 
 **Inoffiziell — nicht mit Solarmanager verbunden.**
 
-Stellt Live-Daten (PV, Verbrauch, Batterie, Netz, Geräte) und Batterie-Eco-Limits als Entitäten bereit.
+Stellt alle Felder für alle Geräte aus der API in HA zur Verfügung.
 Verwendet die Cloud-API von Solarmanager. Du brauchst einen Account dort.
 API Doku: https://external-web.solar-manager.ch/swagger
+
+Die verschiedenen Betriebsmodi können gesetzt werden. Die Modi verwenden je unterschiedliche Parameter (zB Ladegrenzen etc.), so ist das in Solarmanager gelöst. In HA sind diese verschiedenen Parameter alle sichtbar. Die Werte greifen aber nur, wenn der entsprechende Modus gesetzt ist.
 
 ## Installation
 **HACS (empfohlen)**
@@ -18,14 +20,8 @@ API Doku: https://external-web.solar-manager.ch/swagger
 - Einstellungen → Geräte & Dienste → Integration hinzufügen → **Solarmanager**
 - E-Mail, Passwort, **Solar Manager ID (smId)** eintragen.
 
-## Entitäten (Auszug)
-- `sensor.solarmanager_*`: PV-Leistung, Verbrauch, Grid, Batterie-SOC, Tages-Energien, Gerätewerte.
-- `number.*`: *Eco Entlade-Limit*, *Eco Morgen-Limit*, *Eco Lade-Limit* (setzt `PUT /v2/control/battery/{sensorId}` mit `batteryMode=1`).
-
 ## Issues
 - Code ist für mich geschrieben, es gibt viele Dinge, die für "ein Produkt" fehlen.
 - Robusteres Refresh/Login
 - Übersetzungen
 - QA (Testing, Linting, Tools,...)
-- weitere API endpoints
-
