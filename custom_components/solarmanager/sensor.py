@@ -71,6 +71,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         if "temperature" in dev:
             device_entities.append(DeviceTemperatureSensor(coord, dev_id))
 
+        # Aktivstatus: 1=an/lädt, 0=aus, -1=entlädt
+        if "activeDevice" in dev:
+            device_entities.append(DeviceActiveStateSensor(coord, dev_id))
+
+        # Tageszähler (akkumuliert seit Mitternacht)
+        if "iWhTotal" in dev:
+            device_entities.append(DeviceDailyEnergySensor(coord, dev_id, "iWhTotal", "Tagesverbrauch"))
+        if "eWhTotal" in dev:
+            device_entities.append(DeviceDailyEnergySensor(coord, dev_id, "eWhTotal", "Tageseinspeisung"))
+
+        # Wärmepumpe: Betriebszustand
+        if "operationState" in dev:
+            device_entities.append(DeviceOperationStateSensor(coord, dev_id))
+
+        # Smart Plug / Switch / Wallbox: Schaltzustand
+        if "switchState" in dev:
+            device_entities.append(DeviceSwitchStateSensor(coord, dev_id))
+
+        # Heizungskorrektur
+        if "heatingAdjustment" in dev:
+            device_entities.append(DeviceHeatingAdjustmentSensor(coord, dev_id))
+
+        # EV: Restreichweite
+        if "remainingRange" in dev:
+            device_entities.append(DeviceRemainingRangeSensor(coord, dev_id))
+
     async_add_entities(site_entities + device_entities, True)
 
 
@@ -302,6 +328,116 @@ class DeviceTemperatureSensor(_DeviceBase):
     def native_value(self) -> Optional[float]:
         d = self._dev()
         v = d.get("temperature") if d else None
+        try:
+            return float(v) if v is not None else None
+        except Exception:
+            return None
+
+
+class DeviceActiveStateSensor(_DeviceBase):
+    """Aktivstatus: 1 = an/lädt, 0 = aus, -1 = entlädt."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:play-circle-outline"
+
+    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
+        super().__init__(coordinator, dev_id, "activeDevice", "Aktivstatus")
+
+    @property
+    def native_value(self) -> Optional[int]:
+        d = self._dev()
+        v = d.get("activeDevice") if d else None
+        try:
+            return int(v) if v is not None else None
+        except Exception:
+            return None
+
+
+class DeviceDailyEnergySensor(_DeviceBase):
+    """Tageszähler (Wh), akkumuliert seit Mitternacht; TOTAL_INCREASING toleriert den Rücksetzer."""
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = "Wh"
+
+    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str, key: str, label: str):
+        super().__init__(coordinator, dev_id, key, label)
+
+    @property
+    def native_value(self) -> Optional[float]:
+        d = self._dev()
+        v = d.get(self._key) if d else None
+        try:
+            return float(v) if v is not None else None
+        except Exception:
+            return None
+
+
+class DeviceOperationStateSensor(_DeviceBase):
+    """Numerischer Betriebszustand (Wärmepumpen-spezifisch)."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:state-machine"
+
+    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
+        super().__init__(coordinator, dev_id, "operationState", "Betriebszustand")
+
+    @property
+    def native_value(self) -> Optional[int]:
+        d = self._dev()
+        v = d.get("operationState") if d else None
+        try:
+            return int(v) if v is not None else None
+        except Exception:
+            return None
+
+
+class DeviceSwitchStateSensor(_DeviceBase):
+    """Schaltzustand (Smart Plug / Switch / Wallbox)."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:toggle-switch"
+
+    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
+        super().__init__(coordinator, dev_id, "switchState", "Schaltzustand")
+
+    @property
+    def native_value(self) -> Optional[int]:
+        d = self._dev()
+        v = d.get("switchState") if d else None
+        try:
+            return int(v) if v is not None else None
+        except Exception:
+            return None
+
+
+class DeviceHeatingAdjustmentSensor(_DeviceBase):
+    """Heizungskorrekturwert."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer-auto"
+
+    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
+        super().__init__(coordinator, dev_id, "heatingAdjustment", "Heizungskorrektur")
+
+    @property
+    def native_value(self) -> Optional[float]:
+        d = self._dev()
+        v = d.get("heatingAdjustment") if d else None
+        try:
+            return float(v) if v is not None else None
+        except Exception:
+            return None
+
+
+class DeviceRemainingRangeSensor(_DeviceBase):
+    """Restreichweite des EV in km."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "km"
+    _attr_icon = "mdi:car-electric"
+
+    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
+        super().__init__(coordinator, dev_id, "remainingRange", "Restreichweite")
+
+    @property
+    def native_value(self) -> Optional[float]:
+        d = self._dev()
+        v = d.get("remainingRange") if d else None
         try:
             return float(v) if v is not None else None
         except Exception:
