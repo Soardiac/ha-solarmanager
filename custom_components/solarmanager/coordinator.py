@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -50,6 +51,10 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Cache für Geräte-Metadaten: exakt per _id
         self.device_meta: dict[str, dict] = {}
         self._meta_last: float = 0.0
+
+        # Tages-Statistiken (production, consumption, …)
+        self._stats_data: dict[str, Any] = {}
+        self._stats_last: float = 0.0
 
     async def _async_setup(self) -> None:
         if self.client:
@@ -123,6 +128,22 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._load_device_meta()
         await self.async_request_refresh()
 
+    async def _load_gateway_stats(self) -> None:
+        """Tages-Statistiken via GET /v1/statistics/gateways/{smId} laden (alle 5 min)."""
+        if not self.client:
+            return
+        try:
+            now = dt_util.now()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            from_dt = dt_util.as_utc(today_start).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            to_dt = dt_util.as_utc(now).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            data = await self.client.get_gateway_statistics(from_dt, to_dt, "high")
+            self._stats_data = data
+            self._stats_last = time.time()
+            _LOGGER.debug("Gateway stats loaded: %s", data)
+        except Exception as e:
+            _LOGGER.debug("Could not fetch gateway statistics: %s", e)
+
     async def _async_update_data(self) -> dict[str, Any]:
         try:
             await self._async_setup()
@@ -184,6 +205,16 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Meta bei jedem Stream-Poll auffrischen
             if time.time() - self._meta_last > 10:
                 await self._load_device_meta()
+
+            # Tages-Statistiken alle 5 Minuten neu laden
+            if time.time() - self._stats_last > 300:
+                await self._load_gateway_stats()
+
+            data["stat_production"] = self._stats_data.get("production")
+            data["stat_consumption"] = self._stats_data.get("consumption")
+            data["stat_self_consumption"] = self._stats_data.get("selfConsumption")
+            data["stat_self_consumption_rate"] = self._stats_data.get("selfConsumptionRate")
+            data["stat_autarchy_degree"] = self._stats_data.get("autarchyDegree")
 
             return data
 

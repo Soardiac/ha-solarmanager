@@ -35,6 +35,16 @@ ENERGY_SENSORS = [
     ("bdWh", "Batterie entladen (Interval)", "Wh"),
 ]
 
+# Tages-Statistiken aus /v1/statistics/gateways/{smId}
+# (key, name, unit, device_class, state_class)
+STATS_SENSORS = [
+    ("stat_production",           "PV Tageserzeugung",    "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_consumption",          "Verbrauch heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_self_consumption",     "Eigenverbrauch heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_self_consumption_rate","Eigenverbrauchsquote",  "%",  None,                      SensorStateClass.MEASUREMENT),
+    ("stat_autarchy_degree",      "Autarkiegrad",          "%",  None,                      SensorStateClass.MEASUREMENT),
+]
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: SolarmanagerCoordinator = hass.data[DOMAIN][entry.entry_id]
 
@@ -42,6 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     site_entities: list[SensorEntity] = [
         *(SolarmanagerPowerSensor(coord, *spec) for spec in POWER_SENSORS),
         *(SolarmanagerEnergySensor(coord, key, name, unit) for key, name, unit in ENERGY_SENSORS),
+        *(SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS),
         SocSensor(coord),
         DevicesOverviewSensor(coord),
     ]
@@ -158,6 +169,32 @@ class SolarmanagerEnergySensor(_Base, SensorEntity):
         v = (self.coordinator.data or {}).get(self._key)
         try:
             return float(v) if v is not None else None
+        except Exception:
+            return None
+
+
+class SolarmanagerStatsSensor(_Base, SensorEntity):
+    """Tages-Statistik-Sensor (production, consumption, … aus /v1/statistics/gateways)."""
+
+    def __init__(
+        self,
+        coordinator: SolarmanagerCoordinator,
+        key: str,
+        name: str,
+        unit: str,
+        device_class,
+        state_class,
+    ) -> None:
+        super().__init__(coordinator, key, name)
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
+        self._attr_state_class = state_class
+
+    @property
+    def native_value(self) -> Optional[float]:
+        v = (self.coordinator.data or {}).get(self._key)
+        try:
+            return round(float(v), 2) if v is not None else None
         except Exception:
             return None
 

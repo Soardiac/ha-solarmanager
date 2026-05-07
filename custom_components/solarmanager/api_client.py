@@ -203,4 +203,27 @@ class SolarmanagerCloud:
         """PUT /v1/control/inverter/{sensorId}"""
         await self._put_control(f"/v1/control/inverter/{sensor_id}", payload)
 
+    async def get_gateway_statistics(
+        self, from_dt: str, to_dt: str, accuracy: str = "high"
+    ) -> dict:
+        """GET /v1/statistics/gateways/{smId}?from=...&to=...&accuracy=...
+
+        accuracy: 'low' (>1 month), 'medium' (<=1 month), 'high' (<=1 week)
+        Returns: production, consumption, selfConsumption (Wh), selfConsumptionRate, autarchyDegree (%)
+        """
+        await self._ensure_token()
+        url = f"{self._base}/v1/statistics/gateways/{self.sm_id}"
+        params = {"from": from_dt, "to": to_dt, "accuracy": accuracy}
+        async with self._s.get(
+            url, headers=self._bearer_headers(), params=params, timeout=30
+        ) as r:
+            if r.status == 401:
+                raise SolarmanagerAuthError("Unauthorized")
+            if r.status == 429:
+                raise SolarmanagerRateLimit("Rate limited")
+            if r.status >= 400:
+                text = await r.text()
+                raise SolarmanagerApiError(f"GET statistics failed {r.status}: {text}")
+            return await r.json()
+
 
