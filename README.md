@@ -21,6 +21,3 @@ Die verschiedenen Betriebsmodi können gesetzt werden. Die Modi verwenden je unt
 
 ## Issues
 - Code ist für mich geschrieben, es gibt viele Dinge, die für "ein Produkt" fehlen.
-- Robusteres Refresh/Login
-- Übersetzungen
-- QA (Testing, Linting, Tools,...)
