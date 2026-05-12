@@ -13,6 +13,15 @@
           "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
           "api_key": "Nur erforderlich wenn Basic-Auth statt OAuth genutzt wird."
         }
+      },
+      "reauth_confirm": {
+        "title": "Solarmanager erneut authentifizieren",
+        "description": "Zugangsdaten für System **{sm_id}** aktualisieren.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "api_key": "API-Key (optional)"
+        }
       }
     },
     "error": {
@@ -21,7 +30,8 @@
       "unknown": "Unbekannter Fehler. Bitte Logs prüfen."
     },
     "abort": {
-      "already_configured": "Dieses Solarmanager-System ist bereits eingerichtet."
+      "already_configured": "Dieses Solarmanager-System ist bereits eingerichtet.",
+      "reauth_successful": "Erneute Authentifizierung erfolgreich. Die Integration wird neu geladen."
     }
   },
   "options": {

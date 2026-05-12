@@ -46,7 +46,7 @@ STATS_SENSORS = [
 ]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
-    coord: SolarmanagerCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coord: SolarmanagerCoordinator = entry.runtime_data
 
     # Site-Sensoren
     site_entities: list[SensorEntity] = [

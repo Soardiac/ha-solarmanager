@@ -1,11 +1,17 @@
 # config_flow.py
 from __future__ import annotations
 
+import logging
+from collections.abc import Mapping
+from typing import Any
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+_LOGGER = logging.getLogger(__name__)
 
 from .const import (
     DOMAIN,
@@ -72,6 +78,60 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "unknown"
 
         return self.async_show_form(step_id="user", data_schema=_schema_user(user_input), errors=errors)
+
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
+        """Einstiegspunkt wenn HA ConfigEntryAuthFailed erkennt."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None) -> FlowResult:
+        """Formular: neue Zugangsdaten eingeben."""
+        reauth_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            session = async_get_clientsession(self.hass)
+            try:
+                client = SolarmanagerCloud(
+                    session,
+                    base=CLOUD_BASE,
+                    email=user_input[CONF_EMAIL],
+                    password=user_input[CONF_PASSWORD],
+                    sm_id=reauth_entry.data[CONF_SM_ID],
+                    api_key=user_input.get(CONF_API_KEY) or None,
+                )
+                await client.login()
+            except SolarmanagerAuthError:
+                errors["base"] = "auth"
+            except SolarmanagerApiError:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during reauth")
+                errors["base"] = "unknown"
+            else:
+                self.hass.config_entries.async_update_entry(
+                    reauth_entry,
+                    data={
+                        **reauth_entry.data,
+                        CONF_EMAIL: user_input[CONF_EMAIL],
+                        CONF_PASSWORD: user_input[CONF_PASSWORD],
+                        CONF_API_KEY: user_input.get(CONF_API_KEY) or None,
+                    },
+                )
+                await self.hass.config_entries.async_reload(reauth_entry.entry_id)
+                return self.async_abort(reason="reauth_successful")
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({
+                vol.Required(CONF_EMAIL, default=reauth_entry.data.get(CONF_EMAIL, "")): str,
+                vol.Required(CONF_PASSWORD): str,
+                vol.Optional(CONF_API_KEY, default=reauth_entry.data.get(CONF_API_KEY, "")): str,
+            }),
+            errors=errors,
+            description_placeholders={"sm_id": reauth_entry.data.get(CONF_SM_ID, "")},
+        )
 
     @staticmethod
     def async_get_options_flow(config_entry):

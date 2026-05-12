@@ -20,7 +20,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coord: SolarmanagerCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coord: SolarmanagerCoordinator = entry.runtime_data
 
     entities: list[BinarySensorEntity] = []
     for dev in (coord.data or {}).get("devices", []):

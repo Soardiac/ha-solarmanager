@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -218,7 +219,9 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             return data
 
-        except (SolarmanagerAuthError, SolarmanagerRateLimit, SolarmanagerApiError) as err:
+        except SolarmanagerAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
+        except (SolarmanagerRateLimit, SolarmanagerApiError) as err:
             raise UpdateFailed(str(err)) from err
         except Exception as err:
             _LOGGER.exception("Unexpected error in update: %s", err)

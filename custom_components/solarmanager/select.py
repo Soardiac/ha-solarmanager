@@ -175,7 +175,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coord: SolarmanagerCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coord: SolarmanagerCoordinator = entry.runtime_data
 
     entities: list[SelectEntity] = []
     for dev_id, meta in coord.device_meta.items():

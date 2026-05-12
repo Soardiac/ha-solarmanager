@@ -20,7 +20,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coord.async_config_entry_first_refresh()
 
     # Für Plattformen verfügbar machen (sensor.py / number.py lesen hier raus)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coord
+    entry.runtime_data = coord
 
     # Plattformen laden (nimmt PLATFORMS aus const.py, z. B. ["sensor", "number"])
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -36,7 +36,4 @@ async def _reload_on_update(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload Solarmanager config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

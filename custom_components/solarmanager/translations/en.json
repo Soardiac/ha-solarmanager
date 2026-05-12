@@ -13,6 +13,15 @@
           "sm_id": "The smId of your Solarmanager system from the cloud interface.",
           "api_key": "Only required if Basic Auth is used instead of OAuth."
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Solarmanager",
+        "description": "Update credentials for system **{sm_id}**.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "api_key": "API Key (optional)"
+        }
       }
     },
     "error": {
@@ -21,7 +30,8 @@
       "unknown": "Unexpected error. Please check the logs."
     },
     "abort": {
-      "already_configured": "This Solarmanager system is already configured."
+      "already_configured": "This Solarmanager system is already configured.",
+      "reauth_successful": "Re-authentication successful. The integration will reload."
     }
   },
   "options": {
