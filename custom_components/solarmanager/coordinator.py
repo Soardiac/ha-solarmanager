@@ -222,8 +222,12 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except SolarmanagerAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except (SolarmanagerRateLimit, SolarmanagerApiError) as err:
+            if self.last_update_success:
+                _LOGGER.warning("Solarmanager not available: %s", err)
             raise UpdateFailed(str(err)) from err
         except Exception as err:
-            _LOGGER.exception("Unexpected error in update: %s", err)
+            if self.last_update_success:
+                _LOGGER.warning("Unexpected error updating Solarmanager: %s", err)
+            _LOGGER.debug("Traceback:", exc_info=True)
             raise UpdateFailed(f"Unexpected: {err}") from err
 

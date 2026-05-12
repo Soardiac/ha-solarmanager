@@ -11,6 +11,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, CONF_SM_ID
 from .coordinator import SolarmanagerCoordinator
 
+PARALLEL_UPDATES = 1
+
 # ---------------------------------------------------------------------------
 # Konfig-Objekte für Hauptmodi (ein Select pro Gerät)
 # key  = device.type.lower() aus /v1/info/sensors

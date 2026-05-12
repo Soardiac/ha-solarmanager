@@ -4,7 +4,7 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, device_registry as dr
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import SolarmanagerCoordinator
@@ -37,3 +37,17 @@ async def _reload_on_update(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload Solarmanager config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    device_entry: dr.DeviceEntry,
+) -> bool:
+    """Allow removing a device if it is no longer reported by the API."""
+    coord: SolarmanagerCoordinator = config_entry.runtime_data
+    for domain, identifier in device_entry.identifiers:
+        if domain == DOMAIN and identifier.startswith("device_"):
+            dev_id = identifier[7:]
+            return dev_id not in coord.device_meta
+    return True

@@ -15,6 +15,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, CONF_SM_ID, MANUFACTURER, MODEL
 from .coordinator import SolarmanagerCoordinator
 
+PARALLEL_UPDATES = 1
+
 # --- Site-weite Sensoren (aus dem Stream, Einheiten direkt übernehmen) ---
 
 POWER_SENSORS = [

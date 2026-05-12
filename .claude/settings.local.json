@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\soard\\\\dev\\\\ha-solarmanager\" -Recurse -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\soard\\\\dev\\\\ha-solarmanager\\\\custom_components\\\\solarmanager\" -File)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\soard\\\\dev\\\\ha-solarmanager\" -Force)",
+      "Bash(git -C \"c:\\\\Users\\\\soard\\\\dev\\\\ha-solarmanager\" add custom_components/solarmanager/__init__.py custom_components/solarmanager/binary_sensor.py custom_components/solarmanager/config_flow.py custom_components/solarmanager/coordinator.py custom_components/solarmanager/number.py custom_components/solarmanager/select.py custom_components/solarmanager/sensor.py custom_components/solarmanager/strings.json custom_components/solarmanager/translations/en.json pytest.ini requirements_test.txt tests/)",
+      "Bash(git -C 'c:\\\\Users\\\\soard\\\\dev\\\\ha-solarmanager' commit -m ' *)",
+      "Bash(git -C 'c:\\\\Users\\\\soard\\\\dev\\\\ha-solarmanager' -c user.email=soardiac@gmail.com -c user.name=Soardiac commit -m ' *)"
+    ]
+  }
+}

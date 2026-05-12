@@ -10,6 +10,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, CONF_SM_ID
 from .coordinator import SolarmanagerCoordinator
 
+PARALLEL_UPDATES = 1
+
 # ---------------------------------------------------------------------------
 # Batterie Eco-Limits (bestehend, eigene Klasse für Rückwärtskompatibilität)
 # ---------------------------------------------------------------------------
