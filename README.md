@@ -21,3 +21,4 @@ Die verschiedenen Betriebsmodi können gesetzt werden. Die Modi verwenden je unt
 
 ## Issues
 - Code ist für mich geschrieben, es gibt viele Dinge, die für "ein Produkt" fehlen.
+- Ich habe einige Qualitätsaspekte eingebaut, damit es sauberer ist. Ich orientiere mich an https://www.home-assistant.io/docs/quality_scale/, Silver Level sollte erfüllt sein.
