@@ -5,7 +5,7 @@
 Bindet die [Solar Manager](https://www.solar-manager.ch/) Cloud-API in Home Assistant ein. Alle Sensordaten, Betriebsmodi und Geräteparameter stehen als HA-Entitäten zur Verfügung.
 
 - **API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) (Cloud Polling, kein lokaler Zugriff)
-- **HA Quality Scale**: Bronze ✔ · Silver ✔
+- **HA Quality Scale**: Bronze 95% · Silver 80%
 
 ---
 
