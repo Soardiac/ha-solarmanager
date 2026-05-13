@@ -46,8 +46,8 @@ rules:
     comment: README documents both HACS and manual installation paths.
 
   docs-removal:
-    status: todo
-    comment: README does not yet describe how to remove the integration.
+    status: done
+    comment: README has a Deinstallation section with UI, HACS, and manual removal steps.
 
   entity-event-setup:
     status: done
@@ -108,8 +108,8 @@ rules:
     comment: Coordinator raises UpdateFailed / ConfigEntryAuthFailed correctly, but platform entity classes do not override the available property; relies on CoordinatorEntity default.
 
   integration-owner:
-    status: todo
-    comment: manifest.json lists @Soardiac as codeowner, but no CODEOWNERS file exists at the repository root.
+    status: done
+    comment: CODEOWNERS file at repo root assigns @Soardiac; manifest.json also lists @Soardiac.
 
   log-when-unavailable:
     status: done

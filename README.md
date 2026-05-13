@@ -297,6 +297,14 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 
 ---
 
+## Deinstallation
+
+1. Einstellungen → Geräte & Dienste → **Solarmanager** → `⋮` → **Löschen**
+2. Home Assistant neu starten
+3. Den Ordner `custom_components/solarmanager` aus `<config>/custom_components/` entfernen (bei manueller Installation) oder die Integration in HACS deinstallieren
+
+---
+
 ## Issues & Beiträge
 
 Fehler und Feature-Requests bitte im [Issue Tracker](https://github.com/Soardiac/ha-solarmanager/issues) melden.
