@@ -5,7 +5,7 @@
 Bindet die [Solar Manager](https://www.solar-manager.ch/) Cloud-API in Home Assistant ein. Alle Sensordaten, Betriebsmodi und Geräteparameter stehen als HA-Entitäten zur Verfügung.
 
 - **API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) (Cloud Polling, kein lokaler Zugriff)
-- **HA Quality Scale**: Bronze ✔ · Silver ✔
+- **HA Quality Scale**: Bronze 95% · Silver 80%
 
 ---
 
@@ -294,6 +294,14 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 - **Gerätetypen**: Werden automatisch aus der API erkannt. Unbekannte Typen bekommen keine Steuerentitäten, aber alle verfügbaren Sensoren.
 - **Cloud-Abhängigkeit**: Die Integration kommuniziert ausschliesslich über die Solar Manager Cloud. Bei Cloud-Ausfall sind alle Werte nicht verfügbar.
 - **API-Doku**: [Swagger](https://external-web.solar-manager.ch/swagger)
+
+---
+
+## Deinstallation
+
+1. Einstellungen → Geräte & Dienste → **Solarmanager** → `⋮` → **Löschen**
+2. Home Assistant neu starten
+3. Den Ordner `custom_components/solarmanager` aus `<config>/custom_components/` entfernen (bei manueller Installation) oder die Integration in HACS deinstallieren
 
 ---
 
