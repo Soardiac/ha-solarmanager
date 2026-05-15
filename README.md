@@ -160,8 +160,9 @@ Gerätetypen: `car`, `car charger`, `carcharger`, `car charging`, `carcharging`,
 | 3 | Nie laden |
 | 4 | Konstanter Strom |
 | 5 | Minimal & Solar |
-| 6 | Mindestmenge |
-| 7 | Ladeziel |
+| 6 | Ladeziel (kWh) |
+| 7 | Ladeziel (SoC) |
+| 8 | Aria |
 
 #### V2X
 
@@ -274,11 +275,15 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 
 #### Wallbox / Car Charger
 
-| Parameter | Einheit | Bereich |
-|---|---|---|
-| Konstantstrom | A | 6 – 32 |
-| Ladziel SOC | % | 0 – 100 |
-| Mindestmenge | % | 1 – 100 |
+| Parameter | Einheit | Bereich | Modus |
+|---|---|---|---|
+| Konstantstrom | A | 6 – 32 | Konstanter Strom |
+| Ladeziel SOC | % | 0 – 100 | Ladeziel (SoC) |
+| Ladeziel SOC Maximum | % | 0 – 100 | Ladeziel (SoC) |
+| Ladeziel SOC Termin | Datum/Zeit | ISO-Datetime | Ladeziel (SoC) |
+| Ladeziel kWh Menge | % | 1 – 100 | Ladeziel (kWh) |
+| Ladeziel kWh Maximum | % | 0 – 100 | Ladeziel (kWh) |
+| Ladeziel kWh Termin | Datum/Zeit | ISO-Datetime | Ladeziel (kWh) |
 
 #### Warmwasser
 
