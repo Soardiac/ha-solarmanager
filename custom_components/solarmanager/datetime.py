@@ -95,7 +95,7 @@ class DeviceDateTimeEntity(CoordinatorEntity[SolarmanagerCoordinator], DateTimeE
             return None
 
     async def async_set_value(self, value: datetime) -> None:
-        iso = value.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        iso = dt_util.as_utc(value).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         payload: dict[str, Any] = {self._field: iso}
         if self._carry_fields:
             raw_data = (
