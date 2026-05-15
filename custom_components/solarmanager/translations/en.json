@@ -38,10 +38,13 @@
     "step": {
       "init": {
         "title": "Options",
+        "description": "Cloud API Key: {api_key_status}",
         "data": {
+          "api_key": "Cloud API Key",
           "scan_interval": "Polling interval (seconds)"
         },
         "data_description": {
+          "api_key": "Leave empty to keep existing credentials. Enter a new key to switch to API Key authentication or replace the existing one.",
           "scan_interval": "How often the API is polled. Recommended: 10 seconds."
         }
       }

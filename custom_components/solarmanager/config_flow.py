@@ -140,10 +140,50 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None) -> FlowResult:
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+        errors: dict[str, str] = {}
 
+        if user_input is not None:
+            api_key = (user_input.get(CONF_API_KEY) or "").strip() or None
+
+            if api_key:
+                session = async_get_clientsession(self.hass)
+                current = self.config_entry.data
+                client = SolarmanagerCloud(
+                    session,
+                    base=CLOUD_BASE,
+                    email=current.get(CONF_EMAIL, ""),
+                    password=current.get(CONF_PASSWORD, ""),
+                    sm_id=current[CONF_SM_ID],
+                    api_key=api_key,
+                )
+                try:
+                    await client.login()
+                except SolarmanagerAuthError:
+                    errors["base"] = "auth"
+                except SolarmanagerApiError:
+                    errors["base"] = "cannot_connect"
+                except Exception:
+                    _LOGGER.exception("Unexpected error validating API key")
+                    errors["base"] = "unknown"
+                else:
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry,
+                        data={**self.config_entry.data, CONF_API_KEY: api_key},
+                    )
+
+            if not errors:
+                return self.async_create_entry(
+                    title="", data={CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL]}
+                )
+
+        has_api_key = bool(self.config_entry.data.get(CONF_API_KEY))
         schema = vol.Schema({
+            vol.Optional(CONF_API_KEY, default=""): str,
             vol.Optional(CONF_SCAN_INTERVAL, default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN)): int,
         })
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"api_key_status": "gesetzt ✓" if has_api_key else "nicht gesetzt"},
+        )

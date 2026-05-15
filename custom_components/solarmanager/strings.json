@@ -38,10 +38,13 @@
     "step": {
       "init": {
         "title": "Optionen",
+        "description": "Cloud API Key: {api_key_status}",
         "data": {
+          "api_key": "Cloud API Key",
           "scan_interval": "Abfrageintervall (Sekunden)"
         },
         "data_description": {
+          "api_key": "Leer lassen um bestehende Zugangsdaten zu behalten. Neuen Key eingeben um auf API-Key-Authentifizierung umzusteigen oder den bestehenden zu ersetzen.",
           "scan_interval": "Wie oft die API abgefragt wird. Empfohlen: 10 Sekunden."
         }
       }
