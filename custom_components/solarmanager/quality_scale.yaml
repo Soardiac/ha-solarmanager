@@ -1,0 +1,128 @@
+rules:
+  # ── Bronze ──────────────────────────────────────────────────────────────
+
+  action-setup:
+    status: exempt
+    comment: Integration registers no actions/services.
+
+  appropriate-polling:
+    status: done
+    comment: DataUpdateCoordinator with configurable interval (default 10 s, adjustable via options flow).
+
+  brands:
+    status: exempt
+    comment: Custom component – no brands directory required.
+
+  common-modules:
+    status: done
+    comment: Standard filenames used (sensor.py, binary_sensor.py, number.py, select.py, config_flow.py, coordinator.py, diagnostics.py).
+
+  config-flow:
+    status: done
+    comment: ConfigFlow with async_step_user, duplicate check, and options flow for scan interval.
+
+  config-flow-test-coverage:
+    status: done
+    comment: tests/test_config_flow.py covers user flow success/failure and re-auth flow.
+
+  dependency-transparency:
+    status: done
+    comment: No external PyPI dependencies; only HA built-in libraries used.
+
+  diagnostics:
+    status: done
+    comment: diagnostics.py implements async_get_config_entry_diagnostics with full credential redaction.
+
+  docs-actions:
+    status: exempt
+    comment: Integration registers no actions/services.
+
+  docs-high-level-description:
+    status: done
+    comment: README opens with a clear description of the integration's purpose.
+
+  docs-installation:
+    status: done
+    comment: README documents both HACS and manual installation paths.
+
+  docs-removal:
+    status: done
+    comment: README has a Deinstallation section with UI, HACS, and manual removal steps.
+
+  entity-event-setup:
+    status: done
+    comment: Entities are added via async_add_entities in async_setup_entry, not in __init__.
+
+  entity-translations:
+    status: todo
+    comment: Entity labels are hardcoded strings; translation_key not yet used in platform classes.
+
+  entity-unique-id:
+    status: done
+    comment: All entities set _attr_unique_id from entry.entry_id + sensor key/device id.
+
+  has-entity-name:
+    status: done
+    comment: All entity classes set _attr_has_entity_name = True.
+
+  icon-translations:
+    status: todo
+    comment: No icons.json; icons are defined inline. Requires adding icons.json with per-entity icon mapping.
+
+  inject-websession:
+    status: done
+    comment: async_get_clientsession() used in coordinator and config flow instead of creating a raw aiohttp session.
+
+  test-before-configure:
+    status: done
+    comment: config_flow.py calls client.login() and stream_user_v3() before creating the config entry.
+
+  test-before-setup:
+    status: done
+    comment: _async_setup() in coordinator re-runs login on first update; auth failures raise ConfigEntryAuthFailed immediately.
+
+  unique-config-entry:
+    status: done
+    comment: async_set_unique_id() + _abort_if_unique_id_configured() prevent duplicate entries per sm_id.
+
+  # ── Silver ──────────────────────────────────────────────────────────────
+
+  action-exceptions:
+    status: exempt
+    comment: Integration registers no actions/services.
+
+  config-entry-unloading:
+    status: done
+    comment: async_unload_entry() delegates to hass.config_entries.async_unload_platforms().
+
+  docs-configuration-parameters:
+    status: done
+    comment: README documents all config parameters (email, password, sm_id, api_key) and the scan_interval option.
+
+  docs-installation-parameters:
+    status: done
+    comment: README documents prerequisites (HA ≥ 2024.1, Solar Manager cloud account, sm_id).
+
+  entity-unavailable:
+    status: todo
+    comment: Coordinator raises UpdateFailed / ConfigEntryAuthFailed correctly, but platform entity classes do not override the available property; relies on CoordinatorEntity default.
+
+  integration-owner:
+    status: done
+    comment: CODEOWNERS file at repo root assigns @Soardiac; manifest.json also lists @Soardiac.
+
+  log-when-unavailable:
+    status: done
+    comment: coordinator.py logs a warning on the first failed update (guarded by last_update_success check).
+
+  parallel-updates:
+    status: done
+    comment: PARALLEL_UPDATES = 1 set in sensor.py, binary_sensor.py, number.py, select.py.
+
+  reauthentication-flow:
+    status: done
+    comment: config_flow.py implements async_step_reauth / async_step_reauth_confirm; triggered automatically on ConfigEntryAuthFailed.
+
+  test-coverage:
+    status: todo
+    comment: Config flow tests exist, but coordinator, platform entity creation, and API client are not yet covered.
