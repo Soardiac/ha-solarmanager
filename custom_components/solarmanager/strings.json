@@ -11,12 +11,12 @@
         },
         "data_description": {
           "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
-          "api_key": "Cloud API Key für moderne Authentifizierung (empfohlen). Zu finden in den Profileinstellungen unter „Cloud API Keys". Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), „Erneuerung erlauben" NICHT aktivieren. Wichtig: Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
+          "api_key": "Cloud API Key für moderne Authentifizierung (empfohlen). Zu finden in den Profileinstellungen unter «Cloud API Keys». Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Wichtig: Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
         }
       },
       "reauth_confirm": {
         "title": "Solarmanager erneut authentifizieren",
-        "description": "Zugangsdaten für System **{sm_id}** aktualisieren.\n\nEmpfohlen: API Key aus den Profileinstellungen → „Cloud API Keys". Token ohne Enddatum, alle vier Scopes (read, write, externalOverride:read, externalOverride:write), „Erneuerung erlauben" NICHT aktivieren. Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!\n\nHinweis: Falls der API-Key-Bereich noch nicht sichtbar ist, beim Support melden — das Feature wird auf Anfrage freigeschaltet.",
+        "description": "Zugangsdaten für System **{sm_id}** aktualisieren.\n\nEmpfohlen: API Key aus den Profileinstellungen → «Cloud API Keys». Token ohne Enddatum, alle vier Scopes (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!\n\nHinweis: Falls der API-Key-Bereich noch nicht sichtbar ist, beim Support melden — das Feature wird auf Anfrage freigeschaltet.",
         "data": {
           "email": "E-Mail",
           "password": "Passwort",
