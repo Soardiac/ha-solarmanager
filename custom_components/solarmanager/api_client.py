@@ -1,10 +1,13 @@
 # api_client.py
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Dict, Optional
 
 import aiohttp
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class SolarmanagerAuthError(Exception):
@@ -56,6 +59,7 @@ class SolarmanagerCloud:
 
     async def _exchange_api_key(self) -> None:
         """POST /v3/auth/refresh — API Key als Refresh Token → Access Token (24h)."""
+        _LOGGER.debug("Auth: using /v3/auth/refresh (API Key)")
         url = f"{self._base}/v3/auth/refresh"
         async with self._s.post(
             url,
@@ -76,6 +80,7 @@ class SolarmanagerCloud:
 
     async def _login_v1(self) -> None:
         """POST /v1/oauth/login (Fallback; gültig bis 30.06.2027)."""
+        _LOGGER.debug("Auth: using /v1/oauth/login (email/password fallback)")
         url = f"{self._base}/v1/oauth/login"
         async with self._s.post(
             url,
