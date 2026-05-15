@@ -40,9 +40,9 @@ ENERGY_SENSORS = [
 # Tages-Statistiken aus /v1/statistics/gateways/{smId}
 # (key, name, unit, device_class, state_class)
 STATS_SENSORS = [
-    ("stat_production",           "PV Tageserzeugung",    "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
-    ("stat_consumption",          "Verbrauch heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
-    ("stat_self_consumption",     "Eigenverbrauch heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_production",           "PV Tageserzeugung",    "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL),
+    ("stat_consumption",          "Verbrauch heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL),
+    ("stat_self_consumption",     "Eigenverbrauch heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL),
     ("stat_self_consumption_rate","Eigenverbrauchsquote",  "%",  None,                      SensorStateClass.MEASUREMENT),
     ("stat_autarchy_degree",      "Autarkiegrad",          "%",  None,                      SensorStateClass.MEASUREMENT),
 ]
@@ -158,7 +158,7 @@ class SolarmanagerPowerSensor(_Base, SensorEntity):
 
 
 class SolarmanagerEnergySensor(_Base, SensorEntity):
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_device_class = SensorDeviceClass.ENERGY
 
     def __init__(self, coordinator: SolarmanagerCoordinator, key: str, name: str, unit: str = "kWh"):
@@ -322,7 +322,7 @@ class DevicePowerSensor(_DeviceBase):
 
 class DeviceEnergySensor(_DeviceBase):
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_native_unit_of_measurement = "kWh"
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str, *, key: str, label: str):
@@ -392,9 +392,9 @@ class DeviceActiveStateSensor(_DeviceBase):
 
 
 class DeviceDailyEnergySensor(_DeviceBase):
-    """Tageszähler (Wh), akkumuliert seit Mitternacht; TOTAL_INCREASING toleriert den Rücksetzer."""
+    """Tageszähler (Wh), akkumuliert seit Mitternacht."""
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_native_unit_of_measurement = "Wh"
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str, key: str, label: str):
@@ -405,7 +405,8 @@ class DeviceDailyEnergySensor(_DeviceBase):
         d = self._dev()
         v = d.get(self._key) if d else None
         try:
-            return float(v) if v is not None else None
+            f = float(v) if v is not None else None
+            return None if f is not None and f < 0 else f
         except Exception:
             return None
 

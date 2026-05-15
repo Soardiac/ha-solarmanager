@@ -6,7 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 
-from .const import DOMAIN, PLATFORMS
+from .const import DOMAIN, PLATFORMS, CONF_SM_ID, MANUFACTURER, MODEL
 from .coordinator import SolarmanagerCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,10 +19,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coord = SolarmanagerCoordinator(hass, entry)
     await coord.async_config_entry_first_refresh()
 
-    # Für Plattformen verfügbar machen (sensor.py / number.py lesen hier raus)
     entry.runtime_data = coord
 
-    # Plattformen laden (nimmt PLATFORMS aus const.py, z. B. ["sensor", "number"])
+    # Site-Gerät explizit registrieren bevor Plattformen geladen werden,
+    # damit via_device-Referenzen in number/select/datetime/binary_sensor greifen.
+    sm_id = entry.data.get(CONF_SM_ID, "unknown")
+    registry = dr.async_get(hass)
+    registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"site_{sm_id}")},
+        name=f"Solarmanager {sm_id}",
+        manufacturer=MANUFACTURER,
+        model=MODEL,
+    )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Bei Options-/Version-Änderungen Integration sauber neu laden
