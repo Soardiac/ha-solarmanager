@@ -154,14 +154,14 @@ Gerätetypen: `car`, `car charger`, `carcharger`, `car charging`, `carcharging`,
 
 | Wert | Modus |
 |---|---|
-| 0 | Schnellladen |
+| 0 | Immer laden |
 | 1 | Nur Solar |
 | 2 | Solar & Tarif |
-| 3 | Nicht laden |
-| 4 | Konstantstrom |
+| 3 | Nie laden |
+| 4 | Konstanter Strom |
 | 5 | Minimal & Solar |
 | 6 | Mindestmenge |
-| 7 | Ladziel (%) |
+| 7 | Ladeziel |
 
 #### V2X
 
@@ -290,7 +290,7 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 
 ## Hinweise
 
-- **Modi und Parameter**: Parameter greifen in HA immer, werden von Solar Manager aber nur im jeweils passenden Modus berücksichtigt (z. B. Konstantstrom nur im Modus „Konstantstrom").
+- **Modi und Parameter**: Parameter greifen in HA immer, werden von Solar Manager aber nur im jeweils passenden Modus berücksichtigt (z. B. Konstanter Strom nur im Modus „Konstanter Strom").
 - **Gerätetypen**: Werden automatisch aus der API erkannt. Unbekannte Typen bekommen keine Steuerentitäten, aber alle verfügbaren Sensoren.
 - **Cloud-Abhängigkeit**: Die Integration kommuniziert ausschliesslich über die Solar Manager Cloud. Bei Cloud-Ausfall sind alle Werte nicht verfügbar.
 - **API-Doku**: [Swagger](https://external-web.solar-manager.ch/swagger)

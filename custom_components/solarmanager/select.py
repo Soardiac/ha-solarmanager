@@ -36,14 +36,14 @@ _BATTERY_CFG = {
 _CAR_CHARGER_CFG = {
     "label": "Wallbox Modus",
     "options": {
-        "0": "Schnellladen",
+        "0": "Immer laden",
         "1": "Nur Solar",
         "2": "Solar & Tarif",
-        "3": "Nicht laden",
-        "4": "Konstantstrom",
+        "3": "Nie laden",
+        "4": "Konstanter Strom",
         "5": "Minimal & Solar",
         "6": "Mindestmenge",
-        "7": "Ladziel (%)",
+        "7": "Ladeziel",
     },
     "api_key": "chargingMode",
     "put_method": "put_car_charger_mode",
