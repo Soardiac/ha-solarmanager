@@ -12,8 +12,9 @@ Bindet die [Solar Manager](https://www.solar-manager.ch/) Cloud-API in Home Assi
 ## Voraussetzungen
 
 - Home Assistant ≥ 2024.1
-- Solar Manager Account (E-Mail + Passwort)
-- Solar Manager Gateway ID (`smId`, zu finden im [Solar Manager Portal](https://cloud.solar-manager.ch))
+- Solar Manager Account
+- Solar Manager Gateway ID (`smId`, zu finden im [Solar Manager Portal](https://web.solar-manager.ch/))
+- Cloud API Key (im Portal unter Profil → Cloud-API-Schlüssel erstellen)
 
 ---
 
@@ -33,30 +34,39 @@ Ordner `custom_components/solarmanager` in `<config>/custom_components/` kopiere
 
 ## Einrichtung
 
+### Cloud API Key erstellen
+
+> **Solar Manager stellt die Authentifizierung per E-Mail/Passwort ein.** Für Neueinrichtungen ist der Cloud API Key der einzig unterstützte Weg. Bestehende Instanzen mit E-Mail/Passwort funktionieren noch bis **30. Juni 2027** — danach ist ein Wechsel auf den API Key erforderlich (siehe [Migration für bestehende Nutzer](#migration-für-bestehende-nutzer)).
+
+1. Im [Solar Manager Portal](https://web.solar-manager.ch/) → **Profil bearbeiten** → **Cloud-API-Schlüssel** → **API Schlüssel hinzufügen**
+2. Neuen Key erstellen:
+   - **Enddatum**: leer lassen (kein Ablaufdatum)
+   - **Scopes**: alle vier aktivieren: `read`, `write`, `externalOverride:read`, `externalOverride:write`
+   - **«Erneuerung erlauben»**: **NICHT** aktivieren — sonst muss der Key regelmässig in HA erneuert werden
+3. Den generierten Token **sofort kopieren** — er ist nur direkt nach der Erstellung sichtbar und kann danach nicht mehr abgerufen werden
+4. Den Token beim Einrichten der Integration in das Feld **Cloud API Key** einfügen
+
+> **Hinweis:** Falls der Bereich «Cloud-API-Schlüssel» noch nicht sichtbar ist, Solar Manager Support kontaktieren — das Feature wird auf Anfrage freigeschaltet.
+
 ### Ersteinrichtung
 
 Einstellungen → Geräte & Dienste → **Integration hinzufügen** → **Solarmanager**
 
 | Feld | Pflicht | Beschreibung |
 |---|---|---|
-| E-Mail | Ja | Solar Manager Account-E-Mail |
-| Passwort | Ja | Account-Passwort |
 | Solar Manager ID | Ja | Gateway-ID (`smId`) aus dem Portal |
-| API-Key | Nein | Nur nötig für Basic-Auth; leer lassen für Standard-OAuth |
+| Cloud API Key | Ja | Zuvor erstellter API Key (siehe oben) |
+| E-Mail | Nein | Nur als Fallback wenn noch kein API Key verfügbar |
+| Passwort | Nein | Nur als Fallback wenn noch kein API Key verfügbar |
 
-### Cloud API Key erstellen (empfohlen)
+### Migration für bestehende Nutzer
 
-Die Integration unterstützt moderne Authentifizierung via Cloud API Key (empfohlen gegenüber E-Mail/Passwort):
+Wer die Integration bisher mit E-Mail/Passwort betrieben hat, kann jederzeit auf den API Key wechseln:
 
-1. Im [Solar Manager Portal](https://web.solar-manager.ch/) → **Profil bearbeiten** → **Cloud-API-Schlüssel** → **API Schlüssel hinzufügen**
-2. Neuen Key erstellen:
-   - **Enddatum**: leer lassen (kein Ablaufdatum)
-   - **Scopes**: alle vier aktivieren: `read`, `write`, `externalOverride:read`, `externalOverride:write`
-   - **„Erneuerung erlauben"**: **NICHT** aktivieren — sonst muss der Key regelmässig in HA erneuert werden
-3. Den generierten Token sofort kopieren — er ist **nur direkt nach der Erstellung sichtbar** und kann danach nicht mehr abgerufen werden
-4. Den kopierten Token beim Einrichten oder Re-Auth der Integration in das Feld „Cloud API Key" einfügen
-
-> **Hinweis:** Falls der Bereich „Cloud API Keys" in den Profileinstellungen noch nicht sichtbar ist, bitte den Solar Manager Support kontaktieren — das Feature wird auf Anfrage freigeschaltet.
+1. API Key wie oben beschrieben erstellen
+2. In HA: Einstellungen → Geräte & Dienste → **Solarmanager** → **Neu authentifizieren**
+3. API Key eintragen — E-Mail/Passwort-Felder können leer bleiben
+4. Bestätigen — die Integration lädt neu und nutzt ab sofort den API Key
 
 ---
 
@@ -67,7 +77,7 @@ Tagesstatistiken werden alle **5 Minuten** neu geladen.
 
 ### Erneute Authentifizierung
 
-Bei einem geänderten Passwort erkennt HA den Fehler automatisch und zeigt eine Benachrichtigung. Über den Link im Benachrichtigungs-Panel können die Zugangsdaten direkt aktualisiert werden — ohne die Integration zu löschen.
+Wenn HA einen Auth-Fehler erkennt (abgelaufene Zugangsdaten oder Passwortänderung), erscheint automatisch eine Benachrichtigung. Über den Link darin können die Zugangsdaten aktualisiert werden — ohne die Integration zu löschen.
 
 ---
 
