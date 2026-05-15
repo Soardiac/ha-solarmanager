@@ -48,7 +48,7 @@ Einstellungen → Geräte & Dienste → **Integration hinzufügen** → **Solarm
 
 Die Integration unterstützt moderne Authentifizierung via Cloud API Key (empfohlen gegenüber E-Mail/Passwort):
 
-1. Im [Solar Manager Portal](https://cloud.solar-manager.ch) → **Profileinstellungen** → **Cloud API Keys**
+1. Im [Solar Manager Portal](https://web.solar-manager.ch/) → **Profil bearbeiten** → **Cloud-API-Schlüssel** → **API Schlüssel hinzufügen**
 2. Neuen Key erstellen:
    - **Enddatum**: leer lassen (kein Ablaufdatum)
    - **Scopes**: alle vier aktivieren: `read`, `write`, `externalOverride:read`, `externalOverride:write`
