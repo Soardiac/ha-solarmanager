@@ -44,6 +44,22 @@ Einstellungen → Geräte & Dienste → **Integration hinzufügen** → **Solarm
 | Solar Manager ID | Ja | Gateway-ID (`smId`) aus dem Portal |
 | API-Key | Nein | Nur nötig für Basic-Auth; leer lassen für Standard-OAuth |
 
+### Cloud API Key erstellen (empfohlen)
+
+Die Integration unterstützt moderne Authentifizierung via Cloud API Key (empfohlen gegenüber E-Mail/Passwort):
+
+1. Im [Solar Manager Portal](https://cloud.solar-manager.ch) → **Profileinstellungen** → **Cloud API Keys**
+2. Neuen Key erstellen:
+   - **Enddatum**: leer lassen (kein Ablaufdatum)
+   - **Scopes**: alle vier aktivieren: `read`, `write`, `externalOverride:read`, `externalOverride:write`
+   - **„Erneuerung erlauben"**: **NICHT** aktivieren — sonst muss der Key regelmässig in HA erneuert werden
+3. Den generierten Token sofort kopieren — er ist **nur direkt nach der Erstellung sichtbar** und kann danach nicht mehr abgerufen werden
+4. Den kopierten Token beim Einrichten oder Re-Auth der Integration in das Feld „Cloud API Key" einfügen
+
+> **Hinweis:** Falls der Bereich „Cloud API Keys" in den Profileinstellungen noch nicht sichtbar ist, bitte den Solar Manager Support kontaktieren — das Feature wird auf Anfrage freigeschaltet.
+
+---
+
 ### Update-Intervall (Optionen)
 
 Nach der Einrichtung: Konfigurieren → **Optionen** → Scan-Intervall in Sekunden (Standard: **10 s**).  

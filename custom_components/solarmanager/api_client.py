@@ -54,8 +54,28 @@ class SolarmanagerCloud:
 
     # -------------------- OAuth --------------------
 
-    async def login(self) -> None:
-        """POST /v1/oauth/login → accessToken/refreshToken/expiresIn/tokenType."""
+    async def _exchange_api_key(self) -> None:
+        """POST /v3/auth/refresh — API Key als Refresh Token → Access Token (24h)."""
+        url = f"{self._base}/v3/auth/refresh"
+        async with self._s.post(
+            url,
+            json={"grant_type": "refresh_token", "refresh_token": self.api_key},
+            timeout=30,
+        ) as r:
+            if r.status == 401:
+                raise SolarmanagerAuthError("Invalid API key")
+            if r.status >= 400:
+                text = await r.text()
+                raise SolarmanagerApiError(f"Auth failed {r.status}: {text}")
+            data = await r.json()
+            self._access = data.get("access_token")  # snake_case, anders als v1!
+            exp_sec = int(data.get("expires_in", 86400))
+            self._exp_ts = time.time() + exp_sec - 30
+            if not self._access:
+                raise SolarmanagerAuthError("No access_token in v3/auth/refresh response")
+
+    async def _login_v1(self) -> None:
+        """POST /v1/oauth/login (Fallback; gültig bis 30.06.2027)."""
         url = f"{self._base}/v1/oauth/login"
         async with self._s.post(
             url,
@@ -67,27 +87,17 @@ class SolarmanagerCloud:
             if r.status >= 400:
                 text = await r.text()
                 raise SolarmanagerApiError(f"Login failed {r.status}: {text}")
-
             data = await r.json()
             self._access = data.get("accessToken")
             self._refresh = data.get("refreshToken")
             self._token_type = data.get("tokenType", "Bearer")
             exp_sec = int(data.get("expiresIn", 3600))
-            self._exp_ts = time.time() + exp_sec - 30  # kleiner Sicherheits-Puffer
-
+            self._exp_ts = time.time() + exp_sec - 30
             if not self._access:
                 raise SolarmanagerAuthError("No accessToken in response")
 
-    async def _ensure_token(self) -> None:
-        """Token rechtzeitig erneuern (POST /v1/oauth/refresh)."""
-        if self._access and time.time() < self._exp_ts:
-            return
-
-        if not self._refresh:
-            # Kein Refresh verfügbar → neu einloggen
-            await self.login()
-            return
-
+    async def _refresh_v1(self) -> None:
+        """POST /v1/oauth/refresh (Fallback; gültig bis 30.06.2027)."""
         url = f"{self._base}/v1/oauth/refresh"
         async with self._s.post(url, json={"refreshToken": self._refresh}, timeout=30) as r:
             if r.status == 401:
@@ -95,17 +105,32 @@ class SolarmanagerCloud:
             if r.status >= 400:
                 text = await r.text()
                 raise SolarmanagerApiError(f"Refresh error {r.status}: {text}")
-
             data = await r.json()
             self._access = data.get("accessToken")
-            # Einige Backends geben denselben Refresh zurück – wenn neu, übernehmen
             self._refresh = data.get("refreshToken", self._refresh)
             self._token_type = data.get("tokenType", self._token_type or "Bearer")
             exp_sec = int(data.get("expiresIn", 3600))
             self._exp_ts = time.time() + exp_sec - 30
-
             if not self._access:
                 raise SolarmanagerAuthError("No accessToken after refresh")
+
+    async def login(self) -> None:
+        """Authentifiziert: v3/auth/refresh wenn api_key gesetzt, sonst v1/oauth/login."""
+        if self.api_key:
+            await self._exchange_api_key()
+        else:
+            await self._login_v1()
+
+    async def _ensure_token(self) -> None:
+        """Token rechtzeitig erneuern."""
+        if self._access and time.time() < self._exp_ts:
+            return
+        if self.api_key:
+            await self._exchange_api_key()
+        elif self._refresh:
+            await self._refresh_v1()
+        else:
+            await self._login_v1()
 
     def _bearer_headers(self) -> Dict[str, str]:
         return {
@@ -135,12 +160,6 @@ class SolarmanagerCloud:
         """
         path = f"/v3/users/{self.sm_id}/data/stream"
 
-        # Entweder Basic ODER Bearer – niemals beides senden!
-        if self.api_key:
-            headers = {"Authorization": f"Basic {self.api_key}", "accept": "application/json"}
-            return await self._get_json(path, headers)
-
-        # Bearer (Standard)
         await self._ensure_token()
         return await self._get_json(path, self._bearer_headers())
         

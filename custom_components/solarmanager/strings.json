@@ -7,25 +7,25 @@
           "email": "E-Mail",
           "password": "Passwort",
           "sm_id": "System-ID (smId)",
-          "api_key": "API-Key (optional)"
+          "api_key": "Cloud API Key (empfohlen)"
         },
         "data_description": {
           "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
-          "api_key": "Nur erforderlich wenn Basic-Auth statt OAuth genutzt wird."
+          "api_key": "Cloud API Key für moderne Authentifizierung (empfohlen). Zu finden in den Profileinstellungen unter „Cloud API Keys". Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), „Erneuerung erlauben" NICHT aktivieren. Wichtig: Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
         }
       },
       "reauth_confirm": {
         "title": "Solarmanager erneut authentifizieren",
-        "description": "Zugangsdaten für System **{sm_id}** aktualisieren.",
+        "description": "Zugangsdaten für System **{sm_id}** aktualisieren.\n\nEmpfohlen: API Key aus den Profileinstellungen → „Cloud API Keys". Token ohne Enddatum, alle vier Scopes (read, write, externalOverride:read, externalOverride:write), „Erneuerung erlauben" NICHT aktivieren. Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!\n\nHinweis: Falls der API-Key-Bereich noch nicht sichtbar ist, beim Support melden — das Feature wird auf Anfrage freigeschaltet.",
         "data": {
           "email": "E-Mail",
           "password": "Passwort",
-          "api_key": "API-Key (optional)"
+          "api_key": "Cloud API Key (empfohlen)"
         }
       }
     },
     "error": {
-      "auth": "Ungültige Anmeldedaten. Bitte E-Mail und Passwort prüfen.",
+      "auth": "Ungültige Anmeldedaten oder API Key. Bitte prüfen und erneut versuchen.",
       "cannot_connect": "Verbindung zur Solarmanager Cloud fehlgeschlagen.",
       "unknown": "Unbekannter Fehler. Bitte Logs prüfen."
     },

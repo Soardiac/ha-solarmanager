@@ -125,8 +125,8 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=vol.Schema({
-                vol.Required(CONF_EMAIL, default=reauth_entry.data.get(CONF_EMAIL, "")): str,
-                vol.Required(CONF_PASSWORD): str,
+                vol.Optional(CONF_EMAIL, default=reauth_entry.data.get(CONF_EMAIL, "")): str,
+                vol.Optional(CONF_PASSWORD, default=""): str,
                 vol.Optional(CONF_API_KEY, default=reauth_entry.data.get(CONF_API_KEY, "")): str,
             }),
             errors=errors,
