@@ -7,27 +7,26 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-_LOGGER = logging.getLogger(__name__)
-
-from .const import (
-    DOMAIN,
-    CONF_EMAIL,
-    CONF_PASSWORD,
-    CONF_SM_ID,
-    CONF_API_KEY,          # optional; kann entfallen, wenn du nur Bearer nutzt
-    CONF_SCAN_INTERVAL,
-    DEFAULT_SCAN,
-    CLOUD_BASE,
-)
 from .api_client import (
-    SolarmanagerCloud,
     SolarmanagerAuthError,
     SolarmanagerApiError,
+    SolarmanagerCloud,
 )
+from .const import (
+    CLOUD_BASE,
+    CONF_API_KEY,
+    CONF_EMAIL,
+    CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
+    CONF_SM_ID,
+    DEFAULT_SCAN,
+    DOMAIN,
+)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _schema_user(defaults: dict | None = None) -> vol.Schema:

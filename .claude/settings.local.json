@@ -25,7 +25,12 @@
       "PowerShell(git rebase --abort)",
       "PowerShell(git merge origin/main --no-edit 2>&1)",
       "PowerShell(git checkout --ours README.md)",
-      "PowerShell(git commit --no-edit)"
+      "PowerShell(git commit --no-edit)",
+      "Bash(git pull *)",
+      "PowerShell(.venv\\\\Scripts\\\\python -m pytest tests/ -q)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
