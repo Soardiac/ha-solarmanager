@@ -5,7 +5,7 @@
 Bindet die [Solar Manager](https://www.solar-manager.ch/) Cloud-API in Home Assistant ein. Alle Sensordaten, Betriebsmodi und Geräteparameter stehen als HA-Entitäten zur Verfügung.
 
 - **API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) (Cloud Polling, kein lokaler Zugriff)
-- [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/): Bronze 100% · Silver 90%
+- [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/): Bronze ✓ · Silver 95% · Gold in progress (~60%)
 
 ---
 
@@ -29,6 +29,32 @@ Bindet die [Solar Manager](https://www.solar-manager.ch/) Cloud-API in Home Assi
 ### Manuell
 
 Ordner `custom_components/solarmanager` in `<config>/custom_components/` kopieren, HA neu starten.
+
+---
+
+## Unterstützte Geräte
+
+Die Integration kommuniziert ausschliesslich über das **Solar Manager Gateway** als zentrale Einheit. Alle nachgelagerten Geräte werden automatisch aus der Cloud-API erkannt.
+
+### Unterstützt
+
+| Gerät | Hinweis |
+|---|---|
+| Solar Manager Gateway | Pflichtvoraussetzung |
+| Batteriespeicher | Ladezustand, Leistung, Eco-/Peak-Shaving-Parameter |
+| Wallbox / Car Charger | Lademodus, Konstantstrom, Ladeziel (kWh / SOC) |
+| V2X Wallbox | Bi-direktionales Laden, Lademodus |
+| Wärmepumpe / SG-Ready | Betriebsmodus, Betriebszustand |
+| Warmwasserboiler | Betriebsmodus, Leistungssteuerung |
+| Smart Plug | Schaltmodus |
+| Schalter / Relais | Schaltmodus |
+| Wechselrichter | Einspeisebegrenzung |
+| Beliebige Geräte mit `power`/`soc`/`temperature`-Feld | Sensor-only, keine Steuerung |
+
+### Nicht unterstützt
+
+- Direkter lokaler Zugriff (kein LAN/WLAN-Protokoll, ausschliesslich Cloud)
+- Geräte, die nicht über ein Solar Manager Gateway registriert sind
 
 ---
 
@@ -325,6 +351,87 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 - **Gerätetypen**: Werden automatisch aus der API erkannt. Unbekannte Typen bekommen keine Steuerentitäten, aber alle verfügbaren Sensoren.
 - **Cloud-Abhängigkeit**: Die Integration kommuniziert ausschliesslich über die Solar Manager Cloud. Bei Cloud-Ausfall sind alle Werte nicht verfügbar.
 - **API-Doku**: [Swagger](https://external-web.solar-manager.ch/swagger)
+
+---
+
+## Anwendungsfälle
+
+- **PV-Überschuss nutzen**: Gerät (Wallbox, Smart Plug, Boiler) automatisch einschalten, sobald die PV-Leistung den Hausverbrauch übersteigt.
+- **Batterie schonen**: Automationen nur ausführen, wenn der Batterie-SOC über einem Schwellwert liegt — verhindert ungewollte Tiefentladung.
+- **Tages-Dashboard**: Autarkiegrad und Eigenverbrauchsquote auf einem HA-Dashboard visualisieren und historisch verfolgen.
+- **Lastspitzen vermeiden**: Bei hohem Netzbezug eine Benachrichtigung senden oder steuerbare Lasten reduzieren.
+- **Anwesenheitsbasiertes Laden**: Wallbox-Lademodus wechseln, wenn jemand nach Hause kommt und SOC unter 50 % liegt.
+
+---
+
+## Beispiele
+
+### Automation: Wallbox auf «Nur Solar» bei PV-Überschuss
+
+```yaml
+automation:
+  alias: "Wallbox Solar-Modus bei PV-Überschuss"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solarmanager_netzleistung
+      below: -500        # > 500 W Einspeisung
+      for: "00:02:00"
+  action:
+    - action: select.select_option
+      target:
+        entity_id: select.meine_wallbox_modus
+      data:
+        option: "Nur Solar"
+```
+
+### Automation: Benachrichtigung wenn Batterie voll und Export aktiv
+
+```yaml
+automation:
+  alias: "Benachrichtigung: Batterie voll, PV-Überschuss"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solarmanager_batterie_soc
+      above: 95
+  condition:
+    - condition: numeric_state
+      entity_id: sensor.solarmanager_netz_export
+      above: 300
+  action:
+    - action: notify.mobile_app_mein_telefon
+      data:
+        title: "Solar Manager"
+        message: "Batterie voll – {{ states('sensor.solarmanager_netz_export') }} W Überschuss ins Netz."
+```
+
+---
+
+## Fehlerbehebung
+
+### Alle Entities zeigen «Nicht verfügbar»
+
+**Symptom:** Nach dem Start oder nach einer Weile sind alle Sensoren unavailable.  
+**Lösung:** Protokoll auf `WARNING`/`ERROR` von `custom_components.solarmanager` prüfen. Häufigste Ursache: Cloud nicht erreichbar oder Zugangsdaten abgelaufen → unter Einstellungen → Geräte & Dienste → **Neu authentifizieren**.
+
+### «Ungültige Anmeldedaten» / Reauth-Benachrichtigung
+
+**Symptom:** HA zeigt automatisch eine Reauth-Aufforderung oder der API Key schlägt fehl.  
+**Lösung:** Neuen API Key im Solar Manager Portal erstellen (Profil → Cloud-API-Schlüssel) und unter **Neu authentifizieren** eintragen. Wichtig: Token sofort kopieren, er ist nur einmal sichtbar.
+
+### Ein Gerät taucht nicht als Entity auf
+
+**Symptom:** Gerät ist im Solar Manager Portal sichtbar, aber keine HA-Entity vorhanden.  
+**Lösung:** Die Entities werden beim Start der Integration aus dem Stream erstellt. Nach dem Hinzufügen eines neuen Geräts im Portal muss **HA neu gestartet** oder die Integration neu geladen werden (Einstellungen → Geräte & Dienste → Solarmanager → `⋮` → **Neu laden**).
+
+### Werte aktualisieren sich zu selten
+
+**Symptom:** Sensoren spiegeln den aktuellen Zustand nicht schnell genug wider.  
+**Lösung:** Update-Intervall reduzieren: Einstellungen → Geräte & Dienste → Solarmanager → **Konfigurieren** → Scan-Intervall (Minimum empfohlen: 10 s, API-Rate-Limit beachten).
+
+### API Key kann nicht erstellt werden (Bereich nicht sichtbar)
+
+**Symptom:** Kein Menüpunkt «Cloud-API-Schlüssel» im Portal sichtbar.  
+**Lösung:** Feature wird auf Anfrage freigeschaltet — Solar Manager Support kontaktieren.
 
 ---
 

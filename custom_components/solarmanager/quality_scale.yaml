@@ -117,17 +117,89 @@ rules:
 
   # ── Gold ────────────────────────────────────────────────────────────────
 
+  devices:
+    status: done
+    comment: All entities set device_info with identifiers. Site device registered in __init__.py before platforms load; per-device entities use via_device.
+
   diagnostics:
     status: done
     comment: diagnostics.py implements async_get_config_entry_diagnostics with full credential redaction.
+
+  discovery:
+    status: exempt
+    comment: Cloud-polling integration; devices cannot be discovered locally.
+
+  discovery-update-info:
+    status: exempt
+    comment: No discovery support; exempt together with discovery rule.
+
+  docs-data-update:
+    status: done
+    comment: README documents 10s default polling, 5-minute statistics refresh, and user-configurable scan interval.
+
+  docs-examples:
+    status: done
+    comment: README has two automation YAML examples (solar-mode wallbox, battery-full notification).
+
+  docs-known-limitations:
+    status: done
+    comment: README Hinweise section covers cloud-only access, parameter/mode dependency, and unknown device types.
+
+  docs-supported-devices:
+    status: done
+    comment: README lists all supported device types (battery, wallbox, V2X, heat pump, boiler, smart plug, switch, inverter) and exclusions.
+
+  docs-supported-functions:
+    status: done
+    comment: README tables cover all sensor, select, number, binary_sensor, and datetime entities with units and conditions.
+
+  docs-troubleshooting:
+    status: done
+    comment: README has a Fehlerbehebung section with five symptom/solution entries.
+
+  docs-use-cases:
+    status: done
+    comment: README has an Anwendungsfälle section with five concrete use cases.
+
+  dynamic-devices:
+    status: todo
+    comment: Device entities are created at setup time only; devices added to the gateway after integration setup require an HA reload to get entities.
+
+  entity-category:
+    status: todo
+    comment: DevicesOverviewSensor, signal binary_sensor, and other diagnostic entities are missing EntityCategory.DIAGNOSTIC.
+
+  entity-device-class:
+    status: todo
+    comment: SocSensor missing SensorDeviceClass.BATTERY; DeviceTemperatureSensor device_class not verified; some per-device sensors may be missing appropriate device classes.
+
+  entity-disabled-by-default:
+    status: todo
+    comment: DevicesOverviewSensor and interval energy counters should be disabled by default (_attr_entity_registry_enabled_default = False).
 
   entity-translations:
     status: todo
     comment: Entity labels are hardcoded strings; translation_key not yet used in platform classes.
 
+  exception-translations:
+    status: exempt
+    comment: Integration registers no service actions. Custom exceptions (SolarmanagerAuthError etc.) are internal and never shown directly to users.
+
   icon-translations:
     status: todo
     comment: No icons.json; icons are defined inline. Requires adding icons.json with per-entity icon mapping.
+
+  reconfiguration-flow:
+    status: todo
+    comment: No async_step_reconfigure implemented; users cannot change sm_id or credentials without removing the integration.
+
+  repair-issues:
+    status: exempt
+    comment: No conditions require actionable user intervention via repair issues.
+
+  stale-devices:
+    status: done
+    comment: async_remove_config_entry_device in __init__.py allows manual device removal when a device is no longer reported by the API.
 
   # ── Platinum ─────────────────────────────────────────────────────────────
 
