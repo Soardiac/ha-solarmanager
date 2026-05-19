@@ -29,10 +29,6 @@ rules:
     status: done
     comment: No external PyPI dependencies; only HA built-in libraries used.
 
-  diagnostics:
-    status: done
-    comment: diagnostics.py implements async_get_config_entry_diagnostics with full credential redaction.
-
   docs-actions:
     status: exempt
     comment: Integration registers no actions/services.
@@ -41,21 +37,17 @@ rules:
     status: done
     comment: README opens with a clear description of the integration's purpose.
 
-  docs-installation:
+  docs-installation-instructions:
     status: done
     comment: README documents both HACS and manual installation paths.
 
-  docs-removal:
+  docs-removal-instructions:
     status: done
     comment: README has a Deinstallation section with UI, HACS, and manual removal steps.
 
   entity-event-setup:
     status: done
     comment: Entities are added via async_add_entities in async_setup_entry, not in __init__.
-
-  entity-translations:
-    status: todo
-    comment: Entity labels are hardcoded strings; translation_key not yet used in platform classes.
 
   entity-unique-id:
     status: done
@@ -65,13 +57,9 @@ rules:
     status: done
     comment: All entity classes set _attr_has_entity_name = True.
 
-  icon-translations:
-    status: todo
-    comment: No icons.json; icons are defined inline. Requires adding icons.json with per-entity icon mapping.
-
-  inject-websession:
+  runtime-data:
     status: done
-    comment: async_get_clientsession() used in coordinator and config flow instead of creating a raw aiohttp session.
+    comment: Coordinator stored in entry.runtime_data in async_setup_entry.
 
   test-before-configure:
     status: done
@@ -79,7 +67,7 @@ rules:
 
   test-before-setup:
     status: done
-    comment: _async_setup() in coordinator re-runs login on first update; auth failures raise ConfigEntryAuthFailed immediately.
+    comment: coordinator re-runs login on first update; auth failures raise ConfigEntryAuthFailed immediately.
 
   unique-config-entry:
     status: done
@@ -104,8 +92,8 @@ rules:
     comment: README documents prerequisites (HA ≥ 2024.1, Solar Manager cloud account, sm_id).
 
   entity-unavailable:
-    status: todo
-    comment: Coordinator raises UpdateFailed / ConfigEntryAuthFailed correctly, but platform entity classes do not override the available property; relies on CoordinatorEntity default.
+    status: done
+    comment: CoordinatorEntity default handles coordinator-level unavailability. _DeviceBase overrides available to also check if the device is still present in the stream.
 
   integration-owner:
     status: done
@@ -126,3 +114,23 @@ rules:
   test-coverage:
     status: todo
     comment: Config flow tests exist, but coordinator, platform entity creation, and API client are not yet covered.
+
+  # ── Gold ────────────────────────────────────────────────────────────────
+
+  diagnostics:
+    status: done
+    comment: diagnostics.py implements async_get_config_entry_diagnostics with full credential redaction.
+
+  entity-translations:
+    status: todo
+    comment: Entity labels are hardcoded strings; translation_key not yet used in platform classes.
+
+  icon-translations:
+    status: todo
+    comment: No icons.json; icons are defined inline. Requires adding icons.json with per-entity icon mapping.
+
+  # ── Platinum ─────────────────────────────────────────────────────────────
+
+  inject-websession:
+    status: done
+    comment: async_get_clientsession() used in coordinator and config flow instead of creating a raw aiohttp session.

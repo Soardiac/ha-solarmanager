@@ -298,6 +298,10 @@ class _DeviceBase(CoordinatorEntity[SolarmanagerCoordinator], SensorEntity):
             "via_device": (DOMAIN, f"site_{sm_id}"),
         }
 
+    @property
+    def available(self) -> bool:
+        return super().available and self._dev() is not None
+
     def _dev(self) -> dict[str, Any] | None:
         return _find_device(self.coordinator.data, self._dev_id)
 

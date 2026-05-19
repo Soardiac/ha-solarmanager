@@ -30,7 +30,8 @@
       "PowerShell(.venv\\\\Scripts\\\\python -m pytest tests/ -q)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "WebFetch(domain:developers.home-assistant.io)"
     ]
   }
 }
