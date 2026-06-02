@@ -56,6 +56,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Tages-Statistiken (production, consumption, …)
         self._stats_data: dict[str, Any] = {}
         self._stats_last: float = 0.0
+        self._stats_date: str = ""
 
     async def _async_setup(self) -> None:
         if self.client:
@@ -141,6 +142,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             data = await self.client.get_gateway_statistics(from_dt, to_dt, "high")
             self._stats_data = data
             self._stats_last = time.time()
+            self._stats_date = dt_util.now().strftime("%Y-%m-%d")
             _LOGGER.debug("Gateway stats loaded: %s", data)
         except Exception as e:
             _LOGGER.debug("Could not fetch gateway statistics: %s", e)
@@ -207,8 +209,9 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if time.time() - self._meta_last > 10:
                 await self._load_device_meta()
 
-            # Tages-Statistiken alle 5 Minuten neu laden
-            if time.time() - self._stats_last > 300:
+            # Tages-Statistiken alle 5 Minuten oder bei Tageswechsel neu laden
+            today = dt_util.now().strftime("%Y-%m-%d")
+            if time.time() - self._stats_last > 300 or self._stats_date != today:
                 await self._load_gateway_stats()
 
             data["stat_production"] = self._stats_data.get("production")

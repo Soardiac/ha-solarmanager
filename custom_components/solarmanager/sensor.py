@@ -40,9 +40,9 @@ ENERGY_SENSORS = [
 # Tages-Statistiken aus /v1/statistics/gateways/{smId}
 # (key, name, unit, device_class, state_class)
 STATS_SENSORS = [
-    ("stat_production",           "PV Tageserzeugung",    "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL),
-    ("stat_consumption",          "Verbrauch heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL),
-    ("stat_self_consumption",     "Eigenverbrauch heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL),
+    ("stat_production",           "PV Tageserzeugung",    "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_consumption",          "Verbrauch heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_self_consumption",     "Eigenverbrauch heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
     ("stat_self_consumption_rate","Eigenverbrauchsquote",  "%",  None,                      SensorStateClass.MEASUREMENT),
     ("stat_autarchy_degree",      "Autarkiegrad",          "%",  None,                      SensorStateClass.MEASUREMENT),
 ]
@@ -196,7 +196,7 @@ class SolarmanagerStatsSensor(_Base, SensorEntity):
     def native_value(self) -> Optional[float]:
         v = (self.coordinator.data or {}).get(self._key)
         try:
-            return round(float(v), 2) if v is not None else None
+            return round(float(v)) if v is not None else None
         except Exception:
             return None
 
