@@ -1,12 +1,16 @@
 {
   "domain": "solarmanager",
   "name": "Solarmanager",
-  "codeowners": ["@Soardiac"],
+  "codeowners": [
+    "@Soardiac"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/Soardiac/ha-solarmanager#readme",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Soardiac/ha-solarmanager/issues",
-  "loggers": ["custom_components.solarmanager"],
+  "loggers": [
+    "custom_components.solarmanager"
+  ],
   "requirements": [],
   "version": "1.5.0"
 }
