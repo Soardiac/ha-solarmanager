@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
