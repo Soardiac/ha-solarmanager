@@ -2,9 +2,10 @@
 
 > **Inoffiziell.** Solar Manager AG ist für diesen Code nicht verantwortlich und bietet keinen Support dafür.
 
-Bindet die [Solar Manager](https://www.solar-manager.ch/) Cloud-API in Home Assistant ein. Alle Sensordaten, Betriebsmodi und Geräteparameter stehen als HA-Entitäten zur Verfügung.
+Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assistant ein — wahlweise über die **Cloud-API** (voller Funktionsumfang) oder direkt über die **lokale REST-API** (nur Sensoren, kein Internet nötig).
 
-- **API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) (Cloud Polling, kein lokaler Zugriff)
+- **Cloud-API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) – voller Funktionsumfang inkl. Steuerung
+- **Lokale API**: `GET /v2/point` direkt am Gateway – Sensoren, kein Account nötig
 - [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/): Bronze ✓ · Silver 95% · Gold in progress (~60%)
 
 ---
@@ -12,9 +13,16 @@ Bindet die [Solar Manager](https://www.solar-manager.ch/) Cloud-API in Home Assi
 ## Voraussetzungen
 
 - Home Assistant ≥ 2024.1
+- Solar Manager Gateway im Netzwerk
+
+**Cloud-Modus** (voller Funktionsumfang):
 - Solar Manager Account
-- Solar Manager Gateway ID (`smId`, zu finden im [Solar Manager Portal](https://web.solar-manager.ch/))
-- Cloud API Key (im Portal unter Profil → Cloud-API-Schlüssel erstellen)
+- Gateway ID (`smId`, im [Solar Manager Portal](https://web.solar-manager.ch/))
+- Cloud API Key (Profil → Cloud-API-Schlüssel)
+
+**Lokaler Modus** (nur Sensoren):
+- IP-Adresse des Gateways im lokalen Netzwerk
+- Kein Account, kein Internet nötig
 
 ---
 
@@ -34,26 +42,37 @@ Ordner `custom_components/solarmanager` in `<config>/custom_components/` kopiere
 
 ## Unterstützte Geräte
 
-Die Integration kommuniziert ausschliesslich über das **Solar Manager Gateway** als zentrale Einheit. Alle nachgelagerten Geräte werden automatisch aus der Cloud-API erkannt.
+Die Integration kommuniziert über das **Solar Manager Gateway** als zentrale Einheit. Je nach Modus stehen unterschiedliche Entitäten zur Verfügung.
 
-### Unterstützt
+| Entitätstyp | Cloud | Lokal |
+|---|:---:|:---:|
+| Echtzeit-Leistungssensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ |
+| Energiezähler (Interval, kWh) | ✓ | ✓ |
+| Batterie-SOC, Geräteübersicht | ✓ | ✓ |
+| Gerätesensoren (Leistung, SOC, Temperatur, …) | ✓ | ✓ |
+| Verbindungsstatus pro Gerät | ✓ | ✓ |
+| Tagesstatistiken (Autarkiegrad, Eigenverbrauch) | ✓ | – |
+| Betriebsmodi-Select (Wallbox, Batterie, …) | ✓ | – |
+| Parameter-Number (SOC-Grenzen, Konstantstrom, …) | ✓ | – |
+| Datetime-Entitäten (Ladeziel-Termin) | ✓ | – |
 
-| Gerät | Hinweis |
-|---|---|
-| Solar Manager Gateway | Pflichtvoraussetzung |
-| Batteriespeicher | Ladezustand, Leistung, Eco-/Peak-Shaving-Parameter |
-| Wallbox / Car Charger | Lademodus, Konstantstrom, Ladeziel (kWh / SOC) |
-| V2X Wallbox | Bi-direktionales Laden, Lademodus |
-| Wärmepumpe / SG-Ready | Betriebsmodus, Betriebszustand |
-| Warmwasserboiler | Betriebsmodus, Leistungssteuerung |
-| Smart Plug | Schaltmodus |
-| Schalter / Relais | Schaltmodus |
-| Wechselrichter | Einspeisebegrenzung |
-| Beliebige Geräte mit `power`/`soc`/`temperature`-Feld | Sensor-only, keine Steuerung |
+### Unterstützte Gerätetypen
+
+Alle über das Gateway registrierten Geräte werden automatisch erkannt (Cloud und Lokal):
+
+| Gerät | Sensoren | Steuerung |
+|---|---|---|
+| Batteriespeicher | SOC, Leistung | Eco-/Peak-Shaving-Parameter |
+| Wallbox / Car Charger | Leistung, SOC | Lademodus, Konstantstrom, Ladeziel |
+| V2X Wallbox | Leistung | Lademodus |
+| Wärmepumpe / SG-Ready | Betriebszustand | Betriebsmodus |
+| Warmwasserboiler | – | Betriebsmodus, Leistung |
+| Smart Plug / Schalter | Schaltzustand | Schaltmodus |
+| Wechselrichter | Leistung | Einspeisebegrenzung |
+| Weitere Geräte | power / soc / temperature | – |
 
 ### Nicht unterstützt
 
-- Direkter lokaler Zugriff (kein LAN/WLAN-Protokoll, ausschliesslich Cloud)
 - Geräte, die nicht über ein Solar Manager Gateway registriert sind
 
 ---
@@ -78,12 +97,26 @@ Die Integration kommuniziert ausschliesslich über das **Solar Manager Gateway**
 
 Einstellungen → Geräte & Dienste → **Integration hinzufügen** → **Solarmanager**
 
+Im ersten Schritt den **Verbindungsmodus** wählen:
+
+#### Cloud-Modus
+
 | Feld | Pflicht | Beschreibung |
 |---|---|---|
 | Solar Manager ID | Ja | Gateway-ID (`smId`) aus dem Portal |
 | Cloud API Key | Ja | Zuvor erstellter API Key (siehe oben) |
 | E-Mail | Nein | Nur als Fallback wenn noch kein API Key verfügbar |
 | Passwort | Nein | Nur als Fallback wenn noch kein API Key verfügbar |
+
+#### Lokaler Modus
+
+| Feld | Pflicht | Beschreibung |
+|---|---|---|
+| IP-Adresse / Hostname | Ja | Gateway-IP im lokalen Netzwerk (z. B. `192.168.1.100`) |
+
+Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) und meldet einen Fehler, wenn das Gateway nicht erreichbar ist.
+
+> **Hinweis:** Ein Wechsel zwischen Cloud- und Lokalem Modus ist nach der Einrichtung nicht möglich. Die Integration muss gelöscht und neu eingerichtet werden.
 
 ### Migration für bestehende Nutzer
 
@@ -349,7 +382,8 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 
 - **Modi und Parameter**: Parameter greifen in HA immer, werden von Solar Manager aber nur im jeweils passenden Modus berücksichtigt (z. B. Konstanter Strom nur im Modus „Konstanter Strom").
 - **Gerätetypen**: Werden automatisch aus der API erkannt. Unbekannte Typen bekommen keine Steuerentitäten, aber alle verfügbaren Sensoren.
-- **Cloud-Abhängigkeit**: Die Integration kommuniziert ausschliesslich über die Solar Manager Cloud. Bei Cloud-Ausfall sind alle Werte nicht verfügbar.
+- **Cloud-Abhängigkeit (Cloud-Modus)**: Bei Cloud-Ausfall sind alle Werte nicht verfügbar. Der Lokale Modus ist davon nicht betroffen.
+- **Kein Modus-Wechsel**: Cloud- und Lokaler Modus sind zwei separate Entries. Ein Wechsel erfordert Löschen und Neu-Einrichten der Integration.
 - **API-Doku**: [Swagger](https://external-web.solar-manager.ch/swagger)
 
 ---

@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_SM_ID
+from .const import DOMAIN
 from .coordinator import SolarmanagerCoordinator
 
 PARALLEL_UPDATES = 1
@@ -230,6 +230,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coord: SolarmanagerCoordinator = entry.runtime_data
+    if coord.is_local:
+        return
 
     entities: list[NumberEntity] = []
     for dev_id, meta in coord.device_meta.items():
@@ -269,7 +271,6 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
         self._dev_id = dev_id
         self._field = field
 
-        sm_id = coordinator.entry.data.get(CONF_SM_ID, "unknown")
         short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
         self._attr_unique_id = f"{coordinator.entry.entry_id}_bat_{dev_id}_{field}"
         friendly = coordinator.get_device_name(dev_id) or f"Gerät {short}"
@@ -279,7 +280,7 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
             "name": friendly,
             "manufacturer": "Solarmanager",
             "model": "Battery",
-            "via_device": (DOMAIN, f"site_{sm_id}"),
+            "via_device": (DOMAIN, f"site_{coordinator.site_id}"),
         }
 
     @property
@@ -330,7 +331,6 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
         self._attr_native_unit_of_measurement = cfg["unit"]
         self._attr_icon = cfg.get("icon")
 
-        sm_id = coordinator.entry.data.get(CONF_SM_ID, "unknown")
         short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
         friendly = coordinator.get_device_name(dev_id) or f"Gerät {short}"
         self._attr_name = f"{friendly} {self._label}"
@@ -340,7 +340,7 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
             "name": friendly,
             "manufacturer": "Solarmanager",
             "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{sm_id}"),
+            "via_device": (DOMAIN, f"site_{coordinator.site_id}"),
         }
 
     @property

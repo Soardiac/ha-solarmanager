@@ -2,7 +2,16 @@
   "config": {
     "step": {
       "user": {
-        "title": "Solarmanager einrichten",
+        "title": "Verbindungsmodus wählen",
+        "data": {
+          "mode": "Modus"
+        },
+        "data_description": {
+          "mode": "Cloud: voller Funktionsumfang mit Account. Lokal: nur Sensoren, kein Internet nötig."
+        }
+      },
+      "cloud": {
+        "title": "Solarmanager Cloud einrichten",
         "data": {
           "email": "E-Mail",
           "password": "Passwort",
@@ -12,6 +21,15 @@
         "data_description": {
           "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
           "api_key": "Cloud API Key für moderne Authentifizierung (empfohlen). Zu finden in den Profileinstellungen unter «Cloud API Keys». Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Wichtig: Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
+        }
+      },
+      "local": {
+        "title": "Lokale Verbindung einrichten",
+        "data": {
+          "host": "IP-Adresse / Hostname"
+        },
+        "data_description": {
+          "host": "IP-Adresse des Solar Manager Gateways im lokalen Netzwerk (z. B. 192.168.1.100). Nur Sensoren verfügbar, keine Steuerung."
         }
       },
       "reauth_confirm": {
@@ -26,12 +44,13 @@
     },
     "error": {
       "auth": "Ungültige Anmeldedaten oder API Key. Bitte prüfen und erneut versuchen.",
-      "cannot_connect": "Verbindung zur Solarmanager Cloud fehlgeschlagen.",
+      "cannot_connect": "Verbindung fehlgeschlagen. Gateway erreichbar?",
       "unknown": "Unbekannter Fehler. Bitte Logs prüfen."
     },
     "abort": {
       "already_configured": "Dieses Solarmanager-System ist bereits eingerichtet.",
-      "reauth_successful": "Erneute Authentifizierung erfolgreich. Die Integration wird neu geladen."
+      "reauth_successful": "Erneute Authentifizierung erfolgreich. Die Integration wird neu geladen.",
+      "reauth_not_supported": "Lokaler Modus benötigt keine erneute Authentifizierung."
     }
   },
   "options": {

@@ -22,6 +22,13 @@ STREAM_PATH_TEMPLATE = "/v3/users/{sm_id}/data/stream"
 # Plattformen
 PLATFORMS = ["sensor", "number", "binary_sensor", "select", "datetime"]
 
+# Verbindungsmodus
+CONF_HOST = "host"
+CONF_MODE = "mode"
+MODE_CLOUD = "cloud"
+MODE_LOCAL = "local"
+
 # Branding (für device_info)
 MANUFACTURER = "Solarmanager"
 MODEL = "Cloud v3 stream"
+MODEL_LOCAL = "Local API v2"

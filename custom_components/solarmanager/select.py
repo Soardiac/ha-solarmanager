@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_SM_ID
+from .const import DOMAIN
 from .coordinator import SolarmanagerCoordinator
 
 PARALLEL_UPDATES = 1
@@ -179,6 +179,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coord: SolarmanagerCoordinator = entry.runtime_data
+    if coord.is_local:
+        return
 
     entities: list[SelectEntity] = []
     for dev_id, meta in coord.device_meta.items():
@@ -236,7 +238,6 @@ class _DeviceSelectBase(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity
 
     @property
     def device_info(self) -> dict[str, Any]:
-        sm_id = self.coordinator.entry.data.get(CONF_SM_ID, "unknown")
         friendly = (
             self.coordinator.get_device_name(self._dev_id)
             if hasattr(self.coordinator, "get_device_name")
@@ -248,7 +249,7 @@ class _DeviceSelectBase(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity
             "name": friendly or f"Solarmanager Gerät {short}",
             "manufacturer": "Solarmanager",
             "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{sm_id}"),
+            "via_device": (DOMAIN, f"site_{self.coordinator.site_id}"),
         }
 
     @property

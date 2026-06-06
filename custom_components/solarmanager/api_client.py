@@ -251,3 +251,41 @@ class SolarmanagerCloud:
             return await r.json()
 
 
+class SolarmanagerLocal:
+    """Read-only client for the local Solar Manager REST API (v2)."""
+
+    def __init__(self, host: str, session: aiohttp.ClientSession) -> None:
+        self._base = f"http://{host}"
+        self._s = session
+
+    async def get_point(self) -> dict:
+        """GET /v2/point → aktueller Datenpunkt (identisches Feldformat wie Cloud-Stream)."""
+        try:
+            async with self._s.get(
+                f"{self._base}/v2/point", ssl=False, timeout=aiohttp.ClientTimeout(total=10)
+            ) as r:
+                r.raise_for_status()
+                return await r.json()
+        except aiohttp.ClientError as err:
+            raise SolarmanagerApiError(f"Local API unreachable: {err}") from err
+
+    async def list_devices(self) -> list[dict]:
+        """GET /v2/devices → normalisiert auf Cloud-Format {_id, name, type}."""
+        try:
+            async with self._s.get(
+                f"{self._base}/v2/devices", ssl=False, timeout=aiohttp.ClientTimeout(total=10)
+            ) as r:
+                r.raise_for_status()
+                data = await r.json()
+        except aiohttp.ClientError as err:
+            raise SolarmanagerApiError(f"Local devices unreachable: {err}") from err
+        return [
+            {
+                "_id": d["deviceId"],
+                "name": d.get("description") or d.get("name") or d["deviceId"],
+                "type": d.get("type", ""),
+            }
+            for d in (data if isinstance(data, list) else [])
+        ]
+
+

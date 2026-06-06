@@ -18,13 +18,17 @@ from .const import (
     CONF_EMAIL,
     CONF_PASSWORD,
     CONF_SM_ID,
-    CONF_API_KEY,          # optional; kann None sein
+    CONF_API_KEY,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN,
     CLOUD_BASE,
+    CONF_HOST,
+    CONF_MODE,
+    MODE_LOCAL,
 )
 from .api_client import (
     SolarmanagerCloud,
+    SolarmanagerLocal,
     SolarmanagerAuthError,
     SolarmanagerApiError,
     SolarmanagerRateLimit,
@@ -47,34 +51,44 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.hass = hass
         self.entry = entry
-        self.client: Optional[SolarmanagerCloud] = None
+        self.is_local: bool = entry.data.get(CONF_MODE) == MODE_LOCAL
+        self.client: SolarmanagerCloud | SolarmanagerLocal | None = None
 
         # Cache für Geräte-Metadaten: exakt per _id
         self.device_meta: dict[str, dict] = {}
         self._meta_last: float = 0.0
 
-        # Tages-Statistiken (production, consumption, …)
+        # Tages-Statistiken (production, consumption, …) — nur Cloud
         self._stats_data: dict[str, Any] = {}
         self._stats_last: float = 0.0
         self._stats_date: str = ""
+
+    @property
+    def site_id(self) -> str:
+        if self.is_local:
+            return self.entry.data[CONF_HOST]
+        return self.entry.data.get(CONF_SM_ID, "unknown")
 
     async def _async_setup(self) -> None:
         if self.client:
             return
         session = async_get_clientsession(self.hass)
-        self.client = SolarmanagerCloud(
-            session,
-            base=CLOUD_BASE,
-            email=self.entry.data[CONF_EMAIL],
-            password=self.entry.data[CONF_PASSWORD],
-            sm_id=self.entry.data[CONF_SM_ID],
-            api_key=self.entry.data.get(CONF_API_KEY),  # meist None; Bearer ist Standard
-        )
-        await self.client.login()
-        await self._load_device_meta()  # Namen laden
+        if self.is_local:
+            self.client = SolarmanagerLocal(self.entry.data[CONF_HOST], session)
+        else:
+            self.client = SolarmanagerCloud(
+                session,
+                base=CLOUD_BASE,
+                email=self.entry.data[CONF_EMAIL],
+                password=self.entry.data[CONF_PASSWORD],
+                sm_id=self.entry.data[CONF_SM_ID],
+                api_key=self.entry.data.get(CONF_API_KEY),
+            )
+            await self.client.login()
+        await self._load_device_meta()
 
     async def _load_device_meta(self) -> None:
-        """Geräte-Metadaten (Namen/Typen) aus /v1/info/devices/{smId} in device_meta mappen."""
+        """Geräte-Metadaten aus /v1/info/devices/{smId} (Cloud) oder /v2/devices (Lokal) laden."""
         if not self.client:
             return
         try:
@@ -152,7 +166,12 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self._async_setup()
             assert self.client is not None
 
-            raw = await self.client.stream_user_v3()
+            if self.is_local:
+                assert isinstance(self.client, SolarmanagerLocal)
+                raw = await self.client.get_point()
+            else:
+                assert isinstance(self.client, SolarmanagerCloud)
+                raw = await self.client.stream_user_v3()
 
             def _num(x):
                 try:
@@ -205,20 +224,20 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             else:
                 data["gridW"] = None
 
-            # Meta bei jedem Stream-Poll auffrischen
+            # Meta bei jedem Poll auffrischen
             if time.time() - self._meta_last > 10:
                 await self._load_device_meta()
 
-            # Tages-Statistiken alle 5 Minuten oder bei Tageswechsel neu laden
-            today = dt_util.now().strftime("%Y-%m-%d")
-            if time.time() - self._stats_last > 300 or self._stats_date != today:
-                await self._load_gateway_stats()
-
-            data["stat_production"] = self._stats_data.get("production")
-            data["stat_consumption"] = self._stats_data.get("consumption")
-            data["stat_self_consumption"] = self._stats_data.get("selfConsumption")
-            data["stat_self_consumption_rate"] = self._stats_data.get("selfConsumptionRate")
-            data["stat_autarchy_degree"] = self._stats_data.get("autarchyDegree")
+            # Tages-Statistiken nur im Cloud-Modus
+            if not self.is_local:
+                today = dt_util.now().strftime("%Y-%m-%d")
+                if time.time() - self._stats_last > 300 or self._stats_date != today:
+                    await self._load_gateway_stats()
+                data["stat_production"] = self._stats_data.get("production")
+                data["stat_consumption"] = self._stats_data.get("consumption")
+                data["stat_self_consumption"] = self._stats_data.get("selfConsumption")
+                data["stat_self_consumption_rate"] = self._stats_data.get("selfConsumptionRate")
+                data["stat_autarchy_degree"] = self._stats_data.get("autarchyDegree")
 
             return data
 

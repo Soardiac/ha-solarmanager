@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, CONF_SM_ID, MANUFACTURER, MODEL
+from .const import DOMAIN, MANUFACTURER, MODEL
 from .coordinator import SolarmanagerCoordinator
 
 PARALLEL_UPDATES = 1
@@ -54,10 +54,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     site_entities: list[SensorEntity] = [
         *(SolarmanagerPowerSensor(coord, *spec) for spec in POWER_SENSORS),
         *(SolarmanagerEnergySensor(coord, key, name, unit) for key, name, unit in ENERGY_SENSORS),
-        *(SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS),
         SocSensor(coord),
         DevicesOverviewSensor(coord),
     ]
+    if not coord.is_local:
+        site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS]
 
     # Geräte-Sensoren dynamisch aus der aktuellen devices[]-Liste
     device_entities: list[SensorEntity] = []
@@ -122,12 +123,12 @@ class _Base(CoordinatorEntity[SolarmanagerCoordinator]):
         super().__init__(coordinator)
         self._key = key
         self._name = name
-        sm_id = coordinator.entry.data.get(CONF_SM_ID, "unknown")
+        site_id = coordinator.site_id
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{key}"
         self._attr_name = name
         self._device_info = {
-            "identifiers": {(DOMAIN, f"site_{sm_id}")},
-            "name": f"Solarmanager {sm_id}",
+            "identifiers": {(DOMAIN, f"site_{site_id}")},
+            "name": f"Solarmanager {site_id}",
             "manufacturer": MANUFACTURER if "MANUFACTURER" in globals() else "Solarmanager",
             "model": MODEL if "MODEL" in globals() else "Cloud v3 stream",
         }
@@ -286,7 +287,6 @@ class _DeviceBase(CoordinatorEntity[SolarmanagerCoordinator], SensorEntity):
     # device_info ebenfalls dynamisch, damit „Geräte“-Kachel sauber benannt ist
     @property
     def device_info(self) -> dict[str, Any] | None:
-        sm_id = self.coordinator.entry.data.get(CONF_SM_ID, "unknown")
         friendly = self.coordinator.get_device_name(self._dev_id) if hasattr(self.coordinator, "get_device_name") else None
         short = self._dev_id[-6:] if len(self._dev_id) >= 6 else self._dev_id
         base_name = friendly or f"Solarmanager Gerät {short}"
@@ -295,7 +295,7 @@ class _DeviceBase(CoordinatorEntity[SolarmanagerCoordinator], SensorEntity):
             "name": base_name,
             "manufacturer": "Solarmanager",
             "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{sm_id}"),
+            "via_device": (DOMAIN, f"site_{self.coordinator.site_id}"),
         }
 
     @property

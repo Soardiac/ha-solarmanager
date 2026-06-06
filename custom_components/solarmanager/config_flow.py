@@ -14,22 +14,27 @@ from .api_client import (
     SolarmanagerAuthError,
     SolarmanagerApiError,
     SolarmanagerCloud,
+    SolarmanagerLocal,
 )
 from .const import (
     CLOUD_BASE,
     CONF_API_KEY,
     CONF_EMAIL,
+    CONF_HOST,
+    CONF_MODE,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_SM_ID,
     DEFAULT_SCAN,
     DOMAIN,
+    MODE_CLOUD,
+    MODE_LOCAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _schema_user(defaults: dict | None = None) -> vol.Schema:
+def _schema_cloud(defaults: dict | None = None) -> vol.Schema:
     defaults = defaults or {}
     return vol.Schema({
         vol.Required(CONF_EMAIL, default=defaults.get(CONF_EMAIL, "")): str,
@@ -43,11 +48,24 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None) -> FlowResult:
+        """Mode selector: Cloud or Local."""
+        if user_input is not None:
+            if user_input[CONF_MODE] == MODE_LOCAL:
+                return await self.async_step_local()
+            return await self.async_step_cloud()
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema({
+                vol.Required(CONF_MODE, default=MODE_CLOUD): vol.In([MODE_CLOUD, MODE_LOCAL]),
+            }),
+        )
+
+    async def async_step_cloud(self, user_input=None) -> FlowResult:
         errors: dict[str, str] = {}
 
         if user_input:
             session = async_get_clientsession(self.hass)
-
             client = SolarmanagerCloud(
                 session,
                 base=CLOUD_BASE,
@@ -57,18 +75,16 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 api_key=(user_input.get(CONF_API_KEY) or None),
             )
             try:
-                # Login prüfen
                 await client.login()
-                # smId validieren (leichtgewichtig): einmal Stream holen
                 await client.stream_user_v3()
 
-                title = f"Solarmanager {user_input[CONF_SM_ID]}"
-                # Einmal pro smId verhindern
                 await self.async_set_unique_id(f"{DOMAIN}_{user_input[CONF_SM_ID]}")
                 self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(title=title, data=user_input)
-
+                return self.async_create_entry(
+                    title=f"Solarmanager {user_input[CONF_SM_ID]}",
+                    data={CONF_MODE: MODE_CLOUD, **user_input},
+                )
             except SolarmanagerAuthError:
                 errors["base"] = "auth"
             except SolarmanagerApiError:
@@ -76,14 +92,44 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception:
                 errors["base"] = "unknown"
 
-        return self.async_show_form(step_id="user", data_schema=_schema_user(user_input), errors=errors)
+        return self.async_show_form(
+            step_id="cloud",
+            data_schema=_schema_cloud(user_input),
+            errors=errors,
+        )
+
+    async def async_step_local(self, user_input=None) -> FlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            session = async_get_clientsession(self.hass)
+            client = SolarmanagerLocal(user_input[CONF_HOST], session)
+            try:
+                await client.get_point()
+            except SolarmanagerApiError:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                errors["base"] = "unknown"
+            else:
+                await self.async_set_unique_id(f"local_{user_input[CONF_HOST]}")
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title=f"Solarmanager Local ({user_input[CONF_HOST]})",
+                    data={CONF_MODE: MODE_LOCAL, CONF_HOST: user_input[CONF_HOST]},
+                )
+
+        return self.async_show_form(
+            step_id="local",
+            data_schema=vol.Schema({vol.Required(CONF_HOST): str}),
+            errors=errors,
+        )
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
-        """Einstiegspunkt wenn HA ConfigEntryAuthFailed erkennt."""
+        if entry_data.get(CONF_MODE) == MODE_LOCAL:
+            return self.async_abort(reason="reauth_not_supported")
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(self, user_input=None) -> FlowResult:
-        """Formular: neue Zugangsdaten eingeben."""
         reauth_entry = self.hass.config_entries.async_get_entry(
             self.context["entry_id"]
         )
@@ -139,46 +185,59 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None) -> FlowResult:
+        is_local = self.config_entry.data.get(CONF_MODE) == MODE_LOCAL
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            api_key = (user_input.get(CONF_API_KEY) or "").strip() or None
-
-            if api_key:
-                session = async_get_clientsession(self.hass)
-                current = self.config_entry.data
-                client = SolarmanagerCloud(
-                    session,
-                    base=CLOUD_BASE,
-                    email=current.get(CONF_EMAIL, ""),
-                    password=current.get(CONF_PASSWORD, ""),
-                    sm_id=current[CONF_SM_ID],
-                    api_key=api_key,
-                )
-                try:
-                    await client.login()
-                except SolarmanagerAuthError:
-                    errors["base"] = "auth"
-                except SolarmanagerApiError:
-                    errors["base"] = "cannot_connect"
-                except Exception:
-                    _LOGGER.exception("Unexpected error validating API key")
-                    errors["base"] = "unknown"
-                else:
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry,
-                        data={**self.config_entry.data, CONF_API_KEY: api_key},
+            if not is_local:
+                api_key = (user_input.get(CONF_API_KEY) or "").strip() or None
+                if api_key:
+                    session = async_get_clientsession(self.hass)
+                    current = self.config_entry.data
+                    client = SolarmanagerCloud(
+                        session,
+                        base=CLOUD_BASE,
+                        email=current.get(CONF_EMAIL, ""),
+                        password=current.get(CONF_PASSWORD, ""),
+                        sm_id=current[CONF_SM_ID],
+                        api_key=api_key,
                     )
+                    try:
+                        await client.login()
+                    except SolarmanagerAuthError:
+                        errors["base"] = "auth"
+                    except SolarmanagerApiError:
+                        errors["base"] = "cannot_connect"
+                    except Exception:
+                        _LOGGER.exception("Unexpected error validating API key")
+                        errors["base"] = "unknown"
+                    else:
+                        self.hass.config_entries.async_update_entry(
+                            self.config_entry,
+                            data={**self.config_entry.data, CONF_API_KEY: api_key},
+                        )
 
             if not errors:
                 return self.async_create_entry(
                     title="", data={CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL]}
                 )
 
+        if is_local:
+            schema = vol.Schema({
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN),
+                ): int,
+            })
+            return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+
         has_api_key = bool(self.config_entry.data.get(CONF_API_KEY))
         schema = vol.Schema({
             vol.Optional(CONF_API_KEY, default=""): str,
-            vol.Optional(CONF_SCAN_INTERVAL, default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN)): int,
+            vol.Optional(
+                CONF_SCAN_INTERVAL,
+                default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN),
+            ): int,
         })
         return self.async_show_form(
             step_id="init",

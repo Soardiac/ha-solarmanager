@@ -9,7 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, CONF_SM_ID
+from .const import DOMAIN
 from .coordinator import SolarmanagerCoordinator
 
 PARALLEL_UPDATES = 1
@@ -46,6 +46,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coord: SolarmanagerCoordinator = entry.runtime_data
+    if coord.is_local:
+        return
     entities: list[DateTimeEntity] = []
     for dev_id, meta in coord.device_meta.items():
         dev_type = (meta.get("type") or "").lower()
@@ -70,7 +72,6 @@ class DeviceDateTimeEntity(CoordinatorEntity[SolarmanagerCoordinator], DateTimeE
         self._put_method: str = cfg["put_method"]
         self._carry_fields: list[str] = cfg.get("carry_fields", [])
 
-        sm_id = coordinator.entry.data.get(CONF_SM_ID, "unknown")
         short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
         friendly = coordinator.get_device_name(dev_id) or f"Gerät {short}"
         self._attr_name = f"{friendly} {self._label}"
@@ -80,7 +81,7 @@ class DeviceDateTimeEntity(CoordinatorEntity[SolarmanagerCoordinator], DateTimeE
             "name": friendly,
             "manufacturer": "Solarmanager",
             "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{sm_id}"),
+            "via_device": (DOMAIN, f"site_{coordinator.site_id}"),
         }
 
     @property

@@ -6,7 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 
-from .const import DOMAIN, PLATFORMS, CONF_SM_ID, MANUFACTURER, MODEL
+from .const import DOMAIN, PLATFORMS, MANUFACTURER, MODEL, MODEL_LOCAL
 from .coordinator import SolarmanagerCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,14 +23,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Site-Gerät explizit registrieren bevor Plattformen geladen werden,
     # damit via_device-Referenzen in number/select/datetime/binary_sensor greifen.
-    sm_id = entry.data.get(CONF_SM_ID, "unknown")
+    site_id = coord.site_id
     registry = dr.async_get(hass)
     registry.async_get_or_create(
         config_entry_id=entry.entry_id,
-        identifiers={(DOMAIN, f"site_{sm_id}")},
-        name=f"Solarmanager {sm_id}",
+        identifiers={(DOMAIN, f"site_{site_id}")},
+        name=f"Solarmanager {site_id}",
         manufacturer=MANUFACTURER,
-        model=MODEL,
+        model=MODEL_LOCAL if coord.is_local else MODEL,
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

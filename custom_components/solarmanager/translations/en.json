@@ -2,7 +2,16 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up Solarmanager",
+        "title": "Choose connection mode",
+        "data": {
+          "mode": "Mode"
+        },
+        "data_description": {
+          "mode": "Cloud: full functionality with account. Local: sensors only, no internet required."
+        }
+      },
+      "cloud": {
+        "title": "Set up Solarmanager Cloud",
         "data": {
           "email": "Email",
           "password": "Password",
@@ -12,6 +21,15 @@
         "data_description": {
           "sm_id": "The smId of your Solarmanager system from the cloud interface.",
           "api_key": "Cloud API Key for modern authentication (recommended). Found in profile settings under «Cloud API Keys». Create the token without an expiry date, enable all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable «Allow renewal». Important: The token is only visible immediately after creation — copy it right away!"
+        }
+      },
+      "local": {
+        "title": "Set up local connection",
+        "data": {
+          "host": "IP address / hostname"
+        },
+        "data_description": {
+          "host": "IP address of the Solar Manager gateway on your local network (e.g. 192.168.1.100). Only sensors available, no controls."
         }
       },
       "reauth_confirm": {
@@ -26,12 +44,13 @@
     },
     "error": {
       "auth": "Invalid credentials or API Key. Please check and try again.",
-      "cannot_connect": "Failed to connect to the Solarmanager Cloud.",
+      "cannot_connect": "Connection failed. Is the gateway reachable?",
       "unknown": "Unexpected error. Please check the logs."
     },
     "abort": {
       "already_configured": "This Solarmanager system is already configured.",
-      "reauth_successful": "Re-authentication successful. The integration will reload."
+      "reauth_successful": "Re-authentication successful. The integration will reload.",
+      "reauth_not_supported": "Local mode does not require re-authentication."
     }
   },
   "options": {
