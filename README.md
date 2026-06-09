@@ -17,7 +17,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 
 **Cloud-Modus** (voller Funktionsumfang):
 - Solar Manager Account
-- Gateway ID (`smId`, im [Solar Manager Portal](https://web.solar-manager.ch/))
+- Gateway ID (`smId`, im [Solar Manager Portal](https://web.solar-manager.ch/my-devices/) → Endkunden Information)
 - Cloud API Key (Profil → Cloud-API-Schlüssel)
 
 **Ab v.1.5.0: Lokaler Modus** (nur Sensoren):
