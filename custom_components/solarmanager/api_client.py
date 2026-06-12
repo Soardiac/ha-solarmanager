@@ -255,7 +255,11 @@ class SolarmanagerLocal:
     """Read-only client for the local Solar Manager REST API (v2)."""
 
     def __init__(self, host: str, session: aiohttp.ClientSession) -> None:
-        self._base = f"http://{host}"
+        host = host.strip().rstrip("/")
+        if host.startswith(("http://", "https://")):
+            self._base = host
+        else:
+            self._base = f"http://{host}"
         self._s = session
 
     async def get_point(self) -> dict:
