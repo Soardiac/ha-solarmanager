@@ -24,6 +24,7 @@ PLATFORMS = ["sensor", "number", "binary_sensor", "select", "datetime"]
 
 # Verbindungsmodus
 CONF_HOST = "host"
+CONF_SCHEME = "scheme"
 CONF_MODE = "mode"
 MODE_CLOUD = "cloud"
 MODE_LOCAL = "local"

@@ -272,15 +272,29 @@ class SolarmanagerCloud:
 class SolarmanagerLocal:
     """Read-only client for the local Solar Manager REST API (v2)."""
 
-    def __init__(self, host: str, session: aiohttp.ClientSession) -> None:
-        self._base = normalize_local_base(host)
+    def __init__(
+        self,
+        host: str,
+        session: aiohttp.ClientSession,
+        *,
+        scheme: str = "http",
+        api_key: str | None = None,
+    ) -> None:
+        self._base = f"{scheme}://{normalize_local_host(host)}"
         self._s = session
+        self._api_key = api_key
+
+    def _headers(self) -> dict:
+        return {"X-API-Key": self._api_key} if self._api_key else {}
 
     async def get_point(self) -> dict:
         """GET /v2/point → aktueller Datenpunkt (identisches Feldformat wie Cloud-Stream)."""
         try:
             async with self._s.get(
-                f"{self._base}/v2/point", ssl=False, timeout=aiohttp.ClientTimeout(total=10)
+                f"{self._base}/v2/point",
+                headers=self._headers(),
+                ssl=False,
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as r:
                 r.raise_for_status()
                 return await r.json()
@@ -291,7 +305,10 @@ class SolarmanagerLocal:
         """GET /v2/devices → normalisiert auf Cloud-Format {_id, name, type}."""
         try:
             async with self._s.get(
-                f"{self._base}/v2/devices", ssl=False, timeout=aiohttp.ClientTimeout(total=10)
+                f"{self._base}/v2/devices",
+                headers=self._headers(),
+                ssl=False,
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as r:
                 r.raise_for_status()
                 data = await r.json()

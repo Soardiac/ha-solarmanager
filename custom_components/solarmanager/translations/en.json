@@ -26,10 +26,14 @@
       "local": {
         "title": "Set up local connection",
         "data": {
-          "host": "IP address / hostname"
+          "host": "IP address / hostname",
+          "scheme": "Protocol",
+          "api_key": "API Key (optional)"
         },
         "data_description": {
-          "host": "IP address of the Solar Manager gateway on your local network (e.g. 192.168.1.100). Only sensors available, no controls."
+          "host": "IP address or hostname of the Solar Manager gateway (e.g. 192.168.1.100).",
+          "scheme": "HTTP for unencrypted, HTTPS for encrypted (self-signed certificate accepted).",
+          "api_key": "Optional API key to secure the local connection. Leave empty if no key is configured."
         }
       },
       "reauth_confirm": {

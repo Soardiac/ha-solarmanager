@@ -26,10 +26,14 @@
       "local": {
         "title": "Lokale Verbindung einrichten",
         "data": {
-          "host": "IP-Adresse / Hostname"
+          "host": "IP-Adresse / Hostname",
+          "scheme": "Protokoll",
+          "api_key": "API Key (optional)"
         },
         "data_description": {
-          "host": "IP-Adresse des Solar Manager Gateways im lokalen Netzwerk (z. B. 192.168.1.100). Nur Sensoren verfügbar, keine Steuerung."
+          "host": "IP-Adresse oder Hostname des Solar Manager Gateways (z. B. 192.168.1.100).",
+          "scheme": "HTTP für unverschlüsselt, HTTPS für verschlüsselt (selbst-signiertes Zertifikat wird akzeptiert).",
+          "api_key": "Optionaler API Key zur Absicherung der lokalen Verbindung. Leer lassen wenn kein Key konfiguriert."
         }
       },
       "reauth_confirm": {

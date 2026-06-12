@@ -23,6 +23,7 @@ from .const import (
     DEFAULT_SCAN,
     CLOUD_BASE,
     CONF_HOST,
+    CONF_SCHEME,
     CONF_MODE,
     MODE_LOCAL,
 )
@@ -74,7 +75,12 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         session = async_get_clientsession(self.hass)
         if self.is_local:
-            self.client = SolarmanagerLocal(self.entry.data[CONF_HOST], session)
+            self.client = SolarmanagerLocal(
+                self.entry.data[CONF_HOST],
+                session,
+                scheme=self.entry.data.get(CONF_SCHEME, "http"),
+                api_key=self.entry.data.get(CONF_API_KEY),
+            )
         else:
             self.client = SolarmanagerCloud(
                 session,

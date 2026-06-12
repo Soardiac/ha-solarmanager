@@ -25,6 +25,7 @@ from .const import (
     CONF_MODE,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
+    CONF_SCHEME,
     CONF_SM_ID,
     DEFAULT_SCAN,
     DOMAIN,
@@ -103,10 +104,11 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            raw_host = user_input[CONF_HOST].strip()
-            host_key = normalize_local_host(raw_host)
+            host = normalize_local_host(user_input[CONF_HOST])
+            scheme = user_input[CONF_SCHEME]
+            api_key = user_input.get(CONF_API_KEY) or None
             session = async_get_clientsession(self.hass)
-            client = SolarmanagerLocal(raw_host, session)
+            client = SolarmanagerLocal(host, session, scheme=scheme, api_key=api_key)
             try:
                 await client.get_point()
             except SolarmanagerApiError:
@@ -114,16 +116,25 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception:
                 errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(f"local_{host_key}")
+                await self.async_set_unique_id(f"local_{host}")
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"Solarmanager Local ({host_key})",
-                    data={CONF_MODE: MODE_LOCAL, CONF_HOST: raw_host},
+                    title=f"Solarmanager Local ({host})",
+                    data={
+                        CONF_MODE: MODE_LOCAL,
+                        CONF_HOST: host,
+                        CONF_SCHEME: scheme,
+                        CONF_API_KEY: api_key,
+                    },
                 )
 
         return self.async_show_form(
             step_id="local",
-            data_schema=vol.Schema({vol.Required(CONF_HOST): str}),
+            data_schema=vol.Schema({
+                vol.Required(CONF_HOST): str,
+                vol.Required(CONF_SCHEME, default="http"): vol.In(["http", "https"]),
+                vol.Optional(CONF_API_KEY, default=""): str,
+            }),
             errors=errors,
         )
 
