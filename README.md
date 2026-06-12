@@ -114,6 +114,7 @@ Im ersten Schritt den **Verbindungsmodus** wählen:
 |---|---|---|
 | IP-Adresse / Hostname | Ja | Gateway-IP im lokalen Netzwerk (z. B. `192.168.1.100`) |
 
+http/https gemäss Solarmanager-Einstellungen wählen.
 Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) und meldet einen Fehler, wenn das Gateway nicht erreichbar ist.
 
 > **Hinweis:** Ein Wechsel zwischen Cloud- und Lokalem Modus ist nach der Einrichtung nicht möglich. Die Integration muss gelöscht und neu eingerichtet werden.
