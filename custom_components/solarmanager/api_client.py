@@ -10,6 +10,24 @@ import aiohttp
 _LOGGER = logging.getLogger(__name__)
 
 
+def normalize_local_base(host: str) -> str:
+    """Volle Base-URL mit Scheme (Default http) — für Requests."""
+    host = host.strip().rstrip("/")
+    if host.startswith(("http://", "https://")):
+        return host
+    return f"http://{host}"
+
+
+def normalize_local_host(host: str) -> str:
+    """Kanonischer Host ohne Scheme/Slash — für unique_id & Anzeige."""
+    host = host.strip().rstrip("/")
+    for prefix in ("http://", "https://"):
+        if host.startswith(prefix):
+            host = host[len(prefix):]
+            break
+    return host.lower()
+
+
 class SolarmanagerAuthError(Exception):
     """Auth- oder Tokenfehler."""
 
@@ -255,11 +273,7 @@ class SolarmanagerLocal:
     """Read-only client for the local Solar Manager REST API (v2)."""
 
     def __init__(self, host: str, session: aiohttp.ClientSession) -> None:
-        host = host.strip().rstrip("/")
-        if host.startswith(("http://", "https://")):
-            self._base = host
-        else:
-            self._base = f"http://{host}"
+        self._base = normalize_local_base(host)
         self._s = session
 
     async def get_point(self) -> dict:
