@@ -138,6 +138,52 @@ async def test_local_flow_success(hass):
     assert result["data"][CONF_HOST] == "192.168.1.100"
 
 
+async def test_local_flow_https_host(hass):
+    """HTTPS-Eingabe: Scheme bleibt im gespeicherten Host, Titel ist scheme-los."""
+    flow_id = await _start_user_flow(hass)
+
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_LOCAL}
+    )
+    assert result["step_id"] == "local"
+
+    with patch(_PATCH_LOCAL) as mock_cls:
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_HOST: "https://192.168.1.100"}
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Solarmanager Local (192.168.1.100)"
+    assert result["data"][CONF_HOST] == "https://192.168.1.100"
+
+
+async def test_local_flow_duplicate_scheme(hass):
+    """Gleiches Gateway mit anderem Scheme → bereits konfiguriert, Abbruch."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100"},
+        unique_id="local_192.168.1.100",
+    )
+    entry.add_to_hass(hass)
+
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_LOCAL}
+    )
+
+    with patch(_PATCH_LOCAL) as mock_cls:
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_HOST: "https://192.168.1.100"}
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
 async def test_local_flow_cannot_connect(hass):
     """Lokales Gateway nicht erreichbar → Fehler 'cannot_connect'."""
     flow_id = await _start_user_flow(hass)

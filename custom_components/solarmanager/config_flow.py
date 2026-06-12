@@ -15,6 +15,7 @@ from .api_client import (
     SolarmanagerApiError,
     SolarmanagerCloud,
     SolarmanagerLocal,
+    normalize_local_host,
 )
 from .const import (
     CLOUD_BASE,
@@ -102,8 +103,10 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            raw_host = user_input[CONF_HOST].strip()
+            host_key = normalize_local_host(raw_host)
             session = async_get_clientsession(self.hass)
-            client = SolarmanagerLocal(user_input[CONF_HOST], session)
+            client = SolarmanagerLocal(raw_host, session)
             try:
                 await client.get_point()
             except SolarmanagerApiError:
@@ -111,11 +114,11 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception:
                 errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(f"local_{user_input[CONF_HOST]}")
+                await self.async_set_unique_id(f"local_{host_key}")
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"Solarmanager Local ({user_input[CONF_HOST]})",
-                    data={CONF_MODE: MODE_LOCAL, CONF_HOST: user_input[CONF_HOST]},
+                    title=f"Solarmanager Local ({host_key})",
+                    data={CONF_MODE: MODE_LOCAL, CONF_HOST: raw_host},
                 )
 
         return self.async_show_form(
