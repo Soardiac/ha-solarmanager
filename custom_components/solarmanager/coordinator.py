@@ -224,9 +224,22 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Abgeleitet: Netzleistung (Import +, Export -)
             if data["iW"] is not None or data["eW"] is not None:
+                # Cloud: iW/eW direkt vom API
                 im = data["iW"] or 0.0
                 ex = data["eW"] or 0.0
                 data["gridW"] = im - ex
+            elif self.is_local:
+                # Lokal: iW/eW nicht in API → Energiebilanz
+                grid = round(
+                    (data["cW"] or 0.0)
+                    + (data["bcW"] or 0.0)
+                    - (data["pW"] or 0.0)
+                    - (data["bdW"] or 0.0),
+                    1,
+                )
+                data["gridW"] = grid
+                data["iW"] = round(max(0.0, grid), 1)
+                data["eW"] = round(max(0.0, -grid), 1)
             else:
                 data["gridW"] = None
 

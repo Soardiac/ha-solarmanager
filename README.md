@@ -46,7 +46,7 @@ Die Integration kommuniziert über das **Solar Manager Gateway** als zentrale Ei
 
 | Entitätstyp | Cloud | Lokal |
 |---|:---:|:---:|
-| Echtzeit-Leistungssensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ |
+| Echtzeit-Leistungssensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ ¹ |
 | Energiezähler (Interval, kWh) | ✓ | ✓ |
 | Batterie-SOC, Geräteübersicht | ✓ | ✓ |
 | Gerätesensoren (Leistung, SOC, Temperatur, …) | ✓ | ✓ |
@@ -55,6 +55,8 @@ Die Integration kommuniziert über das **Solar Manager Gateway** als zentrale Ei
 | Betriebsmodi-Select (Wallbox, Batterie, …) | ✓ | – |
 | Parameter-Number (SOC-Grenzen, Konstantstrom, …) | ✓ | – |
 | Datetime-Entitäten (Ladeziel-Termin) | ✓ | – |
+
+> ¹ Netz Import/Export (W) liefert die lokale API nicht direkt — die Werte werden aus der Energiebilanz berechnet (cW + bcW − pW − bdW).
 
 ### Unterstützte Gerätetypen
 
@@ -113,9 +115,10 @@ Im ersten Schritt den **Verbindungsmodus** wählen:
 | Feld | Pflicht | Beschreibung |
 |---|---|---|
 | IP-Adresse / Hostname | Ja | Gateway-IP im lokalen Netzwerk (z. B. `192.168.1.100`) |
+| Protokoll | Ja | `http` oder `https` gemäss Gateway-Einstellungen (Standard: `http`) |
+| API Key | Nein | Lokaler API Key falls am Gateway konfiguriert (`X-API-Key`-Header) |
 
-http/https gemäss Solarmanager-Einstellungen wählen.
-Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) und meldet einen Fehler, wenn das Gateway nicht erreichbar ist.
+Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) und meldet einen Fehler, wenn das Gateway nicht erreichbar ist. Bei HTTPS wird das selbst-signierte Zertifikat des Gateways akzeptiert.
 
 > **Hinweis:** Ein Wechsel zwischen Cloud- und Lokalem Modus ist nach der Einrichtung nicht möglich. Die Integration muss gelöscht und neu eingerichtet werden.
 
