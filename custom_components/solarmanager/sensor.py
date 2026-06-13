@@ -47,6 +47,11 @@ STATS_SENSORS = [
     ("stat_autarchy_degree",      "Autarkiegrad",          "%",  None,                      SensorStateClass.MEASUREMENT),
 ]
 
+GRID_STATS_SENSORS = [
+    ("stat_grid_import",          "Netzbezug heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_grid_export",          "Netzeinspeisung heute", "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+]
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: SolarmanagerCoordinator = entry.runtime_data
 
@@ -59,6 +64,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     ]
     if not coord.is_local:
         site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS]
+    site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in GRID_STATS_SENSORS]
 
     # Geräte-Sensoren dynamisch aus der aktuellen devices[]-Liste
     device_entities: list[SensorEntity] = []
@@ -70,12 +76,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         # Leistung pro Gerät (W)
         if "power" in dev:
             device_entities.append(DevicePowerSensor(coord, dev_id))
-
-        # Energiezähler pro Gerät (kWh) – falls vorhanden
-        if "iWh" in dev:
-            device_entities.append(DeviceEnergySensor(coord, dev_id, key="iWh", label="Netzbezug heute"))
-        if "eWh" in dev:
-            device_entities.append(DeviceEnergySensor(coord, dev_id, key="eWh", label="Netzeinspeisung heute"))
 
         # SOC pro Gerät (falls Gerät Batterie-ähnlich und Feld vorhanden)
         if "soc" in dev:
@@ -316,24 +316,6 @@ class DevicePowerSensor(_DeviceBase):
     def native_value(self) -> Optional[float]:
         d = self._dev()
         v = d.get("power") if d else None
-        try:
-            return float(v) if v is not None else None
-        except Exception:
-            return None
-
-
-class DeviceEnergySensor(_DeviceBase):
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_native_unit_of_measurement = "kWh"
-
-    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str, *, key: str, label: str):
-        super().__init__(coordinator, dev_id, key, label)
-
-    @property
-    def native_value(self) -> Optional[float]:
-        d = self._dev()
-        v = d.get(self._key) if d else None
         try:
             return float(v) if v is not None else None
         except Exception:
