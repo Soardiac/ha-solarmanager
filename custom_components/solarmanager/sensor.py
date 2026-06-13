@@ -271,8 +271,6 @@ class _DeviceBase(CoordinatorEntity[SolarmanagerCoordinator], SensorEntity):
         self._key = key
         self._label = label  # z. B. "Leistung", "Netzbezug heute", "SOC", "Temperatur"
 
-        short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
-        # Fallback-Name; wird dynamisch via .name übersteuert, sobald Meta da ist
         self._attr_name = label
         self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_{key}"
 
