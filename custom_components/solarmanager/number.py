@@ -78,7 +78,7 @@ _CAR_CHARGER_NUMBERS = [
     {
         "key": "minimumChargeQuantityTargetAmount",
         "label": "Ladeziel kWh Menge",
-        "unit": "%",
+        "unit": "kWh",
         "min": 1, "max": 100, "step": 1,
         "put_method": "put_car_charger_mode",
         "icon": "mdi:battery-charging-low",
@@ -87,7 +87,7 @@ _CAR_CHARGER_NUMBERS = [
     {
         "key": "minimumChargeQuantityTargetAmountMax",
         "label": "Ladeziel kWh Maximum",
-        "unit": "%",
+        "unit": "kWh",
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_car_charger_mode",
         "icon": "mdi:battery-charging-low",

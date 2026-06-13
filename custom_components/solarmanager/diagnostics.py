@@ -7,6 +7,7 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .api_client import SolarmanagerCloud
 from .coordinator import SolarmanagerCoordinator
 
 TO_REDACT: set[str] = {
@@ -29,7 +30,7 @@ async def async_get_config_entry_diagnostics(
     client = coord.client
     if client is None:
         client_info: dict[str, Any] = {"status": "not_initialized"}
-    else:
+    elif isinstance(client, SolarmanagerCloud):
         remaining: float | None = None
         if client._exp_ts:
             remaining = round(client._exp_ts - time.time(), 1)
@@ -40,6 +41,11 @@ async def async_get_config_entry_diagnostics(
             "refresh_token": "**REDACTED**" if client._refresh else None,
             "token_remaining_seconds": remaining,
             "uses_api_key": bool(client.api_key),
+        }
+    else:  # SolarmanagerLocal
+        client_info = {
+            "mode": "local",
+            "uses_api_key": bool(client._api_key),
         }
 
     device_metadata: dict[str, Any] = {

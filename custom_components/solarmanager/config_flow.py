@@ -241,7 +241,7 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
                     default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN),
-                ): int,
+                ): vol.All(vol.Coerce(int), vol.Range(min=1)),
             })
             return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
 
@@ -251,7 +251,7 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN),
-            ): int,
+            ): vol.All(vol.Coerce(int), vol.Range(min=1)),
         })
         return self.async_show_form(
             step_id="init",

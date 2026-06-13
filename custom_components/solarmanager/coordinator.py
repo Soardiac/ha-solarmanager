@@ -39,7 +39,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Coordinator, der den v3-Stream pollt, Daten normalisiert und Geräte-Metadaten cached (aus /v1/info/devices/{smId})."""
+    """Coordinator, der den v3-Stream pollt, Daten normalisiert und Geräte-Metadaten cached (aus /v1/info/sensors/{smId})."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
         super().__init__(
@@ -94,7 +94,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._load_device_meta()
 
     async def _load_device_meta(self) -> None:
-        """Geräte-Metadaten aus /v1/info/devices/{smId} (Cloud) oder /v2/devices (Lokal) laden."""
+        """Geräte-Metadaten aus /v1/info/sensors/{smId} (Cloud) oder /v2/devices (Lokal) laden."""
         if not self.client:
             return
         try:

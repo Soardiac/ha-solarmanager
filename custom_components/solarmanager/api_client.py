@@ -296,6 +296,8 @@ class SolarmanagerLocal:
                 ssl=False,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as r:
+                if r.status in (401, 403):
+                    raise SolarmanagerAuthError(f"Local API auth failed (HTTP {r.status})")
                 r.raise_for_status()
                 return await r.json()
         except aiohttp.ClientError as err:
@@ -310,6 +312,8 @@ class SolarmanagerLocal:
                 ssl=False,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as r:
+                if r.status in (401, 403):
+                    raise SolarmanagerAuthError(f"Local devices auth failed (HTTP {r.status})")
                 r.raise_for_status()
                 data = await r.json()
         except aiohttp.ClientError as err:
