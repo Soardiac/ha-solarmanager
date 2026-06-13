@@ -73,9 +73,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
         # Energiezähler pro Gerät (kWh) – falls vorhanden
         if "iWh" in dev:
-            device_entities.append(DeviceEnergySensor(coord, dev_id, key="iWh", label="Gerät Netzbezug heute"))
+            device_entities.append(DeviceEnergySensor(coord, dev_id, key="iWh", label="Netzbezug heute"))
         if "eWh" in dev:
-            device_entities.append(DeviceEnergySensor(coord, dev_id, key="eWh", label="Gerät Netzeinspeisung heute"))
+            device_entities.append(DeviceEnergySensor(coord, dev_id, key="eWh", label="Netzeinspeisung heute"))
 
         # SOC pro Gerät (falls Gerät Batterie-ähnlich und Feld vorhanden)
         if "soc" in dev:
@@ -273,7 +273,7 @@ class _DeviceBase(CoordinatorEntity[SolarmanagerCoordinator], SensorEntity):
 
         short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
         # Fallback-Name; wird dynamisch via .name übersteuert, sobald Meta da ist
-        self._attr_name = f"Gerät {short} {label}"
+        self._attr_name = label
         self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_{key}"
 
     # Dynamischer Anzeigename (zieht aus Coordinator.device_meta, wenn vorhanden)
@@ -281,7 +281,7 @@ class _DeviceBase(CoordinatorEntity[SolarmanagerCoordinator], SensorEntity):
     def name(self) -> str:
         friendly = self.coordinator.get_device_name(self._dev_id) if hasattr(self.coordinator, "get_device_name") else None
         if friendly:
-            return f"{friendly} {self._label}"
+            return self._label
         return super().name  # Fallback auf _attr_name
 
     # device_info ebenfalls dynamisch, damit „Geräte“-Kachel sauber benannt ist
