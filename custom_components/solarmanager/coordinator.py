@@ -261,8 +261,13 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data["stat_production"] = self._stats_data.get("production")
                 data["stat_consumption"] = self._stats_data.get("consumption")
                 data["stat_self_consumption"] = self._stats_data.get("selfConsumption")
-                data["stat_self_consumption_rate"] = self._stats_data.get("selfConsumptionRate")
-                data["stat_autarchy_degree"] = self._stats_data.get("autarchyDegree")
+                _consumption = self._stats_data.get("consumption") or 0
+                if _consumption < 10:  # Tagesübergang: Prozentwerte noch nicht aussagekräftig
+                    data["stat_self_consumption_rate"] = None
+                    data["stat_autarchy_degree"] = None
+                else:
+                    data["stat_self_consumption_rate"] = self._stats_data.get("selfConsumptionRate")
+                    data["stat_autarchy_degree"] = self._stats_data.get("autarchyDegree")
                 _sc = self._stats_data.get("selfConsumption") or 0
                 data["stat_grid_import"] = max(0.0, (self._stats_data.get("consumption") or 0) - _sc)
                 data["stat_grid_export"] = max(0.0, (self._stats_data.get("production") or 0) - _sc)
