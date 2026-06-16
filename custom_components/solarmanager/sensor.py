@@ -203,6 +203,7 @@ class SolarmanagerStatsSensor(_Base, SensorEntity):
 
 
 class SocSensor(_Base, SensorEntity):
+    _attr_device_class = SensorDeviceClass.BATTERY
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "%"
 
@@ -323,6 +324,7 @@ class DevicePowerSensor(_DeviceBase):
 
 
 class DeviceSocSensor(_DeviceBase):
+    _attr_device_class = SensorDeviceClass.BATTERY
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "%"
 
