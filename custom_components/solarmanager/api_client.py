@@ -185,17 +185,7 @@ class SolarmanagerCloud:
 
         await self._ensure_token()
         return await self._get_json(path, self._bearer_headers())
-        
-    async def list_sensors(self) -> list[dict]:
-        """GET /v1/info/sensors/{smId} → Liste der Geräte/Sensoren mit Namen/Typ."""
-        await self._ensure_token()
-        return await self._get_json(f"/v1/info/sensors/{self.sm_id}", self._bearer_headers())
 
-    async def sensor_detail(self, sensor_id: str) -> dict:
-        """GET /v1/info/sensor/{sensor_id} → Detailinfos (optional)."""
-        await self._ensure_token()
-        return await self._get_json(f"/v1/info/sensor/{sensor_id}", self._bearer_headers())
-        
     async def list_devices(self) -> list[dict]:
         """GET /v1/info/sensors/{smId} → Liste der Geräte mit _id und (tag.name | name)."""
         await self._ensure_token()

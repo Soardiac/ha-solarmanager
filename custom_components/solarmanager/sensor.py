@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, MODEL
+from .const import DOMAIN, MANUFACTURER, MODEL, MODEL_LOCAL
 from .coordinator import SolarmanagerCoordinator
 
 PARALLEL_UPDATES = 1
@@ -129,8 +129,8 @@ class _Base(CoordinatorEntity[SolarmanagerCoordinator]):
         self._device_info = {
             "identifiers": {(DOMAIN, f"site_{site_id}")},
             "name": f"Solarmanager {site_id}",
-            "manufacturer": MANUFACTURER if "MANUFACTURER" in globals() else "Solarmanager",
-            "model": MODEL if "MODEL" in globals() else "Cloud v3 stream",
+            "manufacturer": MANUFACTURER,
+            "model": MODEL_LOCAL if coordinator.is_local else MODEL,
         }
 
     @property
