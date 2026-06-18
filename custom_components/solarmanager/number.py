@@ -293,15 +293,9 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
             return None
 
     async def async_set_native_value(self, value: float) -> None:
-        eco = await self.coordinator.async_get_battery_eco_settings(self._dev_id)
-        eco[self._field] = int(round(value))
-        payload = {
-            "dischargeSocLimit": eco["dischargeSocLimit"],
-            "morningSocLimit":   eco["morningSocLimit"],
-            "chargingSocLimit":  eco["chargingSocLimit"],
-        }
-        await self.coordinator.client.put_battery_settings(self._dev_id, payload)
-        await self.coordinator.async_refresh_device_meta()
+        await self.coordinator.async_put_battery_merged(
+            self._dev_id, {self._field: int(round(value))}
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +348,15 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
 
     async def async_set_native_value(self, value: float) -> None:
         coerced: Any = round(value, 4) if self._float_value else int(round(value))
+
+        # Batterie: vollständiges Settings-Objekt schreiben (read-modify-write),
+        # damit das Backend keine nicht-gesendeten Felder auf Defaults zurücksetzt.
+        if self._put_method == "put_battery_settings":
+            await self.coordinator.async_put_battery_merged(
+                self._dev_id, {self._field: coerced}
+            )
+            return
+
         payload: dict[str, Any] = {self._field: coerced}
 
         if self._carry_fields:

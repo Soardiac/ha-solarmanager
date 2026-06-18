@@ -270,6 +270,14 @@ class _DeviceSelectBase(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity
         val = next((k for k, v in self._options_map.items() if v == option), None)
         if val is None:
             return
+        # Batterie: vollständiges Settings-Objekt schreiben (read-modify-write),
+        # damit das Backend keine nicht-gesendeten Felder auf Defaults zurücksetzt.
+        if self._put_method == "put_battery_settings":
+            await self.coordinator.async_put_battery_merged(
+                self._dev_id, {self._api_key: int(val)}
+            )
+            self._optimistic = option
+            return
         payload = {self._api_key: int(val)}
         put_fn = getattr(self.coordinator.client, self._put_method)
         await put_fn(self._dev_id, payload)

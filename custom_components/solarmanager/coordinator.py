@@ -37,6 +37,44 @@ from .api_client import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Alle laut Swagger (BatteryModeAndSettingsSchema) gültigen Felder des
+# PUT /v2/control/battery/{sensorId}. Das Schema hat kein required-Feld, aber
+# Defaults auf fast allen Feldern; fehlende Keys werden serverseitig mit dem
+# Default überschrieben. Daher immer das vollständige Settings-Objekt senden
+# (read-modify-write), damit kein nicht-geändertes Feld zurückgesetzt wird.
+BATTERY_PUT_FIELDS = frozenset({
+    "batteryMode",
+    "batteryManualMode",
+    "maxChargePower",
+    "maxDischargePower",
+    "upperSocLimit",
+    "lowerSocLimit",
+    "powerCharge",
+    "powerDischarge",
+    "dischargeSocLimit",
+    "morningSocLimit",
+    "chargingSocLimit",
+    "peakShavingSocDischargeLimit",
+    "peakShavingSocMaxLimit",
+    "peakShavingMaxGridPower",
+    "peakShavingRechargePower",
+    "tariffPriceLimit",
+    "tariffPriceMode",
+    "tariffAbsoluteChargeLimit",
+    "tariffAbsoluteDischargeLimit",
+    "tariffPercentageChargeLimit",
+    "tariffPercentageDischargeLimit",
+    "tariffOffsetChargeLimit",
+    "tariffOffsetDischargeLimit",
+    "tariffDischargeSocLimit",
+    "tariffPriceLimitSocMax",
+    "tariffPriceLimitSocMin",
+    "tariffPriceLimitForecast",
+    "standardStandaloneAllowed",
+    "standardLowerSocLimit",
+    "standardUpperSocLimit",
+})
+
 
 class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator, der den v3-Stream pollt, Daten normalisiert und Geräte-Metadaten cached (aus /v1/info/sensors/{smId})."""
@@ -133,23 +171,19 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         m = self.device_meta.get(str(dev_id))
         return (m or {}).get("name")
         
-    async def async_get_battery_eco_settings(self, dev_id: str) -> dict[str, int]:
-        """Liefert aktuelle Eco-Limits aus den Metadaten (mit sinnvollen Defaults)."""
-        # Optional: Metadaten kurz auffrischen, falls älter
-        if time.time() - self._meta_last > 30:
-            await self._load_device_meta()
-        meta = (self.device_meta.get(str(dev_id)) or {}).get("raw") or {}
-        data = meta.get("data") or {}
-        def _ival(x, default): 
-            try: 
-                return int(x) 
-            except Exception: 
-                return default
-        return {
-            "dischargeSocLimit": _ival(data.get("dischargeSocLimit"), 10),
-            "morningSocLimit":   _ival(data.get("morningSocLimit"),   80),
-            "chargingSocLimit":  _ival(data.get("chargingSocLimit"),  90),
-        }
+    async def async_put_battery_merged(self, dev_id: str, changes: dict[str, Any]) -> None:
+        """Batterie-Settings als vollständiges Objekt schreiben (read-modify-write).
+
+        Liest die aktuellen Settings aus den gecachten Metadaten, überlagert die
+        geänderten Felder und sendet das komplette Objekt. So setzt das Backend
+        keine nicht-gesendeten Felder auf ihre Defaults zurück (siehe
+        BATTERY_PUT_FIELDS).
+        """
+        raw_data = (self.device_meta.get(str(dev_id)) or {}).get("raw", {}).get("data", {}) or {}
+        payload = {k: raw_data[k] for k in BATTERY_PUT_FIELDS if k in raw_data}
+        payload.update(changes)
+        await self.client.put_battery_settings(dev_id, payload)
+        await self.async_refresh_device_meta()
 
     async def async_refresh_device_meta(self) -> None:
         """Meta sofort neu laden (z. B. nach einem PUT), dann Update anstoßen."""
