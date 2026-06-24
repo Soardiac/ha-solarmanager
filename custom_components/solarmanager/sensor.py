@@ -52,6 +52,11 @@ GRID_STATS_SENSORS = [
     ("stat_grid_export",          "Netzeinspeisung heute", "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
 ]
 
+BAT_STATS_SENSORS = [
+    ("stat_bat_charge",    "Batterie geladen heute",   "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_bat_discharge", "Batterie entladen heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+]
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: SolarmanagerCoordinator = entry.runtime_data
 
@@ -65,6 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     if not coord.is_local:
         site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in GRID_STATS_SENSORS]
+    site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in BAT_STATS_SENSORS]
 
     # Geräte-Sensoren dynamisch aus der aktuellen devices[]-Liste
     device_entities: list[SensorEntity] = []

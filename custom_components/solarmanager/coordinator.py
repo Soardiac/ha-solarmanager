@@ -108,6 +108,11 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._local_day: str = ""
         self._local_t: float = 0.0
 
+        # Tages-Batterieenergie (beide Modi): Summierung der bcWh/bdWh-Intervallwerte
+        self._bat_charge_wh: float = 0.0
+        self._bat_discharge_wh: float = 0.0
+        self._bat_day: str = ""
+
     @property
     def site_id(self) -> str:
         if self.is_local:
@@ -321,6 +326,17 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._local_t = now_t
                 data["stat_grid_import"] = self._local_grid_import_wh
                 data["stat_grid_export"] = self._local_grid_export_wh
+
+            # Tages-Batterieenergie (beide Modi): bcWh/bdWh-Intervalle aufsummieren
+            today = dt_util.now().strftime("%Y-%m-%d")
+            if today != self._bat_day:
+                self._bat_charge_wh = 0.0
+                self._bat_discharge_wh = 0.0
+                self._bat_day = today
+            self._bat_charge_wh += (data.get("bcWh") or 0.0)
+            self._bat_discharge_wh += (data.get("bdWh") or 0.0)
+            data["stat_bat_charge"] = self._bat_charge_wh
+            data["stat_bat_discharge"] = self._bat_discharge_wh
 
             return data
 
