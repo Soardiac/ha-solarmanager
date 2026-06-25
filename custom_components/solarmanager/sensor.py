@@ -43,6 +43,10 @@ STATS_SENSORS = [
     ("stat_production",           "PV Tageserzeugung",    "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
     ("stat_consumption",          "Verbrauch heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
     ("stat_self_consumption",     "Eigenverbrauch heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+]
+
+# Nur Cloud: vom API berechnete Prozentwerte
+STATS_SENSORS_CLOUD = [
     ("stat_self_consumption_rate","Eigenverbrauchsquote",  "%",  None,                      SensorStateClass.MEASUREMENT),
     ("stat_autarchy_degree",      "Autarkiegrad",          "%",  None,                      SensorStateClass.MEASUREMENT),
 ]
@@ -67,8 +71,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         SocSensor(coord),
         DevicesOverviewSensor(coord),
     ]
+    site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS]
     if not coord.is_local:
-        site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS]
+        site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS_CLOUD]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in GRID_STATS_SENSORS]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in BAT_STATS_SENSORS]
 
@@ -167,6 +172,7 @@ class SolarmanagerPowerSensor(_Base, SensorEntity):
 class SolarmanagerEnergySensor(_Base, SensorEntity):
     _attr_state_class = SensorStateClass.TOTAL
     _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coordinator: SolarmanagerCoordinator, key: str, name: str, unit: str = "kWh"):
         super().__init__(coordinator, key, name)

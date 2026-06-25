@@ -102,7 +102,9 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._stats_last: float = 0.0
         self._stats_date: str = ""
 
-        # Tages-Netzenergie (Lokal): Riemann-Integration von iW/eW
+        # Tages-Energie (Lokal): Riemann-Integration von pW/cW/iW/eW
+        self._local_production_wh: float = 0.0
+        self._local_consumption_wh: float = 0.0
         self._local_grid_import_wh: float = 0.0
         self._local_grid_export_wh: float = 0.0
         self._local_day: str = ""
@@ -311,19 +313,26 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data["stat_grid_import"] = max(0.0, (self._stats_data.get("consumption") or 0) - _sc)
                 data["stat_grid_export"] = max(0.0, (self._stats_data.get("production") or 0) - _sc)
             else:
-                # Lokal: iW/eW (W) über die Zeit integrieren → Wh-Tageszähler
+                # Lokal: pW/cW/iW/eW (W) über die Zeit integrieren → Wh-Tageszähler
                 today = dt_util.now().strftime("%Y-%m-%d")
                 now_t = time.time()
                 if today != self._local_day:
+                    self._local_production_wh = 0.0
+                    self._local_consumption_wh = 0.0
                     self._local_grid_import_wh = 0.0
                     self._local_grid_export_wh = 0.0
                     self._local_day = today
                     self._local_t = now_t
                 elif self._local_t > 0:
                     dt_s = now_t - self._local_t
+                    self._local_production_wh += (data.get("pW") or 0.0) * dt_s / 3600
+                    self._local_consumption_wh += (data.get("cW") or 0.0) * dt_s / 3600
                     self._local_grid_import_wh += (data.get("iW") or 0.0) * dt_s / 3600
                     self._local_grid_export_wh += (data.get("eW") or 0.0) * dt_s / 3600
                     self._local_t = now_t
+                data["stat_production"] = self._local_production_wh
+                data["stat_consumption"] = self._local_consumption_wh
+                data["stat_self_consumption"] = max(0.0, self._local_production_wh - self._local_grid_export_wh)
                 data["stat_grid_import"] = self._local_grid_import_wh
                 data["stat_grid_export"] = self._local_grid_export_wh
 
