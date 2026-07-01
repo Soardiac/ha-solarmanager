@@ -137,7 +137,7 @@ class _Base(CoordinatorEntity[SolarmanagerCoordinator]):
         site_id = coordinator.site_id
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{key}"
         self._attr_name = name
-        self._device_info = {
+        self._attr_device_info = {
             "identifiers": {(DOMAIN, f"site_{site_id}")},
             "name": f"Solarmanager {site_id}",
             "manufacturer": MANUFACTURER,
