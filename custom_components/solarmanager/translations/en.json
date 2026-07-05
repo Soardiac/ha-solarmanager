@@ -16,11 +16,11 @@
           "email": "Email",
           "password": "Password",
           "sm_id": "System ID (smId)",
-          "api_key": "Cloud API Key (recommended)"
+          "api_key": "Cloud API key (recommended)"
         },
         "data_description": {
           "sm_id": "The smId of your Solarmanager system from the cloud interface.",
-          "api_key": "Cloud API Key for modern authentication (recommended). Found in profile settings under «Cloud API Keys». Create the token without an expiry date, enable all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable «Allow renewal». Important: The token is only visible immediately after creation — copy it right away!"
+          "api_key": "Cloud API key for modern authentication (recommended). Found in the profile settings under «Cloud API Keys». Create the token without an expiry date, enable all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable «Allow renewal». Important: the token is only visible right after creation — copy it immediately!"
         }
       },
       "local": {
@@ -28,49 +28,145 @@
         "data": {
           "host": "IP address / hostname",
           "scheme": "Protocol",
-          "api_key": "API Key (optional)"
+          "api_key": "API key (optional)"
         },
         "data_description": {
           "host": "IP address or hostname of the Solar Manager gateway (e.g. 192.168.1.100).",
-          "scheme": "HTTP for unencrypted, HTTPS for encrypted (self-signed certificate accepted).",
+          "scheme": "HTTP for unencrypted, HTTPS for encrypted (self-signed certificates are accepted).",
           "api_key": "Optional API key to secure the local connection. Leave empty if no key is configured."
         }
       },
       "reauth_confirm": {
         "title": "Re-authenticate Solarmanager",
-        "description": "Update credentials for system **{sm_id}**.\n\nRecommended: API Key from profile settings → «Cloud API Keys». No expiry date, all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable «Allow renewal». The token is only visible immediately after creation — copy it right away!\n\nNote: If the API Key section is not yet visible, contact support — the feature is enabled on request.",
+        "description": "Update credentials for system **{sm_id}**.\n\nRecommended: API key from profile settings → «Cloud API Keys». Token without expiry date, all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable «Allow renewal». The token is only visible right after creation — copy it immediately!\n\nEmpty fields keep the stored values.",
         "data": {
           "email": "Email",
           "password": "Password",
-          "api_key": "Cloud API Key (recommended)"
+          "api_key": "Cloud API key (recommended)"
+        }
+      },
+      "reconfigure_cloud": {
+        "title": "Reconfigure Solarmanager Cloud",
+        "description": "Empty fields keep the stored values.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "sm_id": "System ID (smId)",
+          "api_key": "Cloud API key"
+        }
+      },
+      "reconfigure_local": {
+        "title": "Reconfigure local connection",
+        "description": "Leave the API key empty to keep the stored key.",
+        "data": {
+          "host": "IP address / hostname",
+          "scheme": "Protocol",
+          "api_key": "API key (optional)"
         }
       }
     },
     "error": {
-      "auth": "Invalid credentials or API Key. Please check and try again.",
+      "auth": "Invalid credentials or API key. Please check and try again.",
       "cannot_connect": "Connection failed. Is the gateway reachable?",
-      "unknown": "Unexpected error. Please check the logs."
+      "unknown": "Unknown error. Please check the logs."
     },
     "abort": {
       "already_configured": "This Solarmanager system is already configured.",
-      "reauth_successful": "Re-authentication successful. The integration will reload.",
-      "reauth_not_supported": "Local mode does not require re-authentication."
+      "reauth_successful": "Re-authentication successful. The integration will be reloaded.",
+      "reauth_not_supported": "Local mode does not require re-authentication.",
+      "reconfigure_successful": "Reconfiguration successful. The integration will be reloaded."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Options",
-        "description": "Cloud API Key: {api_key_status}",
+        "description": "Cloud API key: {api_key_status}",
         "data": {
-          "api_key": "Cloud API Key",
+          "api_key": "Cloud API key",
           "scan_interval": "Polling interval (seconds)"
         },
         "data_description": {
-          "api_key": "Leave empty to keep existing credentials. Enter a new key to switch to API Key authentication or replace the existing one.",
+          "api_key": "Leave empty to keep the existing credentials. Enter a new key to switch to API key authentication or to replace the existing key.",
           "scan_interval": "How often the API is polled. Recommended: 10 seconds."
         }
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pv_power": { "name": "PV power" },
+      "consumption_power": { "name": "House consumption" },
+      "battery_power": { "name": "Battery power (+charge/-discharge)" },
+      "grid_import_power": { "name": "Grid import" },
+      "grid_export_power": { "name": "Grid export" },
+      "grid_power": { "name": "Grid power (+import/-export)" },
+      "pv_energy_interval": { "name": "PV energy (interval)" },
+      "consumption_energy_interval": { "name": "Consumption (interval)" },
+      "grid_import_energy_interval": { "name": "Grid import (interval)" },
+      "grid_export_energy_interval": { "name": "Grid export (interval)" },
+      "battery_charge_energy_interval": { "name": "Battery charged (interval)" },
+      "battery_discharge_energy_interval": { "name": "Battery discharged (interval)" },
+      "battery_soc": { "name": "Battery SOC" },
+      "devices_overview": { "name": "Devices (stream overview)" },
+      "production_today": { "name": "PV production today" },
+      "consumption_today": { "name": "Consumption today" },
+      "self_consumption_today": { "name": "Self-consumption today" },
+      "self_consumption_rate": { "name": "Self-consumption rate" },
+      "autarchy_degree": { "name": "Autarky degree" },
+      "grid_import_today": { "name": "Grid import today" },
+      "grid_export_today": { "name": "Grid export today" },
+      "battery_charge_today": { "name": "Battery charged today" },
+      "battery_discharge_today": { "name": "Battery discharged today" },
+      "power": { "name": "Power" },
+      "soc": { "name": "SOC" },
+      "temperature": { "name": "Temperature" },
+      "active_state": { "name": "Active state" },
+      "daily_consumption": { "name": "Consumption today" },
+      "daily_feed_in": { "name": "Feed-in today" },
+      "operation_state": { "name": "Operation state" },
+      "switch_state": { "name": "Switch state" },
+      "heating_adjustment": { "name": "Heating adjustment" },
+      "remaining_range": { "name": "Remaining range" }
+    },
+    "binary_sensor": {
+      "signal": { "name": "Connection" }
+    },
+    "select": {
+      "battery_mode": { "name": "Battery mode" },
+      "wallbox_mode": { "name": "Wallbox mode" },
+      "v2x_mode": { "name": "V2X mode" },
+      "heat_pump_mode": { "name": "Heat pump mode" },
+      "water_heater_mode": { "name": "Water heater mode" },
+      "smart_plug_mode": { "name": "Smart plug mode" },
+      "switch_mode": { "name": "Switch mode" },
+      "battery_manual_mode": { "name": "Manual direction" }
+    },
+    "number": {
+      "eco_discharge_soc_limit": { "name": "Eco discharge limit" },
+      "eco_morning_soc_limit": { "name": "Eco morning limit" },
+      "eco_charging_soc_limit": { "name": "Eco charge limit" },
+      "active_power_limit": { "name": "Feed-in limit" },
+      "constant_current": { "name": "Constant current" },
+      "charging_target_soc": { "name": "Charging target SOC" },
+      "charging_target_soc_max": { "name": "Charging target SOC maximum" },
+      "min_charge_quantity_target": { "name": "Charging target amount (kWh)" },
+      "min_charge_quantity_target_max": { "name": "Charging target maximum (kWh)" },
+      "power_setting_percent": { "name": "Power" },
+      "upper_soc_limit": { "name": "SOC upper limit" },
+      "lower_soc_limit": { "name": "SOC lower limit" },
+      "peak_shaving_max_grid_power": { "name": "Peak shaving grid limit" },
+      "peak_shaving_recharge_power": { "name": "Peak shaving recharge power" },
+      "peak_shaving_soc_discharge_limit": { "name": "Peak shaving SOC discharge limit" },
+      "peak_shaving_soc_max_limit": { "name": "Peak shaving SOC maximum" },
+      "max_charge_power": { "name": "Manual charge power" },
+      "max_discharge_power": { "name": "Manual discharge power" },
+      "tariff_price_limit": { "name": "Tariff price limit" },
+      "tariff_price_limit_soc_max": { "name": "Tariff SOC maximum" }
+    },
+    "datetime": {
+      "charging_target_soc_datetime": { "name": "Charging target SOC deadline" },
+      "min_charge_quantity_datetime": { "name": "Charging target kWh deadline" }
     }
   }
 }

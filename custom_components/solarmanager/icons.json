@@ -1,0 +1,48 @@
+{
+  "entity": {
+    "sensor": {
+      "devices_overview": { "default": "mdi:devices" },
+      "active_state": { "default": "mdi:play-circle-outline" },
+      "operation_state": { "default": "mdi:state-machine" },
+      "switch_state": { "default": "mdi:toggle-switch" },
+      "heating_adjustment": { "default": "mdi:thermometer-auto" },
+      "remaining_range": { "default": "mdi:car-electric" }
+    },
+    "select": {
+      "battery_mode": { "default": "mdi:battery-sync" },
+      "wallbox_mode": { "default": "mdi:ev-station" },
+      "v2x_mode": { "default": "mdi:car-electric-outline" },
+      "heat_pump_mode": { "default": "mdi:heat-pump" },
+      "water_heater_mode": { "default": "mdi:water-boiler" },
+      "smart_plug_mode": { "default": "mdi:power-socket-eu" },
+      "switch_mode": { "default": "mdi:light-switch" },
+      "battery_manual_mode": { "default": "mdi:battery-arrow-up-outline" }
+    },
+    "number": {
+      "eco_discharge_soc_limit": { "default": "mdi:battery-arrow-down" },
+      "eco_morning_soc_limit": { "default": "mdi:weather-sunset-up" },
+      "eco_charging_soc_limit": { "default": "mdi:battery-arrow-up" },
+      "active_power_limit": { "default": "mdi:transmission-tower-export" },
+      "constant_current": { "default": "mdi:current-ac" },
+      "charging_target_soc": { "default": "mdi:battery-charging-100" },
+      "charging_target_soc_max": { "default": "mdi:battery-charging-100" },
+      "min_charge_quantity_target": { "default": "mdi:battery-charging-low" },
+      "min_charge_quantity_target_max": { "default": "mdi:battery-charging-low" },
+      "power_setting_percent": { "default": "mdi:water-percent" },
+      "upper_soc_limit": { "default": "mdi:battery-arrow-up-outline" },
+      "lower_soc_limit": { "default": "mdi:battery-arrow-down-outline" },
+      "peak_shaving_max_grid_power": { "default": "mdi:transmission-tower" },
+      "peak_shaving_recharge_power": { "default": "mdi:battery-charging-outline" },
+      "peak_shaving_soc_discharge_limit": { "default": "mdi:battery-arrow-down-outline" },
+      "peak_shaving_soc_max_limit": { "default": "mdi:battery-arrow-up-outline" },
+      "max_charge_power": { "default": "mdi:battery-charging-high" },
+      "max_discharge_power": { "default": "mdi:battery-minus-outline" },
+      "tariff_price_limit": { "default": "mdi:currency-usd" },
+      "tariff_price_limit_soc_max": { "default": "mdi:battery-clock-outline" }
+    },
+    "datetime": {
+      "charging_target_soc_datetime": { "default": "mdi:calendar-clock" },
+      "min_charge_quantity_datetime": { "default": "mdi:calendar-clock" }
+    }
+  }
+}

@@ -1,36 +1,43 @@
+# number.py
 from __future__ import annotations
 from typing import Any, Optional
 
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfElectricCurrent,
+    UnitOfEnergy,
+    UnitOfPower,
+)
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import SolarmanagerCoordinator
+from .entity import child_device_info
 
 PARALLEL_UPDATES = 1
 
 # ---------------------------------------------------------------------------
 # Batterie Eco-Limits (bestehend, eigene Klasse für Rückwärtskompatibilität)
+# (api_field, translation_key)
 # ---------------------------------------------------------------------------
 
 ECO_FIELDS = [
-    ("dischargeSocLimit", "Eco Entlade-Limit"),
-    ("morningSocLimit",   "Eco Morgen-Limit"),
-    ("chargingSocLimit",  "Eco Lade-Limit"),
+    ("dischargeSocLimit", "eco_discharge_soc_limit"),
+    ("morningSocLimit", "eco_morning_soc_limit"),
+    ("chargingSocLimit", "eco_charging_soc_limit"),
 ]
 
 # ---------------------------------------------------------------------------
 # Geräteparameter-Konfig
 #
 # key          : Feldname im API-Payload und in raw.data
-# label        : Anzeigename in HA
+# tkey         : translation_key (Name via translations/*.json, Icon via icons.json)
 # unit         : Einheit
 # min/max/step : Wertebereich
 # put_method   : Methode auf SolarmanagerCloud
-# icon         : MDI-Icon
 # carry_fields : Felder aus raw.data, die im Payload mitgesendet werden müssen
 # value_type   : "float" für Dezimalwerte (Standard: int)
 # ---------------------------------------------------------------------------
@@ -38,11 +45,10 @@ ECO_FIELDS = [
 _INVERTER_NUMBERS = [
     {
         "key": "activePowerLimit",
-        "label": "Einspeisebegrenzung",
-        "unit": "%",
+        "tkey": "active_power_limit",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_inverter_settings",
-        "icon": "mdi:transmission-tower-export",
         "carry_fields": [],
     },
 ]
@@ -50,47 +56,42 @@ _INVERTER_NUMBERS = [
 _CAR_CHARGER_NUMBERS = [
     {
         "key": "constantCurrentSetting",
-        "label": "Konstantstrom",
-        "unit": "A",
+        "tkey": "constant_current",
+        "unit": UnitOfElectricCurrent.AMPERE,
         "min": 6, "max": 32, "step": 1,
         "put_method": "put_car_charger_mode",
-        "icon": "mdi:current-ac",
         "carry_fields": ["chargingMode"],
     },
     {
         "key": "chargingTargetSoc",
-        "label": "Ladeziel SOC",
-        "unit": "%",
+        "tkey": "charging_target_soc",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_car_charger_mode",
-        "icon": "mdi:battery-charging-100",
         "carry_fields": ["chargingMode"],
     },
     {
         "key": "chargingTargetSocMax",
-        "label": "Ladeziel SOC Maximum",
-        "unit": "%",
+        "tkey": "charging_target_soc_max",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_car_charger_mode",
-        "icon": "mdi:battery-charging-100",
         "carry_fields": ["chargingMode"],
     },
     {
         "key": "minimumChargeQuantityTargetAmount",
-        "label": "Ladeziel kWh Menge",
-        "unit": "kWh",
+        "tkey": "min_charge_quantity_target",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "min": 1, "max": 100, "step": 1,
         "put_method": "put_car_charger_mode",
-        "icon": "mdi:battery-charging-low",
         "carry_fields": ["chargingMode"],
     },
     {
         "key": "minimumChargeQuantityTargetAmountMax",
-        "label": "Ladeziel kWh Maximum",
-        "unit": "kWh",
+        "tkey": "min_charge_quantity_target_max",
+        "unit": UnitOfEnergy.KILO_WATT_HOUR,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_car_charger_mode",
-        "icon": "mdi:battery-charging-low",
         "carry_fields": ["chargingMode"],
     },
 ]
@@ -98,11 +99,10 @@ _CAR_CHARGER_NUMBERS = [
 _WATER_HEATER_NUMBERS = [
     {
         "key": "powerSettingPercent",
-        "label": "Leistung",
-        "unit": "%",
+        "tkey": "power_setting_percent",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_water_heater_mode",
-        "icon": "mdi:water-percent",
         "carry_fields": [],
     },
 ]
@@ -111,96 +111,86 @@ _BATTERY_NUMBERS = [
     # Stufe 3a – allgemeine SOC-Grenzen
     {
         "key": "upperSocLimit",
-        "label": "SOC-Obergrenze",
-        "unit": "%",
+        "tkey": "upper_soc_limit",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_battery_settings",
-        "icon": "mdi:battery-arrow-up-outline",
         "carry_fields": [],
     },
     {
         "key": "lowerSocLimit",
-        "label": "SOC-Untergrenze",
-        "unit": "%",
+        "tkey": "lower_soc_limit",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_battery_settings",
-        "icon": "mdi:battery-arrow-down-outline",
         "carry_fields": [],
     },
     # Stufe 3b – Peak-Shaving
     {
         "key": "peakShavingMaxGridPower",
-        "label": "Peak-Shaving Netzlimit",
-        "unit": "W",
+        "tkey": "peak_shaving_max_grid_power",
+        "unit": UnitOfPower.WATT,
         "min": 0, "max": 20000, "step": 100,
         "put_method": "put_battery_settings",
-        "icon": "mdi:transmission-tower",
         "carry_fields": [],
     },
     {
         "key": "peakShavingRechargePower",
-        "label": "Peak-Shaving Nachladepower",
-        "unit": "W",
+        "tkey": "peak_shaving_recharge_power",
+        "unit": UnitOfPower.WATT,
         "min": 0, "max": 20000, "step": 100,
         "put_method": "put_battery_settings",
-        "icon": "mdi:battery-charging-outline",
         "carry_fields": [],
     },
     {
         "key": "peakShavingSocDischargeLimit",
-        "label": "Peak-Shaving SOC-Entladegrenze",
-        "unit": "%",
+        "tkey": "peak_shaving_soc_discharge_limit",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_battery_settings",
-        "icon": "mdi:battery-arrow-down-outline",
         "carry_fields": [],
     },
     {
         "key": "peakShavingSocMaxLimit",
-        "label": "Peak-Shaving SOC-Maximum",
-        "unit": "%",
+        "tkey": "peak_shaving_soc_max_limit",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_battery_settings",
-        "icon": "mdi:battery-arrow-up-outline",
         "carry_fields": [],
     },
     # Stufe 3b – Manuell
     {
         "key": "maxChargePower",
-        "label": "Manuell Ladeleistung",
-        "unit": "W",
+        "tkey": "max_charge_power",
+        "unit": UnitOfPower.WATT,
         "min": 0, "max": 20000, "step": 100,
         "put_method": "put_battery_settings",
-        "icon": "mdi:battery-charging-high",
         "carry_fields": [],
     },
     {
         "key": "maxDischargePower",
-        "label": "Manuell Entladeleistung",
-        "unit": "W",
+        "tkey": "max_discharge_power",
+        "unit": UnitOfPower.WATT,
         "min": 0, "max": 20000, "step": 100,
         "put_method": "put_battery_settings",
-        "icon": "mdi:battery-minus-outline",
         "carry_fields": [],
     },
     # Stufe 3b – Tarif-Optimiert
     {
         "key": "tariffPriceLimit",
-        "label": "Tarif Preislimit",
+        "tkey": "tariff_price_limit",
         "unit": "CHF/kWh",
         "min": 0.0, "max": 2.0, "step": 0.01,
         "value_type": "float",
         "put_method": "put_battery_settings",
-        "icon": "mdi:currency-usd",
         "carry_fields": [],
     },
     {
         "key": "tariffPriceLimitSocMax",
-        "label": "Tarif SOC-Maximum",
-        "unit": "%",
+        "tkey": "tariff_price_limit_soc_max",
+        "unit": PERCENTAGE,
         "min": 0, "max": 100, "step": 1,
         "put_method": "put_battery_settings",
-        "icon": "mdi:battery-clock-outline",
         "carry_fields": [],
     },
 ]
@@ -233,24 +223,37 @@ async def async_setup_entry(
     if coord.is_local:
         return
 
-    entities: list[NumberEntity] = []
-    for dev_id, meta in coord.device_meta.items():
-        dev_type = (meta.get("type") or "").lower()
+    created: set[str] = set()
 
-        # Bestehende Batterie-Eco-Limits (eigene Klasse, unique_ids bleiben stabil)
-        if dev_type == "battery":
-            for key, label in ECO_FIELDS:
-                entities.append(BatteryEcoNumber(coord, dev_id, key, label))
+    @callback
+    def _sync_devices() -> None:
+        new_entities: list[NumberEntity] = []
+        for dev_id, meta in coord.device_meta.items():
+            dev_type = (meta.get("type") or "").lower()
 
-        # Generische Geräteparameter
-        for cfg in DEVICE_NUMBER_CONFIG.get(dev_type, []):
-            entities.append(DeviceNumberEntity(coord, dev_id, cfg))
+            # Bestehende Batterie-Eco-Limits (eigene Klasse, unique_ids bleiben stabil)
+            if dev_type == "battery":
+                for key, tkey in ECO_FIELDS:
+                    uid = f"{dev_id}_eco_{key}"
+                    if uid not in created:
+                        created.add(uid)
+                        new_entities.append(BatteryEcoNumber(coord, dev_id, key, tkey))
 
-    async_add_entities(entities, True)
+            # Generische Geräteparameter
+            for cfg in DEVICE_NUMBER_CONFIG.get(dev_type, []):
+                uid = f"{dev_id}_{cfg['key']}"
+                if uid not in created:
+                    created.add(uid)
+                    new_entities.append(DeviceNumberEntity(coord, dev_id, cfg))
+        if new_entities:
+            async_add_entities(new_entities, True)
+
+    _sync_devices()
+    entry.async_on_unload(coord.async_add_listener(_sync_devices))
 
 
 # ---------------------------------------------------------------------------
-# Bestehende Batterie-Eco-Klasse (unverändert)
+# Bestehende Batterie-Eco-Klasse (unique_ids unverändert)
 # ---------------------------------------------------------------------------
 
 class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity):
@@ -258,30 +261,24 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
     _attr_native_min_value = 0
     _attr_native_max_value = 100
     _attr_native_step = 1
-    _attr_native_unit_of_measurement = "%"
+    _attr_native_unit_of_measurement = PERCENTAGE
 
     def __init__(
         self,
         coordinator: SolarmanagerCoordinator,
         dev_id: str,
         field: str,
-        label: str,
+        translation_key: str,
     ) -> None:
         super().__init__(coordinator)
         self._dev_id = dev_id
         self._field = field
-
-        short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
         self._attr_unique_id = f"{coordinator.entry.entry_id}_bat_{dev_id}_{field}"
-        friendly = coordinator.get_device_name(dev_id) or f"Gerät {short}"
-        self._attr_name = f"{friendly} {label}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"device_{dev_id}")},
-            "name": friendly,
-            "manufacturer": "Solarmanager",
-            "model": "Battery",
-            "via_device": (DOMAIN, f"site_{coordinator.site_id}"),
-        }
+        self._attr_translation_key = translation_key
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        return child_device_info(self.coordinator, self._dev_id, model="Battery")
 
     @property
     def native_value(self) -> Optional[float]:
@@ -314,7 +311,6 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
         super().__init__(coordinator)
         self._dev_id = dev_id
         self._field: str = cfg["key"]
-        self._label: str = cfg["label"]
         self._put_method: str = cfg["put_method"]
         self._carry_fields: list[str] = cfg.get("carry_fields", [])
         self._float_value: bool = cfg.get("value_type") == "float"
@@ -323,19 +319,12 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
         self._attr_native_max_value = cfg["max"]
         self._attr_native_step = cfg["step"]
         self._attr_native_unit_of_measurement = cfg["unit"]
-        self._attr_icon = cfg.get("icon")
-
-        short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
-        friendly = coordinator.get_device_name(dev_id) or f"Gerät {short}"
-        self._attr_name = f"{friendly} {self._label}"
+        self._attr_translation_key = cfg["tkey"]
         self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_{self._field}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"device_{dev_id}")},
-            "name": friendly,
-            "manufacturer": "Solarmanager",
-            "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{coordinator.site_id}"),
-        }
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        return child_device_info(self.coordinator, self._dev_id)
 
     @property
     def native_value(self) -> Optional[float]:

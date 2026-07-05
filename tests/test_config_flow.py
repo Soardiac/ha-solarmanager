@@ -313,6 +313,43 @@ async def test_reauth_flow_auth_error(hass):
     assert result["errors"]["base"] == "auth"
 
 
+async def test_reauth_api_key_only_keeps_credentials(hass):
+    """Re-Auth nur mit API Key → gespeicherte E-Mail/Passwort bleiben erhalten."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_EMAIL: "old@example.com",
+            CONF_PASSWORD: "oldpass",
+            CONF_SM_ID: "SM-0001",
+            CONF_API_KEY: None,
+        },
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+
+    with patch(_PATCH_CLOUD) as mock_cls, patch.object(
+        hass.config_entries, "async_reload"
+    ):
+        mock_cls.return_value.login = AsyncMock()
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_EMAIL: "", CONF_PASSWORD: "", CONF_API_KEY: "new-api-key"},
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_EMAIL] == "old@example.com"
+    assert entry.data[CONF_PASSWORD] == "oldpass"
+    assert entry.data[CONF_API_KEY] == "new-api-key"
+
+
 async def test_reauth_aborted_for_local_mode(hass):
     """Re-Auth für lokalen Eintrag wird sofort abgebrochen."""
     entry = MockConfigEntry(
@@ -330,3 +367,126 @@ async def test_reauth_aborted_for_local_mode(hass):
 
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "reauth_not_supported"
+
+
+# ---------------------------------------------------------------------------
+# Reconfigure
+# ---------------------------------------------------------------------------
+
+async def test_reconfigure_cloud_success(hass):
+    """Reconfigure (Cloud): sm_id wird geaendert, unique_id/title folgen."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_CLOUD,
+            CONF_EMAIL: "test@example.com",
+            CONF_PASSWORD: "secret",
+            CONF_SM_ID: "SM-0001",
+            CONF_API_KEY: None,
+        },
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+        data=entry.data,
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reconfigure_cloud"
+
+    with patch(_PATCH_CLOUD) as mock_cls, patch.object(
+        hass.config_entries, "async_reload"
+    ):
+        mock_cls.return_value.login = AsyncMock()
+        mock_cls.return_value.stream_user_v3 = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_EMAIL: "", CONF_PASSWORD: "", CONF_SM_ID: "SM-0002", CONF_API_KEY: ""},
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_SM_ID] == "SM-0002"
+    assert entry.data[CONF_EMAIL] == "test@example.com"  # leer -> behalten
+    assert entry.unique_id == f"{DOMAIN}_SM-0002"
+
+
+async def test_reconfigure_cloud_duplicate_sm_id_aborts(hass):
+    """Reconfigure auf eine sm_id, die ein anderer Eintrag nutzt -> Abbruch."""
+    other = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_MODE: MODE_CLOUD, CONF_SM_ID: "SM-0002"},
+        unique_id=f"{DOMAIN}_SM-0002",
+    )
+    other.add_to_hass(hass)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_CLOUD,
+            CONF_EMAIL: "test@example.com",
+            CONF_PASSWORD: "secret",
+            CONF_SM_ID: "SM-0001",
+        },
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+        data=entry.data,
+    )
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_EMAIL: "", CONF_PASSWORD: "", CONF_SM_ID: "SM-0002", CONF_API_KEY: ""},
+    )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_reconfigure_local_success(hass):
+    """Reconfigure (Lokal): Host-Wechsel aktualisiert Daten und unique_id."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http"},
+        unique_id="local_192.168.1.100",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+        data=entry.data,
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reconfigure_local"
+
+    with patch(_PATCH_LOCAL) as mock_cls, patch.object(
+        hass.config_entries, "async_reload"
+    ):
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_HOST: "192.168.1.50", CONF_SCHEME: "https", CONF_API_KEY: ""},
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_HOST] == "192.168.1.50"
+    assert entry.data[CONF_SCHEME] == "https"
+    assert entry.unique_id == "local_192.168.1.50"

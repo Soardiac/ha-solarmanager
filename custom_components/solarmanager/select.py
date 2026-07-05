@@ -1,17 +1,22 @@
 # select.py
 from __future__ import annotations
+import time
 from typing import Any
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import SolarmanagerCoordinator
+from .entity import child_device_info
 
 PARALLEL_UPDATES = 1
+
+# Wie lange nach einem PUT der optimistisch gesetzte Wert Vorrang vor einem
+# (möglicherweise noch veralteten) API-Wert hat
+OPTIMISTIC_TTL = 30  # Sekunden
 
 # ---------------------------------------------------------------------------
 # Konfig-Objekte für Hauptmodi (ein Select pro Gerät)
@@ -19,7 +24,7 @@ PARALLEL_UPDATES = 1
 # ---------------------------------------------------------------------------
 
 _BATTERY_CFG = {
-    "label": "Batterie Modus",
+    "tkey": "battery_mode",
     "options": {
         "0": "Standard",
         "1": "Eco",
@@ -34,7 +39,7 @@ _BATTERY_CFG = {
 }
 
 _CAR_CHARGER_CFG = {
-    "label": "Wallbox Modus",
+    "tkey": "wallbox_mode",
     "options": {
         "0": "Immer laden",
         "1": "Nur Solar",
@@ -51,7 +56,7 @@ _CAR_CHARGER_CFG = {
 }
 
 _V2X_CFG = {
-    "label": "V2X Modus",
+    "tkey": "v2x_mode",
     "options": {
         "0": "Immer laden",
         "1": "Solar-Optimiert",
@@ -64,7 +69,7 @@ _V2X_CFG = {
 }
 
 _HEAT_PUMP_CFG = {
-    "label": "Wärmepumpe Modus",
+    "tkey": "heat_pump_mode",
     "options": {
         "0": "Kein Modus",
         "1": "EIN",
@@ -81,7 +86,7 @@ _HEAT_PUMP_CFG = {
 }
 
 _WATER_HEATER_CFG = {
-    "label": "Warmwasser Modus",
+    "tkey": "water_heater_mode",
     "options": {
         "1": "EIN",
         "2": "AUS",
@@ -96,7 +101,7 @@ _WATER_HEATER_CFG = {
 }
 
 _SMART_PLUG_CFG = {
-    "label": "Smart Plug Modus",
+    "tkey": "smart_plug_mode",
     "options": {
         "1": "EIN",
         "2": "AUS",
@@ -109,7 +114,7 @@ _SMART_PLUG_CFG = {
 }
 
 _SWITCH_CFG = {
-    "label": "Schalter Modus",
+    "tkey": "switch_mode",
     "options": {
         "0": "Kein Modus",
         "1": "EIN",
@@ -158,7 +163,7 @@ DEVICE_MODE_CONFIG: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 
 _BATTERY_MANUAL_MODE_CFG = {
-    "label": "Manuell Richtung",
+    "tkey": "battery_manual_mode",
     "options": {
         "0": "Laden",
         "1": "Entladen",
@@ -182,17 +187,30 @@ async def async_setup_entry(
     if coord.is_local:
         return
 
-    entities: list[SelectEntity] = []
-    for dev_id, meta in coord.device_meta.items():
-        dev_type = (meta.get("type") or "").lower()
+    created: set[str] = set()
 
-        if dev_type in DEVICE_MODE_CONFIG:
-            entities.append(DeviceModeSelect(coord, dev_id, dev_type))
+    @callback
+    def _sync_devices() -> None:
+        new_entities: list[SelectEntity] = []
+        for dev_id, meta in coord.device_meta.items():
+            dev_type = (meta.get("type") or "").lower()
 
-        for cfg in DEVICE_EXTRA_SELECTS.get(dev_type, []):
-            entities.append(DeviceExtraSelect(coord, dev_id, cfg))
+            if dev_type in DEVICE_MODE_CONFIG:
+                uid = f"{dev_id}_mode"
+                if uid not in created:
+                    created.add(uid)
+                    new_entities.append(DeviceModeSelect(coord, dev_id, dev_type))
 
-    async_add_entities(entities, True)
+            for cfg in DEVICE_EXTRA_SELECTS.get(dev_type, []):
+                uid = f"{dev_id}_{cfg['api_key']}"
+                if uid not in created:
+                    created.add(uid)
+                    new_entities.append(DeviceExtraSelect(coord, dev_id, cfg))
+        if new_entities:
+            async_add_entities(new_entities, True)
+
+    _sync_devices()
+    entry.async_on_unload(coord.async_add_listener(_sync_devices))
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +227,7 @@ class _DeviceSelectBase(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity
         api_key: str,
         put_method: str,
         options_map: dict[str, str],
-        label: str,
+        translation_key: str,
         uid_suffix: str,
     ) -> None:
         super().__init__(coordinator)
@@ -217,54 +235,48 @@ class _DeviceSelectBase(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity
         self._api_key = api_key
         self._put_method = put_method
         self._options_map = options_map
-        self._label = label
         self._attr_options = list(options_map.values())
-        self._optimistic: str | None = None
-
-        short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
+        self._attr_translation_key = translation_key
         self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_{uid_suffix}"
-        self._attr_name = f"Gerät {short} {label}"
 
-    @property
-    def name(self) -> str:
-        friendly = (
-            self.coordinator.get_device_name(self._dev_id)
-            if hasattr(self.coordinator, "get_device_name")
-            else None
-        )
-        if friendly:
-            return f"{friendly} {self._label}"
-        return self._attr_name
+        # Optimistischer Zustand nach einem PUT (Backend liefert kurzzeitig
+        # noch den alten Wert) — verfällt nach OPTIMISTIC_TTL Sekunden
+        self._optimistic: str | None = None
+        self._optimistic_until: float = 0.0
 
     @property
     def device_info(self) -> dict[str, Any]:
-        friendly = (
-            self.coordinator.get_device_name(self._dev_id)
-            if hasattr(self.coordinator, "get_device_name")
-            else None
-        )
-        short = self._dev_id[-6:] if len(self._dev_id) >= 6 else self._dev_id
-        return {
-            "identifiers": {(DOMAIN, f"device_{self._dev_id}")},
-            "name": friendly or f"Solarmanager Gerät {short}",
-            "manufacturer": "Solarmanager",
-            "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{self.coordinator.site_id}"),
-        }
+        return child_device_info(self.coordinator, self._dev_id)
 
-    @property
-    def current_option(self) -> str | None:
+    def _api_label(self) -> str | None:
+        """Aktuellen API-Wert auf das Options-Label mappen."""
         meta = self.coordinator.device_meta.get(self._dev_id) or {}
         raw_data = (meta.get("raw") or {}).get("data") or {}
         val = raw_data.get(self._api_key)
-        if val is not None:
-            try:
-                label = self._options_map.get(str(int(val)))
-                if label:
-                    return label
-            except (ValueError, TypeError):
-                pass
-        return self._optimistic
+        if val is None:
+            return None
+        try:
+            return self._options_map.get(str(int(val)))
+        except (ValueError, TypeError):
+            return None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        # Optimistischen Wert freigeben, sobald das Backend nachgezogen hat
+        # oder die Karenzzeit abgelaufen ist
+        if self._optimistic is not None:
+            api_label = self._api_label()
+            if api_label == self._optimistic or (
+                api_label is not None and time.time() > self._optimistic_until
+            ):
+                self._optimistic = None
+        super()._handle_coordinator_update()
+
+    @property
+    def current_option(self) -> str | None:
+        if self._optimistic is not None and time.time() <= self._optimistic_until:
+            return self._optimistic
+        return self._api_label() or self._optimistic
 
     async def async_select_option(self, option: str) -> None:
         val = next((k for k, v in self._options_map.items() if v == option), None)
@@ -276,13 +288,14 @@ class _DeviceSelectBase(CoordinatorEntity[SolarmanagerCoordinator], SelectEntity
             await self.coordinator.async_put_battery_merged(
                 self._dev_id, {self._api_key: int(val)}
             )
-            self._optimistic = option
-            return
-        payload = {self._api_key: int(val)}
-        put_fn = getattr(self.coordinator.client, self._put_method)
-        await put_fn(self._dev_id, payload)
+        else:
+            payload = {self._api_key: int(val)}
+            put_fn = getattr(self.coordinator.client, self._put_method)
+            await put_fn(self._dev_id, payload)
+            await self.coordinator.async_refresh_device_meta()
         self._optimistic = option
-        await self.coordinator.async_refresh_device_meta()
+        self._optimistic_until = time.time() + OPTIMISTIC_TTL
+        self.async_write_ha_state()
 
 
 class DeviceModeSelect(_DeviceSelectBase):
@@ -297,7 +310,7 @@ class DeviceModeSelect(_DeviceSelectBase):
         cfg = DEVICE_MODE_CONFIG[dev_type_key]
         super().__init__(
             coordinator, dev_id,
-            cfg["api_key"], cfg["put_method"], cfg["options"], cfg["label"],
+            cfg["api_key"], cfg["put_method"], cfg["options"], cfg["tkey"],
             "mode",
         )
 
@@ -313,6 +326,6 @@ class DeviceExtraSelect(_DeviceSelectBase):
     ) -> None:
         super().__init__(
             coordinator, dev_id,
-            cfg["api_key"], cfg["put_method"], cfg["options"], cfg["label"],
+            cfg["api_key"], cfg["put_method"], cfg["options"], cfg["tkey"],
             cfg["api_key"],
         )

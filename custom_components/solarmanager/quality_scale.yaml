@@ -113,7 +113,7 @@ rules:
 
   test-coverage:
     status: todo
-    comment: Config flow tests exist, but coordinator, platform entity creation, and API client are not yet covered.
+    comment: Config flow (incl. reconfigure), API client (error mapping, 401 retry) and coordinator core logic (battery dedup, merged PUT guard) are covered; platform entity creation is not yet.
 
   # ── Gold ────────────────────────────────────────────────────────────────
 
@@ -162,36 +162,36 @@ rules:
     comment: README has an Anwendungsfälle section with five concrete use cases.
 
   dynamic-devices:
-    status: todo
-    comment: Device entities are created at setup time only; devices added to the gateway after integration setup require an HA reload to get entities.
+    status: done
+    comment: All platforms register a coordinator listener that creates entities for devices appearing in devices[] / device_meta after setup.
 
   entity-category:
-    status: todo
-    comment: DevicesOverviewSensor, signal binary_sensor, and other diagnostic entities are missing EntityCategory.DIAGNOSTIC.
+    status: done
+    comment: DevicesOverviewSensor and the signal binary_sensor are EntityCategory.DIAGNOSTIC.
 
   entity-device-class:
-    status: todo
-    comment: SocSensor missing SensorDeviceClass.BATTERY; DeviceTemperatureSensor device_class not verified; some per-device sensors may be missing appropriate device classes.
+    status: done
+    comment: All measurement sensors carry appropriate device classes (POWER, ENERGY, BATTERY, TEMPERATURE); interval sensors intentionally have no ENERGY class (MEASUREMENT state class).
 
   entity-disabled-by-default:
-    status: todo
-    comment: DevicesOverviewSensor and interval energy counters should be disabled by default (_attr_entity_registry_enabled_default = False).
+    status: done
+    comment: DevicesOverviewSensor and interval energy sensors set _attr_entity_registry_enabled_default = False.
 
   entity-translations:
-    status: todo
-    comment: Entity labels are hardcoded strings; translation_key not yet used in platform classes.
+    status: done
+    comment: All entities use translation_key; names provided in translations/en.json and translations/de.json.
 
   exception-translations:
     status: exempt
     comment: Integration registers no service actions. Custom exceptions (SolarmanagerAuthError etc.) are internal and never shown directly to users.
 
   icon-translations:
-    status: todo
-    comment: No icons.json; icons are defined inline. Requires adding icons.json with per-entity icon mapping.
+    status: done
+    comment: icons.json maps per-entity icons via translation_key; inline _attr_icon removed.
 
   reconfiguration-flow:
-    status: todo
-    comment: No async_step_reconfigure implemented; users cannot change sm_id or credentials without removing the integration.
+    status: done
+    comment: async_step_reconfigure implemented for both cloud (email/password/sm_id/api_key) and local (host/scheme/api_key) mode.
 
   repair-issues:
     status: exempt

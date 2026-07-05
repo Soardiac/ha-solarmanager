@@ -8,66 +8,77 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfEnergy,
+    UnitOfLength,
+    UnitOfPower,
+    UnitOfTemperature,
+)
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER, MODEL, MODEL_LOCAL
 from .coordinator import SolarmanagerCoordinator
+from .entity import child_device_info, find_device, site_device_info
 
 PARALLEL_UPDATES = 1
 
-# --- Site-weite Sensoren (aus dem Stream, Einheiten direkt übernehmen) ---
+# --- Site-weite Sensoren (aus dem Stream) ---
+# (key, translation_key)
 
 POWER_SENSORS = [
-    ("pW", "PV-Leistung", "W", SensorDeviceClass.POWER),
-    ("cW", "Hausverbrauch", "W", SensorDeviceClass.POWER),
-    ("batW", "Batterie-Leistung (+Laden/-Entladen)", "W", SensorDeviceClass.POWER),
-    ("iW", "Netz Import", "W", SensorDeviceClass.POWER),
-    ("eW", "Netz Export", "W", SensorDeviceClass.POWER),
-    ("gridW", "Netzleistung (+Bezug/-Einspeisung)", "W", SensorDeviceClass.POWER),
+    ("pW", "pv_power"),
+    ("cW", "consumption_power"),
+    ("batW", "battery_power"),
+    ("iW", "grid_import_power"),
+    ("eW", "grid_export_power"),
+    ("gridW", "grid_power"),
 ]
 
+# Intervallwerte (Wh) aus dem Stream — per Default deaktiviert
 ENERGY_SENSORS = [
-    ("pWh", "PV-Energie (Interval)", "Wh"),
-    ("cWh", "Verbrauch (Interval)", "Wh"),
-    ("iWh", "Netzbezug (Interval)", "Wh"),
-    ("eWh", "Netzeinspeisung (Interval)", "Wh"),
-    ("bcWh", "Batterie geladen (Interval)", "Wh"),
-    ("bdWh", "Batterie entladen (Interval)", "Wh"),
+    ("pWh", "pv_energy_interval"),
+    ("cWh", "consumption_energy_interval"),
+    ("iWh", "grid_import_energy_interval"),
+    ("eWh", "grid_export_energy_interval"),
+    ("bcWh", "battery_charge_energy_interval"),
+    ("bdWh", "battery_discharge_energy_interval"),
 ]
 
-# Tages-Statistiken aus /v1/statistics/gateways/{smId}
-# (key, name, unit, device_class, state_class)
+# Tages-Statistiken aus /v1/statistics/gateways/{smId} bzw. lokaler Integration
+# (key, translation_key, unit, device_class, state_class)
 STATS_SENSORS = [
-    ("stat_production",           "PV Tageserzeugung",    "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
-    ("stat_consumption",          "Verbrauch heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
-    ("stat_self_consumption",     "Eigenverbrauch heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_production", "production_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_consumption", "consumption_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_self_consumption", "self_consumption_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
 ]
 
 # Nur Cloud: vom API berechnete Prozentwerte
 STATS_SENSORS_CLOUD = [
-    ("stat_self_consumption_rate","Eigenverbrauchsquote",  "%",  None,                      SensorStateClass.MEASUREMENT),
-    ("stat_autarchy_degree",      "Autarkiegrad",          "%",  None,                      SensorStateClass.MEASUREMENT),
+    ("stat_self_consumption_rate", "self_consumption_rate", PERCENTAGE, None, SensorStateClass.MEASUREMENT),
+    ("stat_autarchy_degree", "autarchy_degree", PERCENTAGE, None, SensorStateClass.MEASUREMENT),
 ]
 
 GRID_STATS_SENSORS = [
-    ("stat_grid_import",          "Netzbezug heute",       "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
-    ("stat_grid_export",          "Netzeinspeisung heute", "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_grid_import", "grid_import_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_grid_export", "grid_export_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
 ]
 
 BAT_STATS_SENSORS = [
-    ("stat_bat_charge",    "Batterie geladen heute",   "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
-    ("stat_bat_discharge", "Batterie entladen heute",  "Wh", SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_bat_charge", "battery_charge_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
+    ("stat_bat_discharge", "battery_discharge_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
 ]
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: SolarmanagerCoordinator = entry.runtime_data
 
     # Site-Sensoren
     site_entities: list[SensorEntity] = [
-        *(SolarmanagerPowerSensor(coord, *spec) for spec in POWER_SENSORS),
-        *(SolarmanagerEnergySensor(coord, key, name, unit) for key, name, unit in ENERGY_SENSORS),
+        *(SolarmanagerPowerSensor(coord, key, tkey) for key, tkey in POWER_SENSORS),
+        *(SolarmanagerEnergySensor(coord, key, tkey) for key, tkey in ENERGY_SENSORS),
         SocSensor(coord),
         DevicesOverviewSensor(coord),
     ]
@@ -76,53 +87,48 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS_CLOUD]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in GRID_STATS_SENSORS]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in BAT_STATS_SENSORS]
+    async_add_entities(site_entities, True)
 
-    # Geräte-Sensoren dynamisch aus der aktuellen devices[]-Liste
-    device_entities: list[SensorEntity] = []
-    for dev in (coord.data or {}).get("devices", []):
-        dev_id = str(dev.get("_id") or "")
-        if not dev_id:
-            continue
+    # Geräte-Sensoren dynamisch aus devices[] — auch für Geräte, die erst
+    # nach dem Setup im Stream auftauchen (Coordinator-Listener).
+    simple_sensors: list[tuple[str, type[_DeviceBase]]] = [
+        ("power", DevicePowerSensor),
+        ("soc", DeviceSocSensor),
+        ("temperature", DeviceTemperatureSensor),
+        ("activeDevice", DeviceActiveStateSensor),
+        ("operationState", DeviceOperationStateSensor),
+        ("switchState", DeviceSwitchStateSensor),
+        ("heatingAdjustment", DeviceHeatingAdjustmentSensor),
+        ("remainingRange", DeviceRemainingRangeSensor),
+    ]
+    daily_sensors = [
+        ("iWhTotal", "daily_consumption"),
+        ("eWhTotal", "daily_feed_in"),
+    ]
+    created: set[str] = set()
 
-        # Leistung pro Gerät (W)
-        if "power" in dev:
-            device_entities.append(DevicePowerSensor(coord, dev_id))
+    @callback
+    def _sync_device_sensors() -> None:
+        new_entities: list[SensorEntity] = []
+        for dev in (coord.data or {}).get("devices", []) or []:
+            dev_id = str(dev.get("_id") or "")
+            if not dev_id:
+                continue
+            for key, cls in simple_sensors:
+                uid = f"{dev_id}_{key}"
+                if key in dev and uid not in created:
+                    created.add(uid)
+                    new_entities.append(cls(coord, dev_id))
+            for key, tkey in daily_sensors:
+                uid = f"{dev_id}_{key}"
+                if key in dev and uid not in created:
+                    created.add(uid)
+                    new_entities.append(DeviceDailyEnergySensor(coord, dev_id, key, tkey))
+        if new_entities:
+            async_add_entities(new_entities, True)
 
-        # SOC pro Gerät (falls Gerät Batterie-ähnlich und Feld vorhanden)
-        if "soc" in dev:
-            device_entities.append(DeviceSocSensor(coord, dev_id))
-
-        # Temperatur (falls vorhanden)
-        if "temperature" in dev:
-            device_entities.append(DeviceTemperatureSensor(coord, dev_id))
-
-        # Aktivstatus: 1=an/lädt, 0=aus, -1=entlädt
-        if "activeDevice" in dev:
-            device_entities.append(DeviceActiveStateSensor(coord, dev_id))
-
-        # Tageszähler (akkumuliert seit Mitternacht)
-        if "iWhTotal" in dev:
-            device_entities.append(DeviceDailyEnergySensor(coord, dev_id, "iWhTotal", "Tagesverbrauch"))
-        if "eWhTotal" in dev:
-            device_entities.append(DeviceDailyEnergySensor(coord, dev_id, "eWhTotal", "Tageseinspeisung"))
-
-        # Wärmepumpe: Betriebszustand
-        if "operationState" in dev:
-            device_entities.append(DeviceOperationStateSensor(coord, dev_id))
-
-        # Smart Plug / Switch / Wallbox: Schaltzustand
-        if "switchState" in dev:
-            device_entities.append(DeviceSwitchStateSensor(coord, dev_id))
-
-        # Heizungskorrektur
-        if "heatingAdjustment" in dev:
-            device_entities.append(DeviceHeatingAdjustmentSensor(coord, dev_id))
-
-        # EV: Restreichweite
-        if "remainingRange" in dev:
-            device_entities.append(DeviceRemainingRangeSensor(coord, dev_id))
-
-    async_add_entities(site_entities + device_entities, True)
+    _sync_device_sensors()
+    entry.async_on_unload(coord.async_add_listener(_sync_device_sensors))
 
 
 # ---------- Basisklassen ----------
@@ -130,38 +136,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class _Base(CoordinatorEntity[SolarmanagerCoordinator]):
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: SolarmanagerCoordinator, key: str, name: str):
+    def __init__(self, coordinator: SolarmanagerCoordinator, key: str, translation_key: str):
         super().__init__(coordinator)
         self._key = key
-        self._name = name
-        site_id = coordinator.site_id
         self._attr_unique_id = f"{coordinator.entry.entry_id}_{key}"
-        self._attr_name = name
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"site_{site_id}")},
-            "name": f"Solarmanager {site_id}",
-            "manufacturer": MANUFACTURER,
-            "model": MODEL_LOCAL if coordinator.is_local else MODEL,
-        }
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        d = self.coordinator.data or {}
-        attrs = {}
-        if "t" in d:
-            attrs["timestamp"] = d.get("t")
-        if "iv" in d:
-            attrs["interval_s"] = d.get("iv")
-        return attrs
+        self._attr_translation_key = translation_key
+        self._attr_device_info = site_device_info(coordinator)
 
 
 class SolarmanagerPowerSensor(_Base, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator: SolarmanagerCoordinator, key: str, name: str, unit: str, device_class):
-        super().__init__(coordinator, key, name)
-        self._attr_native_unit_of_measurement = unit
-        self._attr_device_class = device_class
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
 
     @property
     def native_value(self) -> Optional[float]:
@@ -170,17 +156,15 @@ class SolarmanagerPowerSensor(_Base, SensorEntity):
 
 
 class SolarmanagerEnergySensor(_Base, SensorEntity):
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_entity_registry_enabled_default = False
+    """Intervall-Energiewerte (Wh) aus dem Stream — keine Zähler, daher per
+    Default aus und ohne ENERGY-device_class (erlaubt kein MEASUREMENT)."""
 
-    def __init__(self, coordinator: SolarmanagerCoordinator, key: str, name: str, unit: str = "kWh"):
-        super().__init__(coordinator, key, name)
-        self._attr_native_unit_of_measurement = unit
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
+    _attr_entity_registry_enabled_default = False
 
     @property
     def native_value(self) -> Optional[float]:
-        # Werte sind bereits kWh
         v = (self.coordinator.data or {}).get(self._key)
         try:
             return float(v) if v is not None else None
@@ -195,12 +179,12 @@ class SolarmanagerStatsSensor(_Base, SensorEntity):
         self,
         coordinator: SolarmanagerCoordinator,
         key: str,
-        name: str,
+        translation_key: str,
         unit: str,
         device_class,
         state_class,
     ) -> None:
-        super().__init__(coordinator, key, name)
+        super().__init__(coordinator, key, translation_key)
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = device_class
         self._attr_state_class = state_class
@@ -217,10 +201,10 @@ class SolarmanagerStatsSensor(_Base, SensorEntity):
 class SocSensor(_Base, SensorEntity):
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "%"
+    _attr_native_unit_of_measurement = PERCENTAGE
 
     def __init__(self, coordinator: SolarmanagerCoordinator):
-        super().__init__(coordinator, "soc", "Batterie-SOC")
+        super().__init__(coordinator, "soc", "battery_soc")
 
     @property
     def native_value(self) -> Optional[float]:
@@ -232,11 +216,17 @@ class SocSensor(_Base, SensorEntity):
 
 
 class DevicesOverviewSensor(_Base, SensorEntity):
-    """Zeigt Anzahl Geräte und komprimierte Attribute aus devices[]."""
-    _attr_icon = "mdi:devices"
+    """Zeigt Anzahl Geräte und komprimierte Attribute aus devices[].
+
+    Diagnose-Sensor: schreibt bei jedem Poll neue Attribute in den Recorder,
+    daher per Default deaktiviert.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coordinator: SolarmanagerCoordinator):
-        super().__init__(coordinator, "devices_overview", "Geräte (Stream-Übersicht)")
+        super().__init__(coordinator, "devices_overview", "devices_overview")
 
     @property
     def native_value(self):
@@ -245,8 +235,8 @@ class DevicesOverviewSensor(_Base, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        base = super().extra_state_attributes
-        devs = (self.coordinator.data or {}).get("devices") or []
+        d = self.coordinator.data or {}
+        devs = d.get("devices") or []
         compact = []
         for it in devs:
             compact.append({
@@ -255,80 +245,66 @@ class DevicesOverviewSensor(_Base, SensorEntity):
                 "activeDevice": it.get("activeDevice"),
                 "power_W": it.get("power"),
                 "soc_%": it.get("soc"),
-                "iWh_kWh": it.get("iWh"),
-                "eWh_kWh": it.get("eWh"),
+                "iWh_Wh": it.get("iWh"),
+                "eWh_Wh": it.get("eWh"),
                 "temperature_C": it.get("temperature"),
                 "deviceState": it.get("deviceState"),
                 "switchState": it.get("switchState"),
             })
-        dd = dict(base) if base else {}
-        dd["devices"] = compact
-        return dd
+        return {
+            "timestamp": d.get("t"),
+            "interval_s": d.get("iv"),
+            "devices": compact,
+        }
 
 
 # ---------- Geräte-Sensoren ----------
 
-def _find_device(data: dict[str, Any] | None, dev_id: str) -> dict[str, Any] | None:
-    for it in (data or {}).get("devices", []) or []:
-        if str(it.get("_id")) == dev_id:
-            return it
-    return None
-
-
 class _DeviceBase(CoordinatorEntity[SolarmanagerCoordinator], SensorEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str, key: str, label: str):
+    def __init__(
+        self,
+        coordinator: SolarmanagerCoordinator,
+        dev_id: str,
+        key: str,
+        translation_key: str,
+    ):
         super().__init__(coordinator)
         self._dev_id = dev_id
         self._key = key
-        self._label = label  # z. B. "Leistung", "Netzbezug heute", "SOC", "Temperatur"
-
-        self._attr_name = label
+        self._attr_translation_key = translation_key
         self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_{key}"
 
-    # Dynamischer Anzeigename (zieht aus Coordinator.device_meta, wenn vorhanden)
-    @property
-    def name(self) -> str:
-        friendly = self.coordinator.get_device_name(self._dev_id) if hasattr(self.coordinator, "get_device_name") else None
-        if friendly:
-            return self._label
-        return super().name  # Fallback auf _attr_name
-
-    # device_info ebenfalls dynamisch, damit „Geräte“-Kachel sauber benannt ist
+    # device_info dynamisch, damit die „Geräte“-Kachel den Namen aus den
+    # Metadaten übernimmt, sobald sie geladen sind
     @property
     def device_info(self) -> dict[str, Any] | None:
-        friendly = self.coordinator.get_device_name(self._dev_id) if hasattr(self.coordinator, "get_device_name") else None
-        short = self._dev_id[-6:] if len(self._dev_id) >= 6 else self._dev_id
-        base_name = friendly or f"Solarmanager Gerät {short}"
-        return {
-            "identifiers": {(DOMAIN, f"device_{self._dev_id}")},
-            "name": base_name,
-            "manufacturer": "Solarmanager",
-            "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{self.coordinator.site_id}"),
-        }
+        return child_device_info(self.coordinator, self._dev_id)
 
     @property
     def available(self) -> bool:
         return super().available and self._dev() is not None
 
     def _dev(self) -> dict[str, Any] | None:
-        return _find_device(self.coordinator.data, self._dev_id)
+        return find_device(self.coordinator.data, self._dev_id)
+
+    def _dev_value(self) -> Any:
+        d = self._dev()
+        return d.get(self._key) if d else None
 
 
 class DevicePowerSensor(_DeviceBase):
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "W"
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
-        super().__init__(coordinator, dev_id, "power", "Leistung")
+        super().__init__(coordinator, dev_id, "power", "power")
 
     @property
     def native_value(self) -> Optional[float]:
-        d = self._dev()
-        v = d.get("power") if d else None
+        v = self._dev_value()
         try:
             return float(v) if v is not None else None
         except Exception:
@@ -338,15 +314,14 @@ class DevicePowerSensor(_DeviceBase):
 class DeviceSocSensor(_DeviceBase):
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "%"
+    _attr_native_unit_of_measurement = PERCENTAGE
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
-        super().__init__(coordinator, dev_id, "soc", "SOC")
+        super().__init__(coordinator, dev_id, "soc", "soc")
 
     @property
     def native_value(self) -> Optional[float]:
-        d = self._dev()
-        v = d.get("soc") if d else None
+        v = self._dev_value()
         try:
             return float(v) if v is not None else None
         except Exception:
@@ -356,15 +331,14 @@ class DeviceSocSensor(_DeviceBase):
 class DeviceTemperatureSensor(_DeviceBase):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "°C"
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
-        super().__init__(coordinator, dev_id, "temperature", "Temperatur")
+        super().__init__(coordinator, dev_id, "temperature", "temperature")
 
     @property
     def native_value(self) -> Optional[float]:
-        d = self._dev()
-        v = d.get("temperature") if d else None
+        v = self._dev_value()
         try:
             return float(v) if v is not None else None
         except Exception:
@@ -374,15 +348,13 @@ class DeviceTemperatureSensor(_DeviceBase):
 class DeviceActiveStateSensor(_DeviceBase):
     """Aktivstatus: 1 = an/lädt, 0 = aus, -1 = entlädt."""
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:play-circle-outline"
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
-        super().__init__(coordinator, dev_id, "activeDevice", "Aktivstatus")
+        super().__init__(coordinator, dev_id, "activeDevice", "active_state")
 
     @property
     def native_value(self) -> Optional[int]:
-        d = self._dev()
-        v = d.get("activeDevice") if d else None
+        v = self._dev_value()
         try:
             return int(v) if v is not None else None
         except Exception:
@@ -392,16 +364,12 @@ class DeviceActiveStateSensor(_DeviceBase):
 class DeviceDailyEnergySensor(_DeviceBase):
     """Tageszähler (Wh), akkumuliert seit Mitternacht."""
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_native_unit_of_measurement = "Wh"
-
-    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str, key: str, label: str):
-        super().__init__(coordinator, dev_id, key, label)
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
 
     @property
     def native_value(self) -> Optional[float]:
-        d = self._dev()
-        v = d.get(self._key) if d else None
+        v = self._dev_value()
         try:
             f = float(v) if v is not None else None
             return None if f is not None and f < 0 else f
@@ -412,15 +380,13 @@ class DeviceDailyEnergySensor(_DeviceBase):
 class DeviceOperationStateSensor(_DeviceBase):
     """Numerischer Betriebszustand (Wärmepumpen-spezifisch)."""
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:state-machine"
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
-        super().__init__(coordinator, dev_id, "operationState", "Betriebszustand")
+        super().__init__(coordinator, dev_id, "operationState", "operation_state")
 
     @property
     def native_value(self) -> Optional[int]:
-        d = self._dev()
-        v = d.get("operationState") if d else None
+        v = self._dev_value()
         try:
             return int(v) if v is not None else None
         except Exception:
@@ -430,15 +396,13 @@ class DeviceOperationStateSensor(_DeviceBase):
 class DeviceSwitchStateSensor(_DeviceBase):
     """Schaltzustand (Smart Plug / Switch / Wallbox)."""
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:toggle-switch"
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
-        super().__init__(coordinator, dev_id, "switchState", "Schaltzustand")
+        super().__init__(coordinator, dev_id, "switchState", "switch_state")
 
     @property
     def native_value(self) -> Optional[int]:
-        d = self._dev()
-        v = d.get("switchState") if d else None
+        v = self._dev_value()
         try:
             return int(v) if v is not None else None
         except Exception:
@@ -448,15 +412,13 @@ class DeviceSwitchStateSensor(_DeviceBase):
 class DeviceHeatingAdjustmentSensor(_DeviceBase):
     """Heizungskorrekturwert."""
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:thermometer-auto"
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
-        super().__init__(coordinator, dev_id, "heatingAdjustment", "Heizungskorrektur")
+        super().__init__(coordinator, dev_id, "heatingAdjustment", "heating_adjustment")
 
     @property
     def native_value(self) -> Optional[float]:
-        d = self._dev()
-        v = d.get("heatingAdjustment") if d else None
+        v = self._dev_value()
         try:
             return float(v) if v is not None else None
         except Exception:
@@ -466,18 +428,15 @@ class DeviceHeatingAdjustmentSensor(_DeviceBase):
 class DeviceRemainingRangeSensor(_DeviceBase):
     """Restreichweite des EV in km."""
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "km"
-    _attr_icon = "mdi:car-electric"
+    _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
-        super().__init__(coordinator, dev_id, "remainingRange", "Restreichweite")
+        super().__init__(coordinator, dev_id, "remainingRange", "remaining_range")
 
     @property
     def native_value(self) -> Optional[float]:
-        d = self._dev()
-        v = d.get("remainingRange") if d else None
+        v = self._dev_value()
         try:
             return float(v) if v is not None else None
         except Exception:
             return None
-

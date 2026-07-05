@@ -1,0 +1,172 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbindungsmodus wählen",
+        "data": {
+          "mode": "Modus"
+        },
+        "data_description": {
+          "mode": "Cloud: voller Funktionsumfang mit Account. Lokal: nur Sensoren, kein Internet nötig."
+        }
+      },
+      "cloud": {
+        "title": "Solarmanager Cloud einrichten",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "sm_id": "System-ID (smId)",
+          "api_key": "Cloud API Key (empfohlen)"
+        },
+        "data_description": {
+          "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
+          "api_key": "Cloud API Key für moderne Authentifizierung (empfohlen). Zu finden in den Profileinstellungen unter «Cloud API Keys». Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Wichtig: Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
+        }
+      },
+      "local": {
+        "title": "Lokale Verbindung einrichten",
+        "data": {
+          "host": "IP-Adresse / Hostname",
+          "scheme": "Protokoll",
+          "api_key": "API Key (optional)"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname des Solar Manager Gateways (z. B. 192.168.1.100).",
+          "scheme": "HTTP für unverschlüsselt, HTTPS für verschlüsselt (selbst-signiertes Zertifikat wird akzeptiert).",
+          "api_key": "Optionaler API Key zur Absicherung der lokalen Verbindung. Leer lassen wenn kein Key konfiguriert."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Solarmanager erneut authentifizieren",
+        "description": "Zugangsdaten für System **{sm_id}** aktualisieren.\n\nEmpfohlen: API Key aus den Profileinstellungen → «Cloud API Keys». Token ohne Enddatum, alle vier Scopes (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!\n\nLeere Felder behalten die gespeicherten Werte.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "api_key": "Cloud API Key (empfohlen)"
+        }
+      },
+      "reconfigure_cloud": {
+        "title": "Solarmanager Cloud neu konfigurieren",
+        "description": "Leere Felder behalten die gespeicherten Werte.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "sm_id": "System-ID (smId)",
+          "api_key": "Cloud API Key"
+        }
+      },
+      "reconfigure_local": {
+        "title": "Lokale Verbindung neu konfigurieren",
+        "description": "API Key leer lassen, um den gespeicherten Key zu behalten.",
+        "data": {
+          "host": "IP-Adresse / Hostname",
+          "scheme": "Protokoll",
+          "api_key": "API Key (optional)"
+        }
+      }
+    },
+    "error": {
+      "auth": "Ungültige Anmeldedaten oder API Key. Bitte prüfen und erneut versuchen.",
+      "cannot_connect": "Verbindung fehlgeschlagen. Gateway erreichbar?",
+      "unknown": "Unbekannter Fehler. Bitte Logs prüfen."
+    },
+    "abort": {
+      "already_configured": "Dieses Solarmanager-System ist bereits eingerichtet.",
+      "reauth_successful": "Erneute Authentifizierung erfolgreich. Die Integration wird neu geladen.",
+      "reauth_not_supported": "Lokaler Modus benötigt keine erneute Authentifizierung.",
+      "reconfigure_successful": "Neukonfiguration erfolgreich. Die Integration wird neu geladen."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Optionen",
+        "description": "Cloud API Key: {api_key_status}",
+        "data": {
+          "api_key": "Cloud API Key",
+          "scan_interval": "Abfrageintervall (Sekunden)"
+        },
+        "data_description": {
+          "api_key": "Leer lassen um bestehende Zugangsdaten zu behalten. Neuen Key eingeben um auf API-Key-Authentifizierung umzusteigen oder den bestehenden zu ersetzen.",
+          "scan_interval": "Wie oft die API abgefragt wird. Empfohlen: 10 Sekunden."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pv_power": { "name": "PV-Leistung" },
+      "consumption_power": { "name": "Hausverbrauch" },
+      "battery_power": { "name": "Batterie-Leistung (+Laden/-Entladen)" },
+      "grid_import_power": { "name": "Netz Import" },
+      "grid_export_power": { "name": "Netz Export" },
+      "grid_power": { "name": "Netzleistung (+Bezug/-Einspeisung)" },
+      "pv_energy_interval": { "name": "PV-Energie (Intervall)" },
+      "consumption_energy_interval": { "name": "Verbrauch (Intervall)" },
+      "grid_import_energy_interval": { "name": "Netzbezug (Intervall)" },
+      "grid_export_energy_interval": { "name": "Netzeinspeisung (Intervall)" },
+      "battery_charge_energy_interval": { "name": "Batterie geladen (Intervall)" },
+      "battery_discharge_energy_interval": { "name": "Batterie entladen (Intervall)" },
+      "battery_soc": { "name": "Batterie-SOC" },
+      "devices_overview": { "name": "Geräte (Stream-Übersicht)" },
+      "production_today": { "name": "PV Tageserzeugung" },
+      "consumption_today": { "name": "Verbrauch heute" },
+      "self_consumption_today": { "name": "Eigenverbrauch heute" },
+      "self_consumption_rate": { "name": "Eigenverbrauchsquote" },
+      "autarchy_degree": { "name": "Autarkiegrad" },
+      "grid_import_today": { "name": "Netzbezug heute" },
+      "grid_export_today": { "name": "Netzeinspeisung heute" },
+      "battery_charge_today": { "name": "Batterie geladen heute" },
+      "battery_discharge_today": { "name": "Batterie entladen heute" },
+      "power": { "name": "Leistung" },
+      "soc": { "name": "SOC" },
+      "temperature": { "name": "Temperatur" },
+      "active_state": { "name": "Aktivstatus" },
+      "daily_consumption": { "name": "Tagesverbrauch" },
+      "daily_feed_in": { "name": "Tageseinspeisung" },
+      "operation_state": { "name": "Betriebszustand" },
+      "switch_state": { "name": "Schaltzustand" },
+      "heating_adjustment": { "name": "Heizungskorrektur" },
+      "remaining_range": { "name": "Restreichweite" }
+    },
+    "binary_sensor": {
+      "signal": { "name": "Verbindung" }
+    },
+    "select": {
+      "battery_mode": { "name": "Batterie Modus" },
+      "wallbox_mode": { "name": "Wallbox Modus" },
+      "v2x_mode": { "name": "V2X Modus" },
+      "heat_pump_mode": { "name": "Wärmepumpe Modus" },
+      "water_heater_mode": { "name": "Warmwasser Modus" },
+      "smart_plug_mode": { "name": "Smart Plug Modus" },
+      "switch_mode": { "name": "Schalter Modus" },
+      "battery_manual_mode": { "name": "Manuell Richtung" }
+    },
+    "number": {
+      "eco_discharge_soc_limit": { "name": "Eco Entlade-Limit" },
+      "eco_morning_soc_limit": { "name": "Eco Morgen-Limit" },
+      "eco_charging_soc_limit": { "name": "Eco Lade-Limit" },
+      "active_power_limit": { "name": "Einspeisebegrenzung" },
+      "constant_current": { "name": "Konstantstrom" },
+      "charging_target_soc": { "name": "Ladeziel SOC" },
+      "charging_target_soc_max": { "name": "Ladeziel SOC Maximum" },
+      "min_charge_quantity_target": { "name": "Ladeziel kWh Menge" },
+      "min_charge_quantity_target_max": { "name": "Ladeziel kWh Maximum" },
+      "power_setting_percent": { "name": "Leistung" },
+      "upper_soc_limit": { "name": "SOC-Obergrenze" },
+      "lower_soc_limit": { "name": "SOC-Untergrenze" },
+      "peak_shaving_max_grid_power": { "name": "Peak-Shaving Netzlimit" },
+      "peak_shaving_recharge_power": { "name": "Peak-Shaving Nachladeleistung" },
+      "peak_shaving_soc_discharge_limit": { "name": "Peak-Shaving SOC-Entladegrenze" },
+      "peak_shaving_soc_max_limit": { "name": "Peak-Shaving SOC-Maximum" },
+      "max_charge_power": { "name": "Manuell Ladeleistung" },
+      "max_discharge_power": { "name": "Manuell Entladeleistung" },
+      "tariff_price_limit": { "name": "Tarif Preislimit" },
+      "tariff_price_limit_soc_max": { "name": "Tarif SOC-Maximum" }
+    },
+    "datetime": {
+      "charging_target_soc_datetime": { "name": "Ladeziel SOC Termin" },
+      "min_charge_quantity_datetime": { "name": "Ladeziel kWh Termin" }
+    }
+  }
+}

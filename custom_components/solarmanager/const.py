@@ -15,9 +15,6 @@ DEFAULT_SCAN = 10  # Sekunden – der v3-Stream liefert typischerweise iv≈10s
 
 # API: eine gemeinsame Basis-URL für alles
 CLOUD_BASE = "https://cloud.solar-manager.ch"
-AUTH_LOGIN_PATH = "/v1/oauth/login"
-AUTH_REFRESH_PATH = "/v1/oauth/refresh"
-STREAM_PATH_TEMPLATE = "/v3/users/{sm_id}/data/stream"
 
 # Plattformen
 PLATFORMS = ["sensor", "number", "binary_sensor", "select", "datetime"]

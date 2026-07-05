@@ -1,29 +1,30 @@
+# datetime.py
 from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
 from homeassistant.components.datetime import DateTimeEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
 from .coordinator import SolarmanagerCoordinator
+from .entity import child_device_info
 
 PARALLEL_UPDATES = 1
 
 _CAR_CHARGER_DATETIMES = [
     {
         "key": "chargingTargetSocDateTime",
-        "label": "Ladeziel SOC Termin",
+        "tkey": "charging_target_soc_datetime",
         "put_method": "put_car_charger_mode",
         "carry_fields": ["chargingMode"],
     },
     {
         "key": "minimumChargeQuantityTargetDateTime",
-        "label": "Ladeziel kWh Termin",
+        "tkey": "min_charge_quantity_datetime",
         "put_method": "put_car_charger_mode",
         "carry_fields": ["chargingMode"],
     },
@@ -48,12 +49,24 @@ async def async_setup_entry(
     coord: SolarmanagerCoordinator = entry.runtime_data
     if coord.is_local:
         return
-    entities: list[DateTimeEntity] = []
-    for dev_id, meta in coord.device_meta.items():
-        dev_type = (meta.get("type") or "").lower()
-        for cfg in DEVICE_DATETIME_CONFIG.get(dev_type, []):
-            entities.append(DeviceDateTimeEntity(coord, dev_id, cfg))
-    async_add_entities(entities, True)
+
+    created: set[str] = set()
+
+    @callback
+    def _sync_devices() -> None:
+        new_entities: list[DateTimeEntity] = []
+        for dev_id, meta in coord.device_meta.items():
+            dev_type = (meta.get("type") or "").lower()
+            for cfg in DEVICE_DATETIME_CONFIG.get(dev_type, []):
+                uid = f"{dev_id}_{cfg['key']}"
+                if uid not in created:
+                    created.add(uid)
+                    new_entities.append(DeviceDateTimeEntity(coord, dev_id, cfg))
+        if new_entities:
+            async_add_entities(new_entities, True)
+
+    _sync_devices()
+    entry.async_on_unload(coord.async_add_listener(_sync_devices))
 
 
 class DeviceDateTimeEntity(CoordinatorEntity[SolarmanagerCoordinator], DateTimeEntity):
@@ -68,21 +81,15 @@ class DeviceDateTimeEntity(CoordinatorEntity[SolarmanagerCoordinator], DateTimeE
         super().__init__(coordinator)
         self._dev_id = dev_id
         self._field: str = cfg["key"]
-        self._label: str = cfg["label"]
         self._put_method: str = cfg["put_method"]
         self._carry_fields: list[str] = cfg.get("carry_fields", [])
 
-        short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
-        friendly = coordinator.get_device_name(dev_id) or f"Gerät {short}"
-        self._attr_name = f"{friendly} {self._label}"
+        self._attr_translation_key = cfg["tkey"]
         self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_{self._field}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, f"device_{dev_id}")},
-            "name": friendly,
-            "manufacturer": "Solarmanager",
-            "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{coordinator.site_id}"),
-        }
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        return child_device_info(self.coordinator, self._dev_id)
 
     @property
     def native_value(self) -> datetime | None:

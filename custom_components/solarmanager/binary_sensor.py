@@ -7,12 +7,13 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import SolarmanagerCoordinator
+from .entity import child_device_info, find_device
 
 PARALLEL_UPDATES = 1
 
@@ -24,22 +25,23 @@ async def async_setup_entry(
 ) -> None:
     coord: SolarmanagerCoordinator = entry.runtime_data
 
-    entities: list[BinarySensorEntity] = []
-    for dev in (coord.data or {}).get("devices", []):
-        dev_id = str(dev.get("_id") or "")
-        if not dev_id:
-            continue
-        if "signal" in dev:
-            entities.append(DeviceConnectivitySensor(coord, dev_id))
+    created: set[str] = set()
 
-    async_add_entities(entities, True)
+    @callback
+    def _sync_devices() -> None:
+        new_entities: list[BinarySensorEntity] = []
+        for dev in (coord.data or {}).get("devices", []) or []:
+            dev_id = str(dev.get("_id") or "")
+            if not dev_id or dev_id in created:
+                continue
+            if "signal" in dev:
+                created.add(dev_id)
+                new_entities.append(DeviceConnectivitySensor(coord, dev_id))
+        if new_entities:
+            async_add_entities(new_entities, True)
 
-
-def _find_device(data: dict[str, Any] | None, dev_id: str) -> dict[str, Any] | None:
-    for it in (data or {}).get("devices", []) or []:
-        if str(it.get("_id")) == dev_id:
-            return it
-    return None
+    _sync_devices()
+    entry.async_on_unload(coord.async_add_listener(_sync_devices))
 
 
 class DeviceConnectivitySensor(
@@ -49,44 +51,21 @@ class DeviceConnectivitySensor(
 
     _attr_has_entity_name = True
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "signal"
 
     def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str) -> None:
         super().__init__(coordinator)
         self._dev_id = dev_id
-        short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
-        self._attr_name = f"Gerät {short} Verbindung"
         self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_signal"
 
     @property
-    def name(self) -> str:
-        friendly = (
-            self.coordinator.get_device_name(self._dev_id)
-            if hasattr(self.coordinator, "get_device_name")
-            else None
-        )
-        if friendly:
-            return f"{friendly} Verbindung"
-        return self._attr_name
-
-    @property
     def device_info(self) -> dict[str, Any]:
-        friendly = (
-            self.coordinator.get_device_name(self._dev_id)
-            if hasattr(self.coordinator, "get_device_name")
-            else None
-        )
-        short = self._dev_id[-6:] if len(self._dev_id) >= 6 else self._dev_id
-        return {
-            "identifiers": {(DOMAIN, f"device_{self._dev_id}")},
-            "name": friendly or f"Solarmanager Gerät {short}",
-            "manufacturer": "Solarmanager",
-            "model": "Stream device",
-            "via_device": (DOMAIN, f"site_{self.coordinator.site_id}"),
-        }
+        return child_device_info(self.coordinator, self._dev_id)
 
     @property
     def is_on(self) -> bool | None:
-        dev = _find_device(self.coordinator.data, self._dev_id)
+        dev = find_device(self.coordinator.data, self._dev_id)
         if dev is None:
             return None
         return dev.get("signal") == "connected"

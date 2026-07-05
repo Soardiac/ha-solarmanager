@@ -10,7 +10,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.storage import Store
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -36,6 +37,18 @@ from .api_client import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Geräte-Metadaten-Cache: /v1/info/sensors ist ein separater API-Call pro
+# Refresh — nicht bei jedem 10s-Poll neu laden (Rate-Limit-Schonung). Nach
+# PUTs wird gezielt via async_refresh_device_meta() aktualisiert.
+META_TTL = 60  # Sekunden
+
+# Tages-Statistiken (Cloud) höchstens alle 5 Minuten laden
+STATS_TTL = 300  # Sekunden
+
+# Persistenz der Tageszähler (überleben Neustart/Reload)
+STORAGE_VERSION = 1
+STORAGE_SAVE_DELAY = 60  # Sekunden
 
 # Alle laut Swagger (BatteryModeAndSettingsSchema) gültigen Felder des
 # PUT /v2/control/battery/{sensorId}. Das Schema hat kein required-Feld, aber
@@ -88,7 +101,6 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN)
             ),
         )
-        self.hass = hass
         self.entry = entry
         self.is_local: bool = entry.data.get(CONF_MODE) == MODE_LOCAL
         self.client: SolarmanagerCloud | SolarmanagerLocal | None = None
@@ -114,6 +126,13 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._bat_charge_wh: float = 0.0
         self._bat_discharge_wh: float = 0.0
         self._bat_day: str = ""
+        self._bat_last_t: Any = None  # Stream-Timestamp des zuletzt summierten Punkts
+
+        # Persistenz der Tageszähler (Neustart/Reload mitten am Tag)
+        self._store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}_daily"
+        )
+        self._store_loaded = False
 
     @property
     def site_id(self) -> str:
@@ -142,7 +161,45 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 api_key=self.entry.data.get(CONF_API_KEY),
             )
             await self.client.login()
+        await self._async_restore_daily()
         await self._load_device_meta()
+
+    # -------------------- Persistenz Tageszähler --------------------
+
+    async def _async_restore_daily(self) -> None:
+        """Gespeicherte Tageszähler laden, wenn sie vom heutigen Tag stammen."""
+        if self._store_loaded:
+            return
+        self._store_loaded = True
+        stored = await self._store.async_load() or {}
+        today = dt_util.now().strftime("%Y-%m-%d")
+        if stored.get("local_day") == today:
+            self._local_day = today
+            self._local_production_wh = float(stored.get("local_production_wh", 0.0))
+            self._local_consumption_wh = float(stored.get("local_consumption_wh", 0.0))
+            self._local_grid_import_wh = float(stored.get("local_grid_import_wh", 0.0))
+            self._local_grid_export_wh = float(stored.get("local_grid_export_wh", 0.0))
+            # _local_t bleibt 0 → die Lücke seit dem Neustart wird nicht integriert
+        if stored.get("bat_day") == today:
+            self._bat_day = today
+            self._bat_charge_wh = float(stored.get("bat_charge_wh", 0.0))
+            self._bat_discharge_wh = float(stored.get("bat_discharge_wh", 0.0))
+            self._bat_last_t = stored.get("bat_last_t")
+
+    def _daily_state(self) -> dict[str, Any]:
+        return {
+            "local_day": self._local_day,
+            "local_production_wh": self._local_production_wh,
+            "local_consumption_wh": self._local_consumption_wh,
+            "local_grid_import_wh": self._local_grid_import_wh,
+            "local_grid_export_wh": self._local_grid_export_wh,
+            "bat_day": self._bat_day,
+            "bat_charge_wh": self._bat_charge_wh,
+            "bat_discharge_wh": self._bat_discharge_wh,
+            "bat_last_t": self._bat_last_t,
+        }
+
+    # -------------------- Geräte-Metadaten --------------------
 
     async def _load_device_meta(self) -> None:
         """Geräte-Metadaten aus /v1/info/sensors/{smId} (Cloud) oder /v2/devices (Lokal) laden."""
@@ -177,7 +234,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Freundlichen Namen für ein Gerät liefern (exaktes Mapping via _id)."""
         m = self.device_meta.get(str(dev_id))
         return (m or {}).get("name")
-        
+
     async def async_put_battery_merged(self, dev_id: str, changes: dict[str, Any]) -> None:
         """Batterie-Settings als vollständiges Objekt schreiben (read-modify-write).
 
@@ -188,6 +245,14 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         raw_data = (self.device_meta.get(str(dev_id)) or {}).get("raw", {}).get("data", {}) or {}
         payload = {k: raw_data[k] for k in BATTERY_PUT_FIELDS if k in raw_data}
+        if not payload:
+            # Ohne gecachte Settings würde das Backend alle nicht gesendeten
+            # Felder auf Defaults zurücksetzen — dann lieber gar nicht schreiben.
+            raise HomeAssistantError(
+                "Batterie-Einstellungen noch nicht geladen — Schreibvorgang "
+                "abgebrochen, um ein Zurücksetzen anderer Felder zu verhindern. "
+                "Bitte in ein paar Sekunden erneut versuchen."
+            )
         payload.update(changes)
         await self.client.put_battery_settings(dev_id, payload)
         await self.async_refresh_device_meta()
@@ -248,7 +313,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "bdW": _num(raw.get("bdW")), # Batterie Entladen +
                 "iW": _num(raw.get("iW")),   # Netz Import +
                 "eW": _num(raw.get("eW")),   # Netz Export +
-                # Energie-Zähler (kWh) – deine Werte sind bereits kWh
+                # Energie-Intervallwerte (Wh) aus dem Stream
                 "pWh": _num(raw.get("pWh")),
                 "cWh": _num(raw.get("cWh")),
                 "iWh": _num(raw.get("iWh")),
@@ -290,14 +355,15 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             else:
                 data["gridW"] = None
 
-            # Meta bei jedem Poll auffrischen
-            if time.time() - self._meta_last > 10:
+            # Meta nur nach Ablauf des TTL auffrischen (schont das API-Limit)
+            if time.time() - self._meta_last > META_TTL:
                 await self._load_device_meta()
+
+            today = dt_util.now().strftime("%Y-%m-%d")
 
             # Tages-Statistiken: Cloud via API, Lokal via Integration
             if not self.is_local:
-                today = dt_util.now().strftime("%Y-%m-%d")
-                if time.time() - self._stats_last > 300 or self._stats_date != today:
+                if time.time() - self._stats_last > STATS_TTL or self._stats_date != today:
                     await self._load_gateway_stats()
                 data["stat_production"] = self._stats_data.get("production")
                 data["stat_consumption"] = self._stats_data.get("consumption")
@@ -314,38 +380,57 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data["stat_grid_export"] = max(0.0, (self._stats_data.get("production") or 0) - _sc)
             else:
                 # Lokal: pW/cW/iW/eW (W) über die Zeit integrieren → Wh-Tageszähler
-                today = dt_util.now().strftime("%Y-%m-%d")
                 now_t = time.time()
+                interval_s = (
+                    self.update_interval.total_seconds()
+                    if self.update_interval
+                    else DEFAULT_SCAN
+                )
+                # Nach Ausfall/Suspend keine riesige Lücke mit dem aktuellen
+                # Leistungswert integrieren (würde einen Energie-Spike erzeugen)
+                max_gap_s = max(3 * interval_s, 30.0)
                 if today != self._local_day:
                     self._local_production_wh = 0.0
                     self._local_consumption_wh = 0.0
                     self._local_grid_import_wh = 0.0
                     self._local_grid_export_wh = 0.0
                     self._local_day = today
-                    self._local_t = now_t
                 elif self._local_t > 0:
                     dt_s = now_t - self._local_t
-                    self._local_production_wh += (data.get("pW") or 0.0) * dt_s / 3600
-                    self._local_consumption_wh += (data.get("cW") or 0.0) * dt_s / 3600
-                    self._local_grid_import_wh += (data.get("iW") or 0.0) * dt_s / 3600
-                    self._local_grid_export_wh += (data.get("eW") or 0.0) * dt_s / 3600
-                    self._local_t = now_t
+                    if 0 < dt_s <= max_gap_s:
+                        self._local_production_wh += (data.get("pW") or 0.0) * dt_s / 3600
+                        self._local_consumption_wh += (data.get("cW") or 0.0) * dt_s / 3600
+                        self._local_grid_import_wh += (data.get("iW") or 0.0) * dt_s / 3600
+                        self._local_grid_export_wh += (data.get("eW") or 0.0) * dt_s / 3600
+                    else:
+                        _LOGGER.debug(
+                            "Skipping local energy integration over %.0f s gap", dt_s
+                        )
+                self._local_t = now_t
                 data["stat_production"] = self._local_production_wh
                 data["stat_consumption"] = self._local_consumption_wh
                 data["stat_self_consumption"] = max(0.0, self._local_production_wh - self._local_grid_export_wh)
                 data["stat_grid_import"] = self._local_grid_import_wh
                 data["stat_grid_export"] = self._local_grid_export_wh
 
-            # Tages-Batterieenergie (beide Modi): bcWh/bdWh-Intervalle aufsummieren
-            today = dt_util.now().strftime("%Y-%m-%d")
+            # Tages-Batterieenergie (beide Modi): bcWh/bdWh-Intervalle aufsummieren.
+            # Nur neue Stream-Punkte zählen — bei unverändertem Timestamp t würde
+            # dasselbe Intervall sonst mehrfach summiert (Poll < Stream-Intervall).
             if today != self._bat_day:
                 self._bat_charge_wh = 0.0
                 self._bat_discharge_wh = 0.0
                 self._bat_day = today
-            self._bat_charge_wh += (data.get("bcWh") or 0.0)
-            self._bat_discharge_wh += (data.get("bdWh") or 0.0)
+                self._bat_last_t = None
+            point_t = data.get("t")
+            if point_t is None or point_t != self._bat_last_t:
+                self._bat_charge_wh += (data.get("bcWh") or 0.0)
+                self._bat_discharge_wh += (data.get("bdWh") or 0.0)
+                self._bat_last_t = point_t
             data["stat_bat_charge"] = self._bat_charge_wh
             data["stat_bat_discharge"] = self._bat_discharge_wh
+
+            # Tageszähler verzögert persistieren (überleben Neustart/Reload)
+            self._store.async_delay_save(self._daily_state, STORAGE_SAVE_DELAY)
 
             return data
 
@@ -355,9 +440,10 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self.last_update_success:
                 _LOGGER.warning("Solarmanager not available: %s", err)
             raise UpdateFailed(str(err)) from err
+        except HomeAssistantError:
+            raise
         except Exception as err:
             if self.last_update_success:
                 _LOGGER.warning("Unexpected error updating Solarmanager: %s", err)
             _LOGGER.debug("Traceback:", exc_info=True)
             raise UpdateFailed(f"Unexpected: {err}") from err
-
