@@ -6,7 +6,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 
 - **Cloud-API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) – voller Funktionsumfang inkl. Steuerung
 - **Lokale API**: `GET /v2/point` direkt am Gateway – Sensoren, kein Account nötig
-- [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/): Bronze ✓ · Silver 95% · Gold in progress (~60%)
+- [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/) (Selbsteinschätzung): Bronze ✓ · Silver 95 % (volle Testabdeckung in Arbeit) · Gold: alle anwendbaren Regeln umgesetzt (Discovery & Repair-Issues nicht anwendbar)
 
 ---
 
@@ -47,16 +47,18 @@ Die Integration kommuniziert über das **Solar Manager Gateway** als zentrale Ei
 | Entitätstyp | Cloud | Lokal |
 |---|:---:|:---:|
 | Echtzeit-Leistungssensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ ¹ |
-| Energiezähler (Interval, kWh) | ✓ | ✓ |
+| Energie-Intervallwerte (Wh, per Default deaktiviert) | ✓ | ✓ |
 | Batterie-SOC, Geräteübersicht | ✓ | ✓ |
 | Gerätesensoren (Leistung, SOC, Temperatur, …) | ✓ | ✓ |
 | Verbindungsstatus pro Gerät | ✓ | ✓ |
-| Tagesstatistiken (Autarkiegrad, Eigenverbrauch) | ✓ | – |
+| Tages-Energiesensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ ² |
+| Tagesstatistiken (Autarkiegrad, Eigenverbrauchsquote) | ✓ | – |
 | Betriebsmodi-Select (Wallbox, Batterie, …) | ✓ | – |
 | Parameter-Number (SOC-Grenzen, Konstantstrom, …) | ✓ | – |
 | Datetime-Entitäten (Ladeziel-Termin) | ✓ | – |
 
 > ¹ Netz Import/Export (W) liefert die lokale API nicht direkt — die Werte werden aus der Energiebilanz berechnet (cW + bcW − pW − bdW).
+> ² Im lokalen Modus werden die Tages-Energiewerte durch Integration der Leistungswerte über die Zeit berechnet. Die Tageszähler überleben Neustarts und Reloads (Persistenz auf Disk).
 
 ### Unterstützte Gerätetypen
 
@@ -120,7 +122,16 @@ Im ersten Schritt den **Verbindungsmodus** wählen:
 
 Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) und meldet einen Fehler, wenn das Gateway nicht erreichbar ist. Bei HTTPS wird das selbst-signierte Zertifikat des Gateways akzeptiert.
 
-> **Hinweis:** Ein Wechsel zwischen Cloud- und Lokalem Modus ist nach der Einrichtung nicht möglich. Die Integration muss gelöscht und neu eingerichtet werden.
+> **Hinweis:** Ein Wechsel zwischen Cloud- und Lokalem Modus ist nach der Einrichtung nicht möglich. Die Integration muss gelöscht und neu eingerichtet werden. Zugangsdaten, `smId`, Host oder Protokoll lassen sich dagegen jederzeit ohne Neueinrichtung ändern (siehe [Neu konfigurieren](#neu-konfigurieren)).
+
+### Neu konfigurieren
+
+Einstellungen → Geräte & Dienste → **Solarmanager** → `⋮` → **Neu konfigurieren**
+
+- **Cloud**: E-Mail, Passwort, `smId` und API Key ändern — leere Felder behalten die gespeicherten Werte. Beim Wechsel der `smId` bleiben die Entitäten erhalten.
+- **Lokal**: IP-Adresse/Hostname, Protokoll und API Key ändern (z. B. nach einem IP-Wechsel des Gateways).
+
+Die neuen Werte werden vor dem Speichern gegen die API validiert; danach lädt die Integration automatisch neu.
 
 ### Migration für bestehende Nutzer
 
@@ -136,7 +147,7 @@ Wer die Integration bisher mit E-Mail/Passwort betrieben hat, kann jederzeit auf
 ### Update-Intervall (Optionen)
 
 Nach der Einrichtung: Konfigurieren → **Optionen** → Scan-Intervall in Sekunden (Standard: **10 s**).  
-Tagesstatistiken werden alle **5 Minuten** neu geladen.
+Tagesstatistiken werden alle **5 Minuten** neu geladen. Geräte-Metadaten (Modi, Parameter) werden höchstens alle **60 Sekunden** aktualisiert — nach einem Schreibbefehl aus HA jedoch sofort.
 
 ### Erneute Authentifizierung
 
@@ -161,61 +172,64 @@ Alle Werte beziehen sich auf die gesamte Anlage.
 | Netz Export | W | Einspeisung ins Netz |
 | Netzleistung | W | Positiv = Bezug, negativ = Einspeisung |
 
-#### Energiezähler (Interval)
+#### Energie-Intervallwerte
 
-Werden mit jedem Stream-Poll aktualisiert; Klasse `total_increasing`.
-
-| Entität | Einheit | Beschreibung |
-|---|---|---|
-| PV-Energie (Interval) | Wh | PV-Ertrag seit letztem Zählerstand |
-| Verbrauch (Interval) | Wh | Verbrauch seit letztem Zählerstand |
-| Netzbezug (Interval) | Wh | Netzbezug seit letztem Zählerstand |
-| Netzeinspeisung (Interval) | Wh | Einspeisung seit letztem Zählerstand |
-| Batterie geladen (Interval) | Wh | Geladene Energie seit letztem Stand |
-| Batterie entladen (Interval) | Wh | Entladene Energie seit letztem Stand |
-
-#### Tagesstatistiken
-
-Werden alle 5 Minuten aktualisiert (Quelle: `/v1/statistics/gateways`).
+Rohwerte des letzten Stream-Intervalls (≈ 10 s); Klasse `measurement`. Für Dashboards ungeeignet, daher **per Default deaktiviert** — die Tages-Energiesensoren unten sind die richtige Wahl fürs Energie-Dashboard.
 
 | Entität | Einheit | Beschreibung |
 |---|---|---|
-| PV Tageserzeugung | Wh | Gesamterzeugung des heutigen Tages |
-| Verbrauch heute | Wh | Gesamtverbrauch des heutigen Tages |
-| Eigenverbrauch heute | Wh | Direkt selbst genutzter PV-Strom |
-| Eigenverbrauchsquote | % | Anteil PV-Strom, der selbst verbraucht wurde |
-| Autarkiegrad | % | Anteil des Verbrauchs, der aus PV/Batterie gedeckt wurde |
+| PV-Energie (Intervall) | Wh | PV-Ertrag im letzten Intervall |
+| Verbrauch (Intervall) | Wh | Verbrauch im letzten Intervall |
+| Netzbezug (Intervall) | Wh | Netzbezug im letzten Intervall |
+| Netzeinspeisung (Intervall) | Wh | Einspeisung im letzten Intervall |
+| Batterie geladen (Intervall) | Wh | Geladene Energie im letzten Intervall |
+| Batterie entladen (Intervall) | Wh | Entladene Energie im letzten Intervall |
+
+#### Tages-Energie und Statistiken
+
+Klasse `total_increasing` — direkt im Energie-Dashboard verwendbar. Quelle im Cloud-Modus: `/v1/statistics/gateways` (alle 5 Minuten aktualisiert); im lokalen Modus werden die Werte aus den Leistungsdaten integriert bzw. aus den Intervallwerten summiert. Alle Tageszähler überleben Neustarts und Reloads.
+
+| Entität | Einheit | Cloud | Lokal | Beschreibung |
+|---|---|:---:|:---:|---|
+| PV Tageserzeugung | Wh | ✓ | ✓ | Gesamterzeugung des heutigen Tages |
+| Verbrauch heute | Wh | ✓ | ✓ | Gesamtverbrauch des heutigen Tages |
+| Eigenverbrauch heute | Wh | ✓ | ✓ | Direkt selbst genutzter PV-Strom |
+| Netzbezug heute | Wh | ✓ | ✓ | Aus dem Netz bezogene Energie |
+| Netzeinspeisung heute | Wh | ✓ | ✓ | Ins Netz eingespeiste Energie |
+| Batterie geladen heute | Wh | ✓ | ✓ | In die Batterie geladene Energie |
+| Batterie entladen heute | Wh | ✓ | ✓ | Aus der Batterie entnommene Energie |
+| Eigenverbrauchsquote | % | ✓ | – | Anteil PV-Strom, der selbst verbraucht wurde |
+| Autarkiegrad | % | ✓ | – | Anteil des Verbrauchs, der aus PV/Batterie gedeckt wurde |
 
 #### Sonstige Anlage-Sensoren
 
 | Entität | Einheit | Beschreibung |
 |---|---|---|
 | Batterie-SOC | % | Aktueller Ladestand der Batterie |
-| Geräte (Stream-Übersicht) | – | Anzahl der vom Stream gemeldeten Geräte |
+| Geräte (Stream-Übersicht) | – | Anzahl der vom Stream gemeldeten Geräte inkl. Rohdaten-Attributen. Diagnose-Sensor, **per Default deaktiviert** |
 
 ---
 
 ### Geräte (Per-Device, dynamisch)
 
-Pro Gerät werden automatisch Sensoren erstellt, wenn das entsprechende Feld im Stream vorhanden ist.
+Pro Gerät werden automatisch Sensoren erstellt, wenn das entsprechende Feld im Stream vorhanden ist. **Neue Geräte werden zur Laufzeit erkannt** — ein Reload oder Neustart ist nicht mehr nötig.
 
 | Sensor | Einheit | Geräteklasse | Bedingung |
 |---|---|---|---|
 | Leistung | W | Leistung | Feld `power` vorhanden |
-| SOC | % | – | Feld `soc` vorhanden |
+| SOC | % | Batterie | Feld `soc` vorhanden |
 | Temperatur | °C | Temperatur | Feld `temperature` vorhanden |
 | Aktivstatus | – | – | Feld `activeDevice` (1=aktiv/laden, 0=aus, −1=entladen) |
-| Netzbezug heute | kWh | Energie | Feld `iWh` vorhanden |
-| Netzeinspeisung heute | kWh | Energie | Feld `eWh` vorhanden |
 | Tagesverbrauch | Wh | Energie | Feld `iWhTotal` vorhanden |
 | Tageseinspeisung | Wh | Energie | Feld `eWhTotal` vorhanden |
 | Betriebszustand | – | – | Feld `operationState` (Wärmepumpe) |
 | Schaltzustand | – | – | Feld `switchState` vorhanden |
+| Heizungskorrektur | – | – | Feld `heatingAdjustment` vorhanden |
 | Restreichweite | km | – | Feld `remainingRange` vorhanden |
 
 #### Binärsensor: Verbindung
 
-Pro Gerät mit `signal`-Feld: **Ein** = `connected`, **Aus** = getrennt.
+Pro Gerät mit `signal`-Feld: **Ein** = `connected`, **Aus** = getrennt (Diagnose-Kategorie).
 
 ---
 
@@ -370,8 +384,8 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 | Ladeziel SOC | % | 0 – 100 | Ladeziel (SoC) |
 | Ladeziel SOC Maximum | % | 0 – 100 | Ladeziel (SoC) |
 | Ladeziel SOC Termin | Datum/Zeit | ISO-Datetime | Ladeziel (SoC) |
-| Ladeziel kWh Menge | % | 1 – 100 | Ladeziel (kWh) |
-| Ladeziel kWh Maximum | % | 0 – 100 | Ladeziel (kWh) |
+| Ladeziel kWh Menge | kWh | 1 – 100 | Ladeziel (kWh) |
+| Ladeziel kWh Maximum | kWh | 0 – 100 | Ladeziel (kWh) |
 | Ladeziel kWh Termin | Datum/Zeit | ISO-Datetime | Ladeziel (kWh) |
 
 #### Warmwasser
@@ -386,7 +400,9 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 
 - **Modi und Parameter**: Parameter greifen in HA immer, werden von Solar Manager aber nur im jeweils passenden Modus berücksichtigt (z. B. Konstanter Strom nur im Modus „Konstanter Strom").
 - **Gerätetypen**: Werden automatisch aus der API erkannt. Unbekannte Typen bekommen keine Steuerentitäten, aber alle verfügbaren Sensoren.
-- **Cloud-Abhängigkeit (Cloud-Modus)**: Bei Cloud-Ausfall sind alle Werte nicht verfügbar. Der Lokale Modus ist davon nicht betroffen.
+- **Zweisprachig**: Entitätsnamen folgen der HA-Sprache (Deutsch und Englisch enthalten). Die **Optionen** der Modus-Selects (z. B. „Nur Solar") sind bewusst feste Werte, damit Automationen sprachunabhängig stabil bleiben.
+- **Batterie-Schreibschutz**: Batterie-Einstellungen werden immer als vollständiges Settings-Objekt geschrieben (read-modify-write). Direkt nach dem Start — bevor die Geräte-Metadaten geladen sind — wird ein Schreibversuch mit einer Fehlermeldung abgelehnt, statt fremde Felder auf Werks-Defaults zurückzusetzen. Ein paar Sekunden warten und erneut versuchen.
+- **Cloud-Abhängigkeit (Cloud-Modus)**: Bei Cloud-Ausfall sind alle Werte nicht verfügbar. Der Lokale Modus ist davon nicht betroffen. Ein transient abgelaufener Token wird automatisch erneuert, ohne dass eine Reauth-Aufforderung erscheint.
 - **Kein Modus-Wechsel**: Cloud- und Lokaler Modus sind zwei separate Entries. Ein Wechsel erfordert Löschen und Neu-Einrichten der Integration.
 - **API-Doku**: [Swagger](https://external-web.solar-manager.ch/swagger)
 
@@ -459,7 +475,7 @@ automation:
 ### Ein Gerät taucht nicht als Entity auf
 
 **Symptom:** Gerät ist im Solar Manager Portal sichtbar, aber keine HA-Entity vorhanden.  
-**Lösung:** Die Entities werden beim Start der Integration aus dem Stream erstellt. Nach dem Hinzufügen eines neuen Geräts im Portal muss **HA neu gestartet** oder die Integration neu geladen werden (Einstellungen → Geräte & Dienste → Solarmanager → `⋮` → **Neu laden**).
+**Lösung:** Neue Geräte werden automatisch erkannt, sobald sie im Datenstream bzw. in den Geräte-Metadaten auftauchen (spätestens nach ~60 Sekunden). Erscheint das Gerät dennoch nicht, die Integration neu laden (Einstellungen → Geräte & Dienste → Solarmanager → `⋮` → **Neu laden**) und prüfen, ob das Gerät im Portal korrekt dem Gateway zugeordnet ist.
 
 ### Werte aktualisieren sich zu selten
 

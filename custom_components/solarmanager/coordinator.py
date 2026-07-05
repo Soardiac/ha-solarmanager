@@ -249,9 +249,8 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Ohne gecachte Settings würde das Backend alle nicht gesendeten
             # Felder auf Defaults zurücksetzen — dann lieber gar nicht schreiben.
             raise HomeAssistantError(
-                "Batterie-Einstellungen noch nicht geladen — Schreibvorgang "
-                "abgebrochen, um ein Zurücksetzen anderer Felder zu verhindern. "
-                "Bitte in ein paar Sekunden erneut versuchen."
+                translation_domain=DOMAIN,
+                translation_key="battery_settings_not_loaded",
             )
         payload.update(changes)
         await self.client.put_battery_settings(dev_id, payload)

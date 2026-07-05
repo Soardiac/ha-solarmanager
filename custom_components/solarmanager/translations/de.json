@@ -93,6 +93,11 @@
       }
     }
   },
+  "exceptions": {
+    "battery_settings_not_loaded": {
+      "message": "Batterie-Einstellungen noch nicht geladen — Schreibvorgang abgebrochen, um ein Zurücksetzen anderer Felder auf Defaults zu verhindern. Bitte in ein paar Sekunden erneut versuchen."
+    }
+  },
   "entity": {
     "sensor": {
       "pv_power": { "name": "PV-Leistung" },

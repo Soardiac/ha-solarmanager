@@ -33,6 +33,14 @@ rules:
     status: exempt
     comment: Integration registers no actions/services.
 
+  docs-triggers:
+    status: exempt
+    comment: Integration provides no device/entity triggers.
+
+  docs-conditions:
+    status: exempt
+    comment: Integration provides no device/entity conditions.
+
   docs-high-level-description:
     status: done
     comment: README opens with a clear description of the integration's purpose.
@@ -127,7 +135,7 @@ rules:
 
   discovery:
     status: exempt
-    comment: Cloud-polling integration; devices cannot be discovered locally.
+    comment: Cloud mode is account-based. The local gateway does not announce itself via mDNS/SSDP/DHCP as far as known; revisit if Solar Manager adds network discovery.
 
   discovery-update-info:
     status: exempt
@@ -182,8 +190,8 @@ rules:
     comment: All entities use translation_key; names provided in translations/en.json and translations/de.json.
 
   exception-translations:
-    status: exempt
-    comment: Integration registers no service actions. Custom exceptions (SolarmanagerAuthError etc.) are internal and never shown directly to users.
+    status: done
+    comment: User-facing HomeAssistantError (battery write guard) uses translation_domain/translation_key with messages in strings.json and translations/. API client exceptions are internal only.
 
   icon-translations:
     status: done

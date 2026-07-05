@@ -93,6 +93,11 @@
       }
     }
   },
+  "exceptions": {
+    "battery_settings_not_loaded": {
+      "message": "Battery settings are not loaded yet — write aborted to avoid resetting other fields to their defaults. Please try again in a few seconds."
+    }
+  },
   "entity": {
     "sensor": {
       "pv_power": { "name": "PV power" },
