@@ -29,7 +29,6 @@ def site_device_info(coordinator: SolarmanagerCoordinator) -> dict[str, Any]:
 def child_device_info(
     coordinator: SolarmanagerCoordinator,
     dev_id: str,
-    model: str = "Stream device",
 ) -> dict[str, Any]:
     """device_info für ein untergeordnetes Gerät (via_device → Site)."""
     friendly = coordinator.get_device_name(dev_id)
@@ -38,6 +37,6 @@ def child_device_info(
         "identifiers": {(DOMAIN, f"device_{dev_id}")},
         "name": friendly or f"Solarmanager Gerät {short}",
         "manufacturer": MANUFACTURER,
-        "model": model,
+        "model": "Stream device",
         "via_device": (DOMAIN, f"site_{coordinator.site_id}"),
     }

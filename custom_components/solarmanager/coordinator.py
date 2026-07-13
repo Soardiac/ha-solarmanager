@@ -89,6 +89,11 @@ BATTERY_PUT_FIELDS = frozenset({
 })
 
 
+def daily_store(hass: HomeAssistant, entry_id: str) -> Store[dict[str, Any]]:
+    """Store für die persistierten Tageszähler eines Config-Entries."""
+    return Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}_daily")
+
+
 class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator, der den v3-Stream pollt, Daten normalisiert und Geräte-Metadaten cached (aus /v1/info/sensors/{smId})."""
 
@@ -96,6 +101,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=DOMAIN,
             update_interval=timedelta(
                 seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN)
@@ -129,9 +135,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._bat_last_t: Any = None  # Stream-Timestamp des zuletzt summierten Punkts
 
         # Persistenz der Tageszähler (Neustart/Reload mitten am Tag)
-        self._store: Store[dict[str, Any]] = Store(
-            hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}_daily"
-        )
+        self._store = daily_store(hass, entry.entry_id)
         self._store_loaded = False
 
     @property
@@ -160,7 +164,16 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 sm_id=self.entry.data[CONF_SM_ID],
                 api_key=self.entry.data.get(CONF_API_KEY),
             )
-            await self.client.login()
+            # _async_setup wird vom Coordinator-Framework außerhalb von
+            # _async_update_data aufgerufen — dessen Exception-Mapping greift
+            # hier nicht. Ohne Mapping landet ein Auth-Fehler beim Login im
+            # generischen Framework-Handler und löst nie den Reauth-Flow aus.
+            try:
+                await self.client.login()
+            except SolarmanagerAuthError as err:
+                raise ConfigEntryAuthFailed(str(err)) from err
+            except (SolarmanagerRateLimit, SolarmanagerApiError) as err:
+                raise UpdateFailed(str(err)) from err
         await self._async_restore_daily()
         await self._load_device_meta()
 
@@ -205,6 +218,9 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Geräte-Metadaten aus /v1/info/sensors/{smId} (Cloud) oder /v2/devices (Lokal) laden."""
         if not self.client:
             return
+        # Auch bei Fehlern erst nach META_TTL erneut versuchen — sonst feuert
+        # bei API-Störung jeder Poll einen zusätzlichen fehlschlagenden Request.
+        self._meta_last = time.time()
         try:
             raw = await self.client.list_devices()
             items = raw.get("items", raw) if isinstance(raw, dict) else raw
@@ -225,7 +241,6 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         friendly = typ
                 meta[dev_id] = {"name": friendly, "type": typ, "raw": d}
             self.device_meta = meta
-            self._meta_last = time.time()
             _LOGGER.debug("Loaded %d device metadata entries (info/devices)", len(self.device_meta))
         except Exception as e:
             _LOGGER.debug("Could not fetch device metadata from info/devices: %s", e)
@@ -265,6 +280,8 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Tages-Statistiken via GET /v1/statistics/gateways/{smId} laden (alle 5 min)."""
         if not self.client:
             return
+        # Auch bei Fehlern erst nach STATS_TTL erneut versuchen (Rate-Limit-Schonung)
+        self._stats_last = time.time()
         try:
             now = dt_util.now()
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -272,8 +289,6 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             to_dt = dt_util.as_utc(now).strftime("%Y-%m-%dT%H:%M:%S.000Z")
             data = await self.client.get_gateway_statistics(from_dt, to_dt, "high")
             self._stats_data = data
-            self._stats_last = time.time()
-            self._stats_date = dt_util.now().strftime("%Y-%m-%d")
             _LOGGER.debug("Gateway stats loaded: %s", data)
         except Exception as e:
             _LOGGER.debug("Could not fetch gateway statistics: %s", e)
@@ -362,7 +377,13 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Tages-Statistiken: Cloud via API, Lokal via Integration
             if not self.is_local:
-                if time.time() - self._stats_last > STATS_TTL or self._stats_date != today:
+                if self._stats_date != today:
+                    # Tageswechsel: Vortageswerte nicht weiterzeigen, bis der
+                    # erste Fetch des neuen Tages gelungen ist
+                    self._stats_data = {}
+                    self._stats_date = today
+                    self._stats_last = 0.0
+                if time.time() - self._stats_last > STATS_TTL:
                     await self._load_gateway_stats()
                 data["stat_production"] = self._stats_data.get("production")
                 data["stat_consumption"] = self._stats_data.get("consumption")
@@ -415,13 +436,15 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Tages-Batterieenergie (beide Modi): bcWh/bdWh-Intervalle aufsummieren.
             # Nur neue Stream-Punkte zählen — bei unverändertem Timestamp t würde
             # dasselbe Intervall sonst mehrfach summiert (Poll < Stream-Intervall).
+            # Punkte ohne Timestamp werden übersprungen: ohne t ist kein Dedup
+            # möglich und jeder Poll würde dasselbe Intervall erneut summieren.
             if today != self._bat_day:
                 self._bat_charge_wh = 0.0
                 self._bat_discharge_wh = 0.0
                 self._bat_day = today
                 self._bat_last_t = None
             point_t = data.get("t")
-            if point_t is None or point_t != self._bat_last_t:
+            if point_t is not None and point_t != self._bat_last_t:
                 self._bat_charge_wh += (data.get("bcWh") or 0.0)
                 self._bat_discharge_wh += (data.get("bdWh") or 0.0)
                 self._bat_last_t = point_t

@@ -153,7 +153,14 @@ class SolarmanagerCloud:
             if self.api_key:
                 await self._exchange_api_key()
             elif self._refresh:
-                await self._refresh_v1()
+                try:
+                    await self._refresh_v1()
+                except SolarmanagerAuthError:
+                    # Refresh-Token serverseitig ungültig — die gespeicherten
+                    # Zugangsdaten können trotzdem noch gültig sein, daher
+                    # voller Login statt sofortigem Reauth.
+                    _LOGGER.debug("v1 refresh rejected — falling back to full login")
+                    await self._login_v1()
             else:
                 await self._login_v1()
 

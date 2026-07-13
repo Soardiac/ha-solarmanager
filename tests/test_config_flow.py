@@ -15,6 +15,7 @@ from custom_components.solarmanager.const import (
     CONF_HOST,
     CONF_MODE,
     CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
     CONF_SCHEME,
     CONF_SM_ID,
     DOMAIN,
@@ -266,7 +267,7 @@ async def test_reauth_flow_success(hass):
     assert result["step_id"] == "reauth_confirm"
 
     with patch(_PATCH_CLOUD) as mock_cls, patch.object(
-        hass.config_entries, "async_reload"
+        hass.config_entries, "async_schedule_reload"
     ):
         mock_cls.return_value.login = AsyncMock()
 
@@ -334,7 +335,7 @@ async def test_reauth_api_key_only_keeps_credentials(hass):
     )
 
     with patch(_PATCH_CLOUD) as mock_cls, patch.object(
-        hass.config_entries, "async_reload"
+        hass.config_entries, "async_schedule_reload"
     ):
         mock_cls.return_value.login = AsyncMock()
 
@@ -350,8 +351,47 @@ async def test_reauth_api_key_only_keeps_credentials(hass):
     assert entry.data[CONF_API_KEY] == "new-api-key"
 
 
-async def test_reauth_aborted_for_local_mode(hass):
-    """Re-Auth für lokalen Eintrag wird sofort abgebrochen."""
+async def test_reauth_local_updates_api_key(hass):
+    """Re-Auth (Lokal): neuer API Key wird validiert und gespeichert."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_LOCAL,
+            CONF_HOST: "192.168.1.100",
+            CONF_SCHEME: "http",
+            CONF_API_KEY: "old-key",
+        },
+        unique_id="local_192.168.1.100",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reauth_local"
+
+    with patch(_PATCH_LOCAL) as mock_cls, patch.object(
+        hass.config_entries, "async_schedule_reload"
+    ):
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "new-key"}
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_API_KEY] == "new-key"
+    # Host/Scheme bleiben unangetastet
+    assert entry.data[CONF_HOST] == "192.168.1.100"
+    assert entry.data[CONF_SCHEME] == "http"
+
+
+async def test_reauth_local_auth_error_keeps_form(hass):
+    """Re-Auth (Lokal) mit falschem Key → Formular bleibt mit Fehler 'auth'."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http"},
@@ -365,8 +405,15 @@ async def test_reauth_aborted_for_local_mode(hass):
         data=entry.data,
     )
 
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "reauth_not_supported"
+    with patch(_PATCH_LOCAL) as mock_cls:
+        mock_cls.return_value.get_point = AsyncMock(side_effect=SolarmanagerAuthError)
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "wrong-key"}
+        )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"]["base"] == "auth"
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +447,7 @@ async def test_reconfigure_cloud_success(hass):
     assert result["step_id"] == "reconfigure_cloud"
 
     with patch(_PATCH_CLOUD) as mock_cls, patch.object(
-        hass.config_entries, "async_reload"
+        hass.config_entries, "async_schedule_reload"
     ):
         mock_cls.return_value.login = AsyncMock()
         mock_cls.return_value.stream_user_v3 = AsyncMock(return_value={})
@@ -476,7 +523,7 @@ async def test_reconfigure_local_success(hass):
     assert result["step_id"] == "reconfigure_local"
 
     with patch(_PATCH_LOCAL) as mock_cls, patch.object(
-        hass.config_entries, "async_reload"
+        hass.config_entries, "async_schedule_reload"
     ):
         mock_cls.return_value.get_point = AsyncMock(return_value={})
 
@@ -490,3 +537,47 @@ async def test_reconfigure_local_success(hass):
     assert entry.data[CONF_HOST] == "192.168.1.50"
     assert entry.data[CONF_SCHEME] == "https"
     assert entry.unique_id == "local_192.168.1.50"
+
+
+# ---------------------------------------------------------------------------
+# Options-Flow
+# ---------------------------------------------------------------------------
+
+async def test_options_flow_api_key_single_listener_fire(hass):
+    """API Key + Intervall in einem Update → Update-Listener feuert nur einmal.
+
+    Sonst würde die Integration doppelt neu geladen (einmal durch das
+    Data-Update, einmal durch das Options-Update).
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_CLOUD,
+            CONF_EMAIL: "test@example.com",
+            CONF_PASSWORD: "secret",
+            CONF_SM_ID: "SM-0001",
+            CONF_API_KEY: None,
+        },
+        options={CONF_SCAN_INTERVAL: 10},
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+    listener = AsyncMock()
+    entry.add_update_listener(listener)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == FlowResultType.FORM
+
+    with patch(_PATCH_CLOUD) as mock_cls:
+        mock_cls.return_value.login = AsyncMock()
+
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "new-key", CONF_SCAN_INTERVAL: 30},
+        )
+    await hass.async_block_till_done()
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_API_KEY] == "new-key"
+    assert entry.options[CONF_SCAN_INTERVAL] == 30
+    assert listener.await_count == 1

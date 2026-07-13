@@ -103,3 +103,25 @@ async def test_401_triggers_single_token_refresh_retry(hass, aioclient_mock):
     methods_paths = [(m, u.path) for m, u, *_ in aioclient_mock.mock_calls]
     assert methods_paths.count(("GET", "/v3/users/SM1/data/stream")) == 2
     assert methods_paths.count(("POST", "/v1/oauth/refresh")) == 1
+
+
+async def test_rejected_refresh_token_falls_back_to_full_login(hass, aioclient_mock):
+    """Abgelehnter v1-Refresh-Token → Fallback auf vollen Login statt AuthError.
+
+    Die gespeicherten Zugangsdaten können weiterhin gültig sein — ohne Fallback
+    würde unnötig der Reauth-Flow ausgelöst.
+    """
+    aioclient_mock.post(LOGIN_URL, json=_TOKEN_RESPONSE)
+    aioclient_mock.post(REFRESH_URL, status=401)
+    aioclient_mock.get(STREAM_URL, json={"pW": 1})
+
+    client = _client(hass)
+    await client.login()
+    client._exp_ts = 0.0  # Token als abgelaufen markieren → Refresh nötig
+
+    data = await client.stream_user_v3()
+
+    assert data == {"pW": 1}
+    methods_paths = [(m, u.path) for m, u, *_ in aioclient_mock.mock_calls]
+    assert methods_paths.count(("POST", "/v1/oauth/login")) == 2
+    assert methods_paths.count(("POST", "/v1/oauth/refresh")) == 1

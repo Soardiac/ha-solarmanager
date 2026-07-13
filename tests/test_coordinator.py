@@ -1,12 +1,13 @@
-"""Tests für Coordinator-Kernlogik: Batterie-Dedup und Merged-PUT-Guard."""
+"""Tests für Coordinator-Kernlogik: Batterie-Dedup, Merged-PUT-Guard und Auth-Mapping."""
 from unittest.mock import AsyncMock
 
 import pytest
 
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.solarmanager.const import (
+    CLOUD_BASE,
     CONF_EMAIL,
     CONF_HOST,
     CONF_MODE,
@@ -22,6 +23,7 @@ from custom_components.solarmanager.coordinator import SolarmanagerCoordinator
 HOST = "192.168.1.100"
 POINT_URL = f"http://{HOST}/v2/point"
 DEVICES_URL = f"http://{HOST}/v2/devices"
+LOGIN_URL = f"{CLOUD_BASE}/v1/oauth/login"
 
 
 def _local_entry(hass) -> MockConfigEntry:
@@ -79,6 +81,34 @@ async def test_battery_daily_sum_dedups_same_stream_point(hass, aioclient_mock):
     await coord.async_refresh()
     assert coord.data["stat_bat_charge"] == 10.0
     assert coord.data["stat_bat_discharge"] == 2.0
+
+
+async def test_battery_daily_sum_skips_points_without_timestamp(hass, aioclient_mock):
+    """Punkte ohne Stream-Timestamp t → nicht summieren (kein Dedup möglich)."""
+    entry = _local_entry(hass)
+    aioclient_mock.get(DEVICES_URL, json=[])
+    aioclient_mock.get(POINT_URL, json={"iv": 10, "bcWh": 5.0, "bdWh": 1.0})
+
+    coord = SolarmanagerCoordinator(hass, entry)
+    await coord.async_refresh()
+    await coord.async_refresh()
+
+    assert coord.last_update_success
+    assert coord.data["stat_bat_charge"] == 0.0
+    assert coord.data["stat_bat_discharge"] == 0.0
+
+
+async def test_cloud_login_auth_error_maps_to_config_entry_auth_failed(hass, aioclient_mock):
+    """401 beim initialen Login → ConfigEntryAuthFailed (löst den Reauth-Flow aus)."""
+    entry = _cloud_entry(hass)
+    aioclient_mock.post(LOGIN_URL, status=401)
+
+    coord = SolarmanagerCoordinator(hass, entry)
+    await coord.async_refresh()
+    await hass.async_block_till_done()
+
+    assert not coord.last_update_success
+    assert isinstance(coord.last_exception, ConfigEntryAuthFailed)
 
 
 async def test_put_battery_merged_refuses_without_cached_settings(hass):

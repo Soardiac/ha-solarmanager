@@ -7,8 +7,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     TextSelector,
@@ -112,7 +111,7 @@ async def _validate_and_map_errors(coro) -> dict[str, str]:
 class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    async def async_step_user(self, user_input=None) -> FlowResult:
+    async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Mode selector: Cloud or Local."""
         if user_input is not None:
             if user_input[CONF_MODE] == MODE_LOCAL:
@@ -126,7 +125,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }),
         )
 
-    async def async_step_cloud(self, user_input=None) -> FlowResult:
+    async def async_step_cloud(self, user_input=None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
 
         if user_input:
@@ -155,7 +154,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_local(self, user_input=None) -> FlowResult:
+    async def async_step_local(self, user_input=None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -188,15 +187,13 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     # Re-Auth
     # ------------------------------------------------------------------
 
-    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> FlowResult:
+    async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
         if entry_data.get(CONF_MODE) == MODE_LOCAL:
-            return self.async_abort(reason="reauth_not_supported")
+            return await self.async_step_reauth_local()
         return await self.async_step_reauth_confirm()
 
-    async def async_step_reauth_confirm(self, user_input=None) -> FlowResult:
-        reauth_entry = self.hass.config_entries.async_get_entry(
-            self.context["entry_id"]
-        )
+    async def async_step_reauth_confirm(self, user_input=None) -> ConfigFlowResult:
+        reauth_entry = self._get_reauth_entry()
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -215,17 +212,14 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             )
             if not errors:
-                self.hass.config_entries.async_update_entry(
+                return self.async_update_reload_and_abort(
                     reauth_entry,
-                    data={
-                        **reauth_entry.data,
+                    data_updates={
                         CONF_EMAIL: email,
                         CONF_PASSWORD: password,
                         CONF_API_KEY: api_key or None,
                     },
                 )
-                await self.hass.config_entries.async_reload(reauth_entry.entry_id)
-                return self.async_abort(reason="reauth_successful")
 
         return self.async_show_form(
             step_id="reauth_confirm",
@@ -238,12 +232,40 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders={"sm_id": reauth_entry.data.get(CONF_SM_ID, "")},
         )
 
+    async def async_step_reauth_local(self, user_input=None) -> ConfigFlowResult:
+        """Lokaler Modus: API-Key wurde vom Gateway abgelehnt → neuen Key abfragen."""
+        reauth_entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Leer = Gateway verlangt (nicht mehr) einen Key
+            api_key = (user_input.get(CONF_API_KEY) or "").strip() or None
+            errors = await _validate_and_map_errors(
+                _validate_local(
+                    self.hass,
+                    host=reauth_entry.data[CONF_HOST],
+                    scheme=reauth_entry.data.get(CONF_SCHEME, "http"),
+                    api_key=api_key,
+                )
+            )
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    reauth_entry,
+                    data_updates={CONF_API_KEY: api_key},
+                )
+
+        return self.async_show_form(
+            step_id="reauth_local",
+            data_schema=vol.Schema({
+                vol.Optional(CONF_API_KEY, default=""): PASSWORD_SELECTOR,
+            }),
+            errors=errors,
+            description_placeholders={"host": reauth_entry.data.get(CONF_HOST, "")},
+        )
+
     # ------------------------------------------------------------------
     # Reconfigure
     # ------------------------------------------------------------------
-
-    def _reconfigure_entry(self) -> ConfigEntry:
-        return self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
     def _other_entry_has_unique_id(self, entry: ConfigEntry, unique_id: str) -> bool:
         return any(
@@ -251,14 +273,14 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             for other in self.hass.config_entries.async_entries(DOMAIN)
         )
 
-    async def async_step_reconfigure(self, user_input=None) -> FlowResult:
-        entry = self._reconfigure_entry()
+    async def async_step_reconfigure(self, user_input=None) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
         if entry.data.get(CONF_MODE) == MODE_LOCAL:
             return await self.async_step_reconfigure_local()
         return await self.async_step_reconfigure_cloud()
 
-    async def async_step_reconfigure_cloud(self, user_input=None) -> FlowResult:
-        entry = self._reconfigure_entry()
+    async def async_step_reconfigure_cloud(self, user_input=None) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -282,20 +304,17 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             )
             if not errors:
-                self.hass.config_entries.async_update_entry(
+                return self.async_update_reload_and_abort(
                     entry,
                     unique_id=new_uid,
                     title=f"Solarmanager {sm_id}",
-                    data={
-                        **entry.data,
+                    data_updates={
                         CONF_EMAIL: email,
                         CONF_PASSWORD: password,
                         CONF_SM_ID: sm_id,
                         CONF_API_KEY: api_key or None,
                     },
                 )
-                await self.hass.config_entries.async_reload(entry.entry_id)
-                return self.async_abort(reason="reconfigure_successful")
 
         return self.async_show_form(
             step_id="reconfigure_cloud",
@@ -308,8 +327,8 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_reconfigure_local(self, user_input=None) -> FlowResult:
-        entry = self._reconfigure_entry()
+    async def async_step_reconfigure_local(self, user_input=None) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -325,19 +344,16 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _validate_local(self.hass, host=host, scheme=scheme, api_key=api_key)
             )
             if not errors:
-                self.hass.config_entries.async_update_entry(
+                return self.async_update_reload_and_abort(
                     entry,
                     unique_id=new_uid,
                     title=f"Solarmanager Local ({host})",
-                    data={
-                        **entry.data,
+                    data_updates={
                         CONF_HOST: host,
                         CONF_SCHEME: scheme,
                         CONF_API_KEY: api_key,
                     },
                 )
-                await self.hass.config_entries.async_reload(entry.entry_id)
-                return self.async_abort(reason="reconfigure_successful")
 
         return self.async_show_form(
             step_id="reconfigure_local",
@@ -351,11 +367,12 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
-    async def async_step_init(self, user_input=None) -> FlowResult:
+    async def async_step_init(self, user_input=None) -> ConfigFlowResult:
         is_local = self.config_entry.data.get(CONF_MODE) == MODE_LOCAL
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            new_data: dict[str, Any] | None = None
             if not is_local:
                 api_key = (user_input.get(CONF_API_KEY) or "").strip() or None
                 if api_key:
@@ -370,15 +387,21 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
                         )
                     )
                     if not errors:
-                        self.hass.config_entries.async_update_entry(
-                            self.config_entry,
-                            data={**self.config_entry.data, CONF_API_KEY: api_key},
-                        )
+                        new_data = {**current, CONF_API_KEY: api_key}
 
             if not errors:
-                return self.async_create_entry(
-                    title="", data={CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL]}
-                )
+                new_options = {
+                    **self.config_entry.options,
+                    CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL],
+                }
+                if new_data is not None:
+                    # Data UND Options in einem Update setzen: der Update-Listener
+                    # feuert so nur einmal (sonst doppelter Reload, weil das
+                    # anschließende async_create_entry erneut triggern würde).
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=new_data, options=new_options
+                    )
+                return self.async_create_entry(title="", data=new_options)
 
         if is_local:
             schema = vol.Schema({

@@ -1,6 +1,8 @@
 # const.py
 from __future__ import annotations
 
+from homeassistant.const import Platform
+
 DOMAIN = "solarmanager"
 
 # Credentials / Config
@@ -17,7 +19,13 @@ DEFAULT_SCAN = 10  # Sekunden – der v3-Stream liefert typischerweise iv≈10s
 CLOUD_BASE = "https://cloud.solar-manager.ch"
 
 # Plattformen
-PLATFORMS = ["sensor", "number", "binary_sensor", "select", "datetime"]
+PLATFORMS = [
+    Platform.SENSOR,
+    Platform.NUMBER,
+    Platform.BINARY_SENSOR,
+    Platform.SELECT,
+    Platform.DATETIME,
+]
 
 # Verbindungsmodus
 CONF_HOST = "host"

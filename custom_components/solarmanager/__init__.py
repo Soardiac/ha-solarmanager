@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 
 from .const import DOMAIN, PLATFORMS
-from .coordinator import SolarmanagerCoordinator
+from .coordinator import SolarmanagerCoordinator, daily_store
 from .entity import site_device_info
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +50,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Persistierte Tageszähler löschen, wenn der Eintrag entfernt wird."""
+    await daily_store(hass, entry.entry_id).async_remove()
+
+
 async def async_remove_config_entry_device(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -58,7 +63,12 @@ async def async_remove_config_entry_device(
     """Allow removing a device if it is no longer reported by the API."""
     coord: SolarmanagerCoordinator = config_entry.runtime_data
     for domain, identifier in device_entry.identifiers:
-        if domain == DOMAIN and identifier.startswith("device_"):
-            dev_id = identifier[7:]
+        if domain != DOMAIN:
+            continue
+        if identifier.startswith("site_"):
+            # Das Site-Gerät gehört fest zum Config-Entry
+            return False
+        if identifier.startswith("device_"):
+            dev_id = identifier[len("device_"):]
             return dev_id not in coord.device_meta
     return True

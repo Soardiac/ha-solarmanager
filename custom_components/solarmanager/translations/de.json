@@ -45,6 +45,13 @@
           "api_key": "Cloud API Key (empfohlen)"
         }
       },
+      "reauth_local": {
+        "title": "Lokalen API Key aktualisieren",
+        "description": "Die lokale API des Gateways **{host}** hat die Anfrage abgelehnt. Gib den aktuellen API Key ein. Leer lassen, wenn das Gateway keinen Key mehr verlangt.",
+        "data": {
+          "api_key": "API Key"
+        }
+      },
       "reconfigure_cloud": {
         "title": "Solarmanager Cloud neu konfigurieren",
         "description": "Leere Felder behalten die gespeicherten Werte.",
@@ -73,7 +80,6 @@
     "abort": {
       "already_configured": "Dieses Solarmanager-System ist bereits eingerichtet.",
       "reauth_successful": "Erneute Authentifizierung erfolgreich. Die Integration wird neu geladen.",
-      "reauth_not_supported": "Lokaler Modus benötigt keine erneute Authentifizierung.",
       "reconfigure_successful": "Neukonfiguration erfolgreich. Die Integration wird neu geladen."
     }
   },

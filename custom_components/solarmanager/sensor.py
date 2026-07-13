@@ -188,12 +188,14 @@ class SolarmanagerStatsSensor(_Base, SensorEntity):
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = device_class
         self._attr_state_class = state_class
+        # Wh-Zähler ohne Nachkommastellen, Prozentwerte mit einer
+        self._attr_suggested_display_precision = 1 if unit == PERCENTAGE else 0
 
     @property
     def native_value(self) -> Optional[float]:
         v = (self.coordinator.data or {}).get(self._key)
         try:
-            return round(float(v)) if v is not None else None
+            return float(v) if v is not None else None
         except Exception:
             return None
 

@@ -278,7 +278,7 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
 
     @property
     def device_info(self) -> dict[str, Any]:
-        return child_device_info(self.coordinator, self._dev_id, model="Battery")
+        return child_device_info(self.coordinator, self._dev_id)
 
     @property
     def native_value(self) -> Optional[float]:
