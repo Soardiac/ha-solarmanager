@@ -8,7 +8,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.data_entry_flow import AbortFlow, FlowResult
+from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     TextSelector,
@@ -55,6 +55,15 @@ def _schema_cloud(defaults: dict | None = None) -> vol.Schema:
     })
 
 
+def _schema_local(defaults: dict | None = None) -> vol.Schema:
+    defaults = defaults or {}
+    return vol.Schema({
+        vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
+        vol.Required(CONF_SCHEME, default=defaults.get(CONF_SCHEME, "http")): vol.In(["http", "https"]),
+        vol.Optional(CONF_API_KEY, default=""): PASSWORD_SELECTOR,
+    })
+
+
 async def _validate_cloud(
     hass,
     *,
@@ -79,6 +88,27 @@ async def _validate_cloud(
         await client.stream_user_v3()
 
 
+async def _validate_local(hass, *, host: str, scheme: str, api_key: str | None) -> None:
+    """Lokale Zugangsdaten prüfen (GET /v2/point); wirft bei Fehler."""
+    session = async_get_clientsession(hass)
+    client = SolarmanagerLocal(host, session, scheme=scheme, api_key=api_key)
+    await client.get_point()
+
+
+async def _validate_and_map_errors(coro) -> dict[str, str]:
+    """Validierungs-Coroutine ausführen und Exceptions auf ein Errors-Dict mappen."""
+    try:
+        await coro
+    except SolarmanagerAuthError:
+        return {"base": "auth"}
+    except SolarmanagerApiError:
+        return {"base": "cannot_connect"}
+    except Exception:
+        _LOGGER.exception("Unexpected error validating Solarmanager connection")
+        return {"base": "unknown"}
+    return {}
+
+
 class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -100,8 +130,8 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input:
-            try:
-                await _validate_cloud(
+            errors = await _validate_and_map_errors(
+                _validate_cloud(
                     self.hass,
                     email=user_input[CONF_EMAIL],
                     password=user_input[CONF_PASSWORD],
@@ -109,7 +139,8 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     api_key=(user_input.get(CONF_API_KEY) or None),
                     check_stream=True,
                 )
-
+            )
+            if not errors:
                 await self.async_set_unique_id(f"{DOMAIN}_{user_input[CONF_SM_ID]}")
                 self._abort_if_unique_id_configured()
 
@@ -117,16 +148,6 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=f"Solarmanager {user_input[CONF_SM_ID]}",
                     data={CONF_MODE: MODE_CLOUD, **user_input},
                 )
-            except SolarmanagerAuthError:
-                errors["base"] = "auth"
-            except SolarmanagerApiError:
-                errors["base"] = "cannot_connect"
-            except AbortFlow:
-                # _abort_if_unique_id_configured → "already_configured" durchreichen
-                raise
-            except Exception:
-                _LOGGER.exception("Unexpected error during cloud setup")
-                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="cloud",
@@ -141,18 +162,10 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             host = normalize_local_host(user_input[CONF_HOST])
             scheme = user_input[CONF_SCHEME]
             api_key = user_input.get(CONF_API_KEY) or None
-            session = async_get_clientsession(self.hass)
-            client = SolarmanagerLocal(host, session, scheme=scheme, api_key=api_key)
-            try:
-                await client.get_point()
-            except SolarmanagerAuthError:
-                errors["base"] = "auth"
-            except SolarmanagerApiError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected error during local setup")
-                errors["base"] = "unknown"
-            else:
+            errors = await _validate_and_map_errors(
+                _validate_local(self.hass, host=host, scheme=scheme, api_key=api_key)
+            )
+            if not errors:
                 await self.async_set_unique_id(f"local_{host}")
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
@@ -167,11 +180,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="local",
-            data_schema=vol.Schema({
-                vol.Required(CONF_HOST): str,
-                vol.Required(CONF_SCHEME, default="http"): vol.In(["http", "https"]),
-                vol.Optional(CONF_API_KEY, default=""): PASSWORD_SELECTOR,
-            }),
+            data_schema=_schema_local(user_input),
             errors=errors,
         )
 
@@ -196,22 +205,16 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             email = user_input.get(CONF_EMAIL) or reauth_entry.data.get(CONF_EMAIL, "")
             password = user_input.get(CONF_PASSWORD) or reauth_entry.data.get(CONF_PASSWORD, "")
             api_key = user_input.get(CONF_API_KEY) or reauth_entry.data.get(CONF_API_KEY)
-            try:
-                await _validate_cloud(
+            errors = await _validate_and_map_errors(
+                _validate_cloud(
                     self.hass,
                     email=email,
                     password=password,
                     sm_id=reauth_entry.data[CONF_SM_ID],
                     api_key=api_key or None,
                 )
-            except SolarmanagerAuthError:
-                errors["base"] = "auth"
-            except SolarmanagerApiError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected error during reauth")
-                errors["base"] = "unknown"
-            else:
+            )
+            if not errors:
                 self.hass.config_entries.async_update_entry(
                     reauth_entry,
                     data={
@@ -242,6 +245,12 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _reconfigure_entry(self) -> ConfigEntry:
         return self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
+    def _other_entry_has_unique_id(self, entry: ConfigEntry, unique_id: str) -> bool:
+        return any(
+            other.entry_id != entry.entry_id and other.unique_id == unique_id
+            for other in self.hass.config_entries.async_entries(DOMAIN)
+        )
+
     async def async_step_reconfigure(self, user_input=None) -> FlowResult:
         entry = self._reconfigure_entry()
         if entry.data.get(CONF_MODE) == MODE_LOCAL:
@@ -259,14 +268,11 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             api_key = user_input.get(CONF_API_KEY) or entry.data.get(CONF_API_KEY)
 
             new_uid = f"{DOMAIN}_{sm_id}"
-            if any(
-                other.entry_id != entry.entry_id and other.unique_id == new_uid
-                for other in self.hass.config_entries.async_entries(DOMAIN)
-            ):
+            if self._other_entry_has_unique_id(entry, new_uid):
                 return self.async_abort(reason="already_configured")
 
-            try:
-                await _validate_cloud(
+            errors = await _validate_and_map_errors(
+                _validate_cloud(
                     self.hass,
                     email=email,
                     password=password,
@@ -274,14 +280,8 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     api_key=api_key or None,
                     check_stream=True,
                 )
-            except SolarmanagerAuthError:
-                errors["base"] = "auth"
-            except SolarmanagerApiError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected error during reconfigure")
-                errors["base"] = "unknown"
-            else:
+            )
+            if not errors:
                 self.hass.config_entries.async_update_entry(
                     entry,
                     unique_id=new_uid,
@@ -318,24 +318,13 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             api_key = user_input.get(CONF_API_KEY) or entry.data.get(CONF_API_KEY)
 
             new_uid = f"local_{host}"
-            if any(
-                other.entry_id != entry.entry_id and other.unique_id == new_uid
-                for other in self.hass.config_entries.async_entries(DOMAIN)
-            ):
+            if self._other_entry_has_unique_id(entry, new_uid):
                 return self.async_abort(reason="already_configured")
 
-            session = async_get_clientsession(self.hass)
-            client = SolarmanagerLocal(host, session, scheme=scheme, api_key=api_key)
-            try:
-                await client.get_point()
-            except SolarmanagerAuthError:
-                errors["base"] = "auth"
-            except SolarmanagerApiError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected error during local reconfigure")
-                errors["base"] = "unknown"
-            else:
+            errors = await _validate_and_map_errors(
+                _validate_local(self.hass, host=host, scheme=scheme, api_key=api_key)
+            )
+            if not errors:
                 self.hass.config_entries.async_update_entry(
                     entry,
                     unique_id=new_uid,
@@ -352,11 +341,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reconfigure_local",
-            data_schema=vol.Schema({
-                vol.Required(CONF_HOST, default=entry.data.get(CONF_HOST, "")): str,
-                vol.Required(CONF_SCHEME, default=entry.data.get(CONF_SCHEME, "http")): vol.In(["http", "https"]),
-                vol.Optional(CONF_API_KEY, default=""): PASSWORD_SELECTOR,
-            }),
+            data_schema=_schema_local(entry.data),
             errors=errors,
         )
 
@@ -375,22 +360,16 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
                 api_key = (user_input.get(CONF_API_KEY) or "").strip() or None
                 if api_key:
                     current = self.config_entry.data
-                    try:
-                        await _validate_cloud(
+                    errors = await _validate_and_map_errors(
+                        _validate_cloud(
                             self.hass,
                             email=current.get(CONF_EMAIL, ""),
                             password=current.get(CONF_PASSWORD, ""),
                             sm_id=current[CONF_SM_ID],
                             api_key=api_key,
                         )
-                    except SolarmanagerAuthError:
-                        errors["base"] = "auth"
-                    except SolarmanagerApiError:
-                        errors["base"] = "cannot_connect"
-                    except Exception:
-                        _LOGGER.exception("Unexpected error validating API key")
-                        errors["base"] = "unknown"
-                    else:
+                    )
+                    if not errors:
                         self.hass.config_entries.async_update_entry(
                             self.config_entry,
                             data={**self.config_entry.data, CONF_API_KEY: api_key},

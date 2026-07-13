@@ -14,6 +14,17 @@ REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=30)
 LOCAL_TIMEOUT = aiohttp.ClientTimeout(total=10)
 
 
+async def _check_status(r: aiohttp.ClientResponse, *, context: str) -> None:
+    """HTTP-Status auf die passende Solarmanager-Exception mappen; wirft bei Fehler."""
+    if r.status in (401, 403):
+        raise SolarmanagerAuthError(f"{context} auth failed (HTTP {r.status})")
+    if r.status == 429:
+        raise SolarmanagerRateLimit("Rate limited")
+    if r.status >= 400:
+        text = await r.text()
+        raise SolarmanagerApiError(f"{context} failed {r.status}: {text}")
+
+
 def normalize_local_host(host: str) -> str:
     """Kanonischer Host ohne Scheme/Slash — für unique_id & Anzeige."""
     host = host.strip().rstrip("/")
@@ -77,11 +88,7 @@ class SolarmanagerCloud:
         url = f"{self._base}{path}"
         try:
             async with self._s.post(url, json=payload, timeout=REQUEST_TIMEOUT) as r:
-                if r.status == 401:
-                    raise SolarmanagerAuthError(f"Auth rejected (401) at {path}")
-                if r.status >= 400:
-                    text = await r.text()
-                    raise SolarmanagerApiError(f"POST {path} failed {r.status}: {text}")
+                await _check_status(r, context=f"POST {path}")
                 return await r.json()
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise SolarmanagerApiError(f"POST {path} unreachable: {err}") from err
@@ -181,24 +188,16 @@ class SolarmanagerCloud:
                     headers=self._bearer_headers(),
                     timeout=REQUEST_TIMEOUT,
                 ) as r:
-                    if r.status == 401:
-                        if attempt == 0:
-                            _LOGGER.debug(
-                                "401 on %s %s — refreshing token, retrying once",
-                                method,
-                                path,
-                            )
-                            self._invalidate_token()
-                            await self._ensure_token()
-                            continue
-                        raise SolarmanagerAuthError(f"Unauthorized: {method} {path}")
-                    if r.status == 429:
-                        raise SolarmanagerRateLimit("Rate limited")
-                    if r.status >= 400:
-                        text = await r.text()
-                        raise SolarmanagerApiError(
-                            f"{method} {path} failed {r.status}: {text}"
+                    if r.status == 401 and attempt == 0:
+                        _LOGGER.debug(
+                            "401 on %s %s — refreshing token, retrying once",
+                            method,
+                            path,
                         )
+                        self._invalidate_token()
+                        await self._ensure_token()
+                        continue
+                    await _check_status(r, context=f"{method} {path}")
                     if not parse_json or r.status == 204:
                         return None
                     return await r.json()
@@ -297,9 +296,7 @@ class SolarmanagerLocal:
                 ssl=False,
                 timeout=LOCAL_TIMEOUT,
             ) as r:
-                if r.status in (401, 403):
-                    raise SolarmanagerAuthError(f"Local API auth failed (HTTP {r.status})")
-                r.raise_for_status()
+                await _check_status(r, context="GET /v2/point")
                 return await r.json()
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise SolarmanagerApiError(f"Local API unreachable: {err}") from err
@@ -313,9 +310,7 @@ class SolarmanagerLocal:
                 ssl=False,
                 timeout=LOCAL_TIMEOUT,
             ) as r:
-                if r.status in (401, 403):
-                    raise SolarmanagerAuthError(f"Local devices auth failed (HTTP {r.status})")
-                r.raise_for_status()
+                await _check_status(r, context="GET /v2/devices")
                 data = await r.json()
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             raise SolarmanagerApiError(f"Local devices unreachable: {err}") from err
