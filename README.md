@@ -12,7 +12,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 
 ## Voraussetzungen
 
-- Home Assistant ≥ 2024.1
+- Home Assistant ≥ 2025.8
 - Solar Manager Gateway im Netzwerk
 
 **Cloud-Modus** (voller Funktionsumfang):

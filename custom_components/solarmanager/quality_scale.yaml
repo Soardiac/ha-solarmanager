@@ -97,7 +97,7 @@ rules:
 
   docs-installation-parameters:
     status: done
-    comment: README documents prerequisites (HA ≥ 2024.1, Solar Manager cloud account, sm_id).
+    comment: README documents prerequisites (HA ≥ 2025.8, Solar Manager cloud account, sm_id).
 
   entity-unavailable:
     status: done
