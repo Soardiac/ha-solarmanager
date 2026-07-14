@@ -108,6 +108,35 @@ async def _validate_and_map_errors(coro) -> dict[str, str]:
     return {}
 
 
+async def _cloud_errors(
+    hass,
+    *,
+    email: str,
+    password: str,
+    sm_id: str,
+    api_key: str | None,
+    check_stream: bool = False,
+) -> dict[str, str]:
+    """Cloud-Zugangsdaten validieren; liefert Errors-Dict (leer bei Erfolg)."""
+    return await _validate_and_map_errors(
+        _validate_cloud(
+            hass,
+            email=email,
+            password=password,
+            sm_id=sm_id,
+            api_key=api_key,
+            check_stream=check_stream,
+        )
+    )
+
+
+async def _local_errors(hass, *, host: str, scheme: str, api_key: str | None) -> dict[str, str]:
+    """Lokale Verbindung validieren; liefert Errors-Dict (leer bei Erfolg)."""
+    return await _validate_and_map_errors(
+        _validate_local(hass, host=host, scheme=scheme, api_key=api_key)
+    )
+
+
 class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -129,15 +158,13 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input:
-            errors = await _validate_and_map_errors(
-                _validate_cloud(
-                    self.hass,
-                    email=user_input[CONF_EMAIL],
-                    password=user_input[CONF_PASSWORD],
-                    sm_id=user_input[CONF_SM_ID],
-                    api_key=(user_input.get(CONF_API_KEY) or None),
-                    check_stream=True,
-                )
+            errors = await _cloud_errors(
+                self.hass,
+                email=user_input[CONF_EMAIL],
+                password=user_input[CONF_PASSWORD],
+                sm_id=user_input[CONF_SM_ID],
+                api_key=(user_input.get(CONF_API_KEY) or None),
+                check_stream=True,
             )
             if not errors:
                 await self.async_set_unique_id(f"{DOMAIN}_{user_input[CONF_SM_ID]}")
@@ -161,9 +188,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             host = normalize_local_host(user_input[CONF_HOST])
             scheme = user_input[CONF_SCHEME]
             api_key = user_input.get(CONF_API_KEY) or None
-            errors = await _validate_and_map_errors(
-                _validate_local(self.hass, host=host, scheme=scheme, api_key=api_key)
-            )
+            errors = await _local_errors(self.hass, host=host, scheme=scheme, api_key=api_key)
             if not errors:
                 await self.async_set_unique_id(f"local_{host}")
                 self._abort_if_unique_id_configured()
@@ -202,14 +227,12 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             email = user_input.get(CONF_EMAIL) or reauth_entry.data.get(CONF_EMAIL, "")
             password = user_input.get(CONF_PASSWORD) or reauth_entry.data.get(CONF_PASSWORD, "")
             api_key = user_input.get(CONF_API_KEY) or reauth_entry.data.get(CONF_API_KEY)
-            errors = await _validate_and_map_errors(
-                _validate_cloud(
-                    self.hass,
-                    email=email,
-                    password=password,
-                    sm_id=reauth_entry.data[CONF_SM_ID],
-                    api_key=api_key or None,
-                )
+            errors = await _cloud_errors(
+                self.hass,
+                email=email,
+                password=password,
+                sm_id=reauth_entry.data[CONF_SM_ID],
+                api_key=api_key or None,
             )
             if not errors:
                 return self.async_update_reload_and_abort(
@@ -240,13 +263,11 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Leer = Gateway verlangt (nicht mehr) einen Key
             api_key = (user_input.get(CONF_API_KEY) or "").strip() or None
-            errors = await _validate_and_map_errors(
-                _validate_local(
-                    self.hass,
-                    host=reauth_entry.data[CONF_HOST],
-                    scheme=reauth_entry.data.get(CONF_SCHEME, "http"),
-                    api_key=api_key,
-                )
+            errors = await _local_errors(
+                self.hass,
+                host=reauth_entry.data[CONF_HOST],
+                scheme=reauth_entry.data.get(CONF_SCHEME, "http"),
+                api_key=api_key,
             )
             if not errors:
                 return self.async_update_reload_and_abort(
@@ -293,15 +314,13 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._other_entry_has_unique_id(entry, new_uid):
                 return self.async_abort(reason="already_configured")
 
-            errors = await _validate_and_map_errors(
-                _validate_cloud(
-                    self.hass,
-                    email=email,
-                    password=password,
-                    sm_id=sm_id,
-                    api_key=api_key or None,
-                    check_stream=True,
-                )
+            errors = await _cloud_errors(
+                self.hass,
+                email=email,
+                password=password,
+                sm_id=sm_id,
+                api_key=api_key or None,
+                check_stream=True,
             )
             if not errors:
                 return self.async_update_reload_and_abort(
@@ -340,9 +359,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._other_entry_has_unique_id(entry, new_uid):
                 return self.async_abort(reason="already_configured")
 
-            errors = await _validate_and_map_errors(
-                _validate_local(self.hass, host=host, scheme=scheme, api_key=api_key)
-            )
+            errors = await _local_errors(self.hass, host=host, scheme=scheme, api_key=api_key)
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry,
@@ -366,7 +383,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return SolarmanagerOptionsFlow()
 
 
-class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
+class SolarmanagerOptionsFlow(config_entries.OptionsFlowWithReload):
     async def async_step_init(self, user_input=None) -> ConfigFlowResult:
         is_local = self.config_entry.data.get(CONF_MODE) == MODE_LOCAL
         errors: dict[str, str] = {}
@@ -377,14 +394,12 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
                 api_key = (user_input.get(CONF_API_KEY) or "").strip() or None
                 if api_key:
                     current = self.config_entry.data
-                    errors = await _validate_and_map_errors(
-                        _validate_cloud(
-                            self.hass,
-                            email=current.get(CONF_EMAIL, ""),
-                            password=current.get(CONF_PASSWORD, ""),
-                            sm_id=current[CONF_SM_ID],
-                            api_key=api_key,
-                        )
+                    errors = await _cloud_errors(
+                        self.hass,
+                        email=current.get(CONF_EMAIL, ""),
+                        password=current.get(CONF_PASSWORD, ""),
+                        sm_id=current[CONF_SM_ID],
+                        api_key=api_key,
                     )
                     if not errors:
                         new_data = {**current, CONF_API_KEY: api_key}
@@ -395,12 +410,16 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlow):
                     CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL],
                 }
                 if new_data is not None:
-                    # Data UND Options in einem Update setzen: der Update-Listener
-                    # feuert so nur einmal (sonst doppelter Reload, weil das
-                    # anschließende async_create_entry erneut triggern würde).
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry, data=new_data, options=new_options
+                    data_changed = self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=new_data
                     )
+                    if data_changed and new_options == dict(self.config_entry.options):
+                        # OptionsFlowWithReload lädt nur bei geänderten Options
+                        # neu — wenn nur der API Key (Data) geändert wurde,
+                        # den Reload selbst planen.
+                        self.hass.config_entries.async_schedule_reload(
+                            self.config_entry.entry_id
+                        )
                 return self.async_create_entry(title="", data=new_options)
 
         if is_local:

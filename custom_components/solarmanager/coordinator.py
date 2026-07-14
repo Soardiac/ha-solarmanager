@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 import time
-from typing import Any
+from typing import Any, NoReturn
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -170,10 +170,8 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # generischen Framework-Handler und löst nie den Reauth-Flow aus.
             try:
                 await self.client.login()
-            except SolarmanagerAuthError as err:
-                raise ConfigEntryAuthFailed(str(err)) from err
-            except (SolarmanagerRateLimit, SolarmanagerApiError) as err:
-                raise UpdateFailed(str(err)) from err
+            except (SolarmanagerAuthError, SolarmanagerRateLimit, SolarmanagerApiError) as err:
+                self._raise_mapped_client_error(err)
         await self._async_restore_daily()
         await self._load_device_meta()
 
@@ -292,6 +290,18 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Gateway stats loaded: %s", data)
         except Exception as e:
             _LOGGER.debug("Could not fetch gateway statistics: %s", e)
+
+    def _raise_mapped_client_error(self, err: Exception) -> NoReturn:
+        """Client-Exception auf ConfigEntryAuthFailed/UpdateFailed mappen.
+
+        Einzige Stelle für dieses Mapping — wird sowohl beim Setup-Login
+        (_async_setup) als auch im Update-Pfad (_async_update_data) gebraucht.
+        """
+        if isinstance(err, SolarmanagerAuthError):
+            raise ConfigEntryAuthFailed(str(err)) from err
+        if self.last_update_success:
+            _LOGGER.warning("Solarmanager not available: %s", err)
+        raise UpdateFailed(str(err)) from err
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
@@ -456,12 +466,8 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             return data
 
-        except SolarmanagerAuthError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
-        except (SolarmanagerRateLimit, SolarmanagerApiError) as err:
-            if self.last_update_success:
-                _LOGGER.warning("Solarmanager not available: %s", err)
-            raise UpdateFailed(str(err)) from err
+        except (SolarmanagerAuthError, SolarmanagerRateLimit, SolarmanagerApiError) as err:
+            self._raise_mapped_client_error(err)
         except HomeAssistantError:
             raise
         except Exception as err:

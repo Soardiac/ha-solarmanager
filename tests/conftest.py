@@ -3,8 +3,33 @@ import sys
 from unittest.mock import patch
 
 import pytest
+import pytest_socket
 
 pytest_plugins = "pytest_homeassistant_custom_component"
+
+
+if sys.platform == "win32":
+
+    _orig_disable_socket = pytest_socket.disable_socket
+
+    def _disable_socket_keep_localhost(allow_unix_socket: bool = False) -> None:
+        """Socket-Erstellung unter Windows nicht komplett blockieren.
+
+        phccc blockiert die Socket-Erstellung und erlaubt nur AF_UNIX (reicht
+        für asyncio unter Linux). Unter Windows nutzt socket.socketpair() —
+        von jedem Event-Loop gebraucht — stattdessen AF_INET auf 127.0.0.1,
+        die Loop-Erstellung würde also scheitern. Erstellung erlauben;
+        Verbindungen bleiben per socket_allow_hosts auf localhost beschränkt.
+        """
+        _orig_disable_socket(allow_unix_socket=allow_unix_socket)
+        pytest_socket.enable_socket()
+        pytest_socket.socket_allow_hosts(["127.0.0.1"])
+
+    pytest_socket.disable_socket = _disable_socket_keep_localhost
+
+    def pytest_asyncio_loop_factories(config, item):
+        """aiodns (via aiohttp in HA) braucht unter Windows einen SelectorEventLoop."""
+        return {"selector": asyncio.SelectorEventLoop}
 
 
 @pytest.fixture(autouse=True)
@@ -14,11 +39,11 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 
 
 @pytest.fixture(autouse=True)
-def verify_cleanup(event_loop, expected_lingering_tasks, expected_lingering_timers):
+def verify_cleanup(expected_lingering_tasks, expected_lingering_timers):
     """Override phccc's verify_cleanup to suppress a Windows-only false positive.
 
     The original fixture calls event_loop.shutdown_default_executor() after each
-    test. On Windows + Python 3.12, ThreadPoolExecutor shutdown always creates a
+    test. On Windows, ThreadPoolExecutor shutdown always creates a
     _run_safe_shutdown_loop daemon thread. The original check then fails because
     this thread is neither a _DummyThread nor named waitpid-*. All actual test
     assertions still run; we only skip the thread-leak check here.
@@ -41,25 +66,3 @@ def mock_setup_entry():
         return_value=True,
     ):
         yield
-
-
-@pytest.fixture
-def event_loop(socket_enabled):
-    """Override event_loop so the loop is created with sockets enabled.
-
-    Two Windows-specific problems require this override:
-    1. asyncio needs socket.socketpair() for the event loop self-pipe, which
-       pytest-homeassistant-custom-component blocks via an autouse fixture.
-       Depending on socket_enabled forces pytest to re-enable sockets first.
-    2. aiodns (used by aiohttp inside HA) requires SelectorEventLoop on Windows.
-       WindowsSelectorEventLoopPolicy provides that.
-    """
-    if sys.platform == "win32":
-        policy = asyncio.WindowsSelectorEventLoopPolicy()
-    else:
-        policy = asyncio.DefaultEventLoopPolicy()
-    loop = policy.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
-    asyncio.set_event_loop(None)

@@ -543,12 +543,7 @@ async def test_reconfigure_local_success(hass):
 # Options-Flow
 # ---------------------------------------------------------------------------
 
-async def test_options_flow_api_key_single_listener_fire(hass):
-    """API Key + Intervall in einem Update → Update-Listener feuert nur einmal.
-
-    Sonst würde die Integration doppelt neu geladen (einmal durch das
-    Data-Update, einmal durch das Options-Update).
-    """
+def _options_entry(hass) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -562,22 +557,60 @@ async def test_options_flow_api_key_single_listener_fire(hass):
         unique_id=f"{DOMAIN}_SM-0001",
     )
     entry.add_to_hass(hass)
-    listener = AsyncMock()
-    entry.add_update_listener(listener)
+    return entry
+
+
+async def test_options_flow_api_key_and_interval_single_reload(hass):
+    """API Key + Intervall geändert → Data und Options gesetzt, genau EIN Reload.
+
+    Den Reload plant OptionsFlowWithReload nach Flow-Abschluss (Options
+    geändert); der Data-Update darf keinen zusätzlichen auslösen.
+    """
+    entry = _options_entry(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] == FlowResultType.FORM
 
-    with patch(_PATCH_CLOUD) as mock_cls:
+    with patch(_PATCH_CLOUD) as mock_cls, patch.object(
+        hass.config_entries, "async_schedule_reload"
+    ) as mock_reload:
         mock_cls.return_value.login = AsyncMock()
 
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
             {CONF_API_KEY: "new-key", CONF_SCAN_INTERVAL: 30},
         )
-    await hass.async_block_till_done()
+        await hass.async_block_till_done()
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert entry.data[CONF_API_KEY] == "new-key"
     assert entry.options[CONF_SCAN_INTERVAL] == 30
-    assert listener.await_count == 1
+    assert mock_reload.call_count == 1
+
+
+async def test_options_flow_api_key_only_still_reloads(hass):
+    """Nur API Key geändert (Options unverändert) → trotzdem genau EIN Reload.
+
+    OptionsFlowWithReload lädt nur bei geänderten Options neu; für den
+    Data-only-Fall plant der Flow den Reload selbst.
+    """
+    entry = _options_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == FlowResultType.FORM
+
+    with patch(_PATCH_CLOUD) as mock_cls, patch.object(
+        hass.config_entries, "async_schedule_reload"
+    ) as mock_reload:
+        mock_cls.return_value.login = AsyncMock()
+
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_API_KEY: "new-key", CONF_SCAN_INTERVAL: 10},
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_API_KEY] == "new-key"
+    assert entry.options[CONF_SCAN_INTERVAL] == 10
+    assert mock_reload.call_count == 1

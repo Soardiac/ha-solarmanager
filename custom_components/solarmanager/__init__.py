@@ -36,13 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Bei Options-/Version-Änderungen Integration sauber neu laden
-    entry.async_on_unload(entry.add_update_listener(_reload_on_update))
     return True
-
-
-async def _reload_on_update(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -61,7 +55,7 @@ async def async_remove_config_entry_device(
     device_entry: dr.DeviceEntry,
 ) -> bool:
     """Allow removing a device if it is no longer reported by the API."""
-    coord: SolarmanagerCoordinator = config_entry.runtime_data
+    coord: SolarmanagerCoordinator | None = getattr(config_entry, "runtime_data", None)
     for domain, identifier in device_entry.identifiers:
         if domain != DOMAIN:
             continue
@@ -69,6 +63,10 @@ async def async_remove_config_entry_device(
             # Das Site-Gerät gehört fest zum Config-Entry
             return False
         if identifier.startswith("device_"):
+            if coord is None:
+                # Entry nicht geladen (z. B. Setup-Fehler) — keine Metadaten,
+                # Entfernen erlauben; Geräte werden beim nächsten Setup neu angelegt
+                return True
             dev_id = identifier[len("device_"):]
             return dev_id not in coord.device_meta
     return True
