@@ -500,3 +500,9 @@ automation:
 ## Issues & Beiträge
 
 Fehler und Feature-Requests bitte im [Issue Tracker](https://github.com/Soardiac/ha-solarmanager/issues) melden.
+
+---
+
+## Hinweis
+
+Ich habe diese Integration für mich geschrieben, weil keine der anderen passend für mich war. Die Arbeit ist besser investiert, wenn auch andere davon profitieren, darum ist das hier verfügbar und wird gepflegt. Ich verwende Claude Code (oder andere Tools) zur Unterstützung, anders ist es nicht zu machen. KI-Code ist von mir gechecked.
