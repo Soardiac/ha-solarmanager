@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -m ruff check custom_components/solarmanager/)",
-      "Bash(pip install *)"
-    ]
-  }
-}
