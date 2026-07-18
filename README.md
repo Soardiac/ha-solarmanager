@@ -52,7 +52,7 @@ Die Integration kommuniziert über das **Solar Manager Gateway** als zentrale Ei
 | Gerätesensoren (Leistung, SOC, Temperatur, …) | ✓ | ✓ |
 | Verbindungsstatus pro Gerät | ✓ | ✓ |
 | Tages-Energiesensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ ² |
-| Tagesstatistiken (Autarkiegrad, Eigenverbrauchsquote) | ✓ | – |
+| Tagesstatistiken (Autarkiegrad, Eigenverbrauchsquote) | ✓ | ✓ ² |
 | Betriebsmodi-Select (Wallbox, Batterie, …) | ✓ | – |
 | Parameter-Number (SOC-Grenzen, Konstantstrom, …) | ✓ | – |
 | Datetime-Entitäten (Ladeziel-Termin) | ✓ | – |
