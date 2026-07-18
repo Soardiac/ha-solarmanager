@@ -55,8 +55,9 @@ STATS_SENSORS = [
     ("stat_self_consumption", "self_consumption_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
 ]
 
-# Nur Cloud: vom API berechnete Prozentwerte
-STATS_SENSORS_CLOUD = [
+# Prozentwerte: Cloud liefert sie direkt vom API, lokal werden sie aus
+# stat_production/stat_consumption/stat_self_consumption berechnet.
+STATS_SENSORS_PERCENT = [
     ("stat_self_consumption_rate", "self_consumption_rate", PERCENTAGE, None, SensorStateClass.MEASUREMENT),
     ("stat_autarchy_degree", "autarchy_degree", PERCENTAGE, None, SensorStateClass.MEASUREMENT),
 ]
@@ -83,8 +84,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         DevicesOverviewSensor(coord),
     ]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS]
-    if not coord.is_local:
-        site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS_CLOUD]
+    site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS_PERCENT]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in GRID_STATS_SENSORS]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in BAT_STATS_SENSORS]
     async_add_entities(site_entities, True)

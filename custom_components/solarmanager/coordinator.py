@@ -439,9 +439,22 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._local_t = now_t
                 data["stat_production"] = self._local_production_wh
                 data["stat_consumption"] = self._local_consumption_wh
-                data["stat_self_consumption"] = max(0.0, self._local_production_wh - self._local_grid_export_wh)
+                _self_consumption = max(0.0, self._local_production_wh - self._local_grid_export_wh)
+                data["stat_self_consumption"] = _self_consumption
                 data["stat_grid_import"] = self._local_grid_import_wh
                 data["stat_grid_export"] = self._local_grid_export_wh
+                if self._local_consumption_wh < 10:  # Tagesübergang: Prozentwerte noch nicht aussagekräftig
+                    data["stat_self_consumption_rate"] = None
+                    data["stat_autarchy_degree"] = None
+                else:
+                    data["stat_self_consumption_rate"] = (
+                        min(100.0, 100.0 * _self_consumption / self._local_production_wh)
+                        if self._local_production_wh > 0
+                        else 0.0
+                    )
+                    data["stat_autarchy_degree"] = min(
+                        100.0, 100.0 * _self_consumption / self._local_consumption_wh
+                    )
 
             # Tages-Batterieenergie (beide Modi): bcWh/bdWh-Intervalle aufsummieren.
             # Nur neue Stream-Punkte zählen — bei unverändertem Timestamp t würde
