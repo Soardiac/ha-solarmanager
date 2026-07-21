@@ -6,7 +6,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 
 - **Cloud-API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) – voller Funktionsumfang inkl. Steuerung
 - **Lokale API**: `GET /v2/point` direkt am Gateway – Sensoren, kein Account nötig
-- [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/) (Selbsteinschätzung): Bronze ✓ · Silver 95 % (volle Testabdeckung in Arbeit) · Gold: alle anwendbaren Regeln umgesetzt (Discovery & Repair-Issues nicht anwendbar)
+- [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/) (Selbsteinschätzung): Bronze ✓ · Silver 95 % (volle Testabdeckung in Arbeit) · Gold: alle anwendbaren Regeln umgesetzt (Repair-Issue für die E-Mail/Passwort-Migration; Discovery nicht anwendbar)
 
 ---
 
@@ -135,7 +135,7 @@ Die neuen Werte werden vor dem Speichern gegen die API validiert; danach lädt d
 
 ### Migration für bestehende Nutzer
 
-Wer die Integration bisher mit E-Mail/Passwort betrieben hat, kann jederzeit auf den API Key wechseln:
+Wer die Integration bisher mit E-Mail/Passwort betrieben hat, kann jederzeit auf den API Key wechseln. Solange kein API Key gesetzt ist, zeigt Home Assistant unter Einstellungen → System → **Reparaturen** proaktiv eine Karte an, die direkt in den Reauth-Dialog führt.
 
 1. API Key wie oben beschrieben erstellen
 2. In HA: Einstellungen → Geräte & Dienste → **Solarmanager** → **Neu authentifizieren**

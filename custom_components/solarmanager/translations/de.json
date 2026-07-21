@@ -104,6 +104,19 @@
       "message": "Batterie-Einstellungen noch nicht geladen — Schreibvorgang abgebrochen, um ein Zurücksetzen anderer Felder auf Defaults zu verhindern. Bitte in ein paar Sekunden erneut versuchen."
     }
   },
+  "issues": {
+    "deprecated_password_auth": {
+      "title": "Solarmanager {sm_id} auf API-Key umstellen",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Auf API-Key-Authentifizierung wechseln",
+            "description": "Solar Manager stellt die Anmeldung per E-Mail/Passwort ein. System **{sm_id}** nutzt sie noch und funktioniert nach dem {deadline} nicht mehr.\n\nErstelle im Solar Manager Portal einen Cloud-API-Schlüssel (Profil → «Cloud-API-Schlüssel») und wähle unten **Absenden** — der Reauth-Dialog öffnet sich zur Eingabe des Keys. E-Mail/Passwort-Felder können leer bleiben."
+          }
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "pv_power": { "name": "PV-Leistung" },
