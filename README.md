@@ -1,6 +1,6 @@
 # Solar Manager – Home Assistant (Custom Integration)
 
-> **Inoffiziell.** Die Firma Solar Manager AG ist für diesen Code nicht verantwortlich und bietet keinen Support dafür.
+> **Inoffiziell.** Solar Manager AG ist für diesen Code nicht verantwortlich und bietet keinen Support dafür.
 
 Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assistant ein — wahlweise über die **Cloud-API** (voller Funktionsumfang) oder direkt über die **lokale REST-API** (nur Sensoren, kein Internet nötig).
 
@@ -32,7 +32,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 
 1. HACS → Integrationen → `⋮` → **Benutzerdefinierte Repositories**
 2. URL: `https://github.com/Soardiac/ha-solarmanager` · Kategorie: **Integration**
-3. „Solarmanager" suchen → installieren → Home Assistant neu starten
+3. „Solar Manager" suchen → installieren → Home Assistant neu starten
 
 ### Manuell
 
@@ -99,7 +99,7 @@ Alle über das Gateway registrierten Geräte werden automatisch erkannt (Cloud u
 
 ### Ersteinrichtung
 
-Einstellungen → Geräte & Dienste → **Integration hinzufügen** → **Solarmanager**
+Einstellungen → Geräte & Dienste → **Integration hinzufügen** → **Solar Manager**
 
 Im ersten Schritt den **Verbindungsmodus** wählen:
 
@@ -126,7 +126,7 @@ Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) u
 
 ### Neu konfigurieren
 
-Einstellungen → Geräte & Dienste → **Solarmanager** → `⋮` → **Neu konfigurieren**
+Einstellungen → Geräte & Dienste → **Solar Manager** → `⋮` → **Neu konfigurieren**
 
 - **Cloud**: E-Mail, Passwort, `smId` und API Key ändern — leere Felder behalten die gespeicherten Werte. Beim Wechsel der `smId` bleiben die Entitäten erhalten.
 - **Lokal**: IP-Adresse/Hostname, Protokoll und API Key ändern (z. B. nach einem IP-Wechsel des Gateways).
@@ -138,7 +138,7 @@ Die neuen Werte werden vor dem Speichern gegen die API validiert; danach lädt d
 Wer die Integration bisher mit E-Mail/Passwort betrieben hat, kann jederzeit auf den API Key wechseln. Solange kein API Key gesetzt ist, zeigt Home Assistant unter Einstellungen → System → **Reparaturen** proaktiv eine Karte an, die direkt in den Reauth-Dialog führt.
 
 1. API Key wie oben beschrieben erstellen
-2. In HA: Einstellungen → Geräte & Dienste → **Solarmanager** → **Neu authentifizieren**
+2. In HA: Einstellungen → Geräte & Dienste → **Solar Manager** → **Neu authentifizieren**
 3. API Key eintragen — E-Mail/Passwort-Felder können leer bleiben
 4. Bestätigen — die Integration lädt neu und nutzt ab sofort den API Key
 
@@ -475,12 +475,12 @@ automation:
 ### Ein Gerät taucht nicht als Entity auf
 
 **Symptom:** Gerät ist im Solar Manager Portal sichtbar, aber keine HA-Entity vorhanden.  
-**Lösung:** Neue Geräte werden automatisch erkannt, sobald sie im Datenstream bzw. in den Geräte-Metadaten auftauchen (spätestens nach ~60 Sekunden). Erscheint das Gerät dennoch nicht, die Integration neu laden (Einstellungen → Geräte & Dienste → Solarmanager → `⋮` → **Neu laden**) und prüfen, ob das Gerät im Portal korrekt dem Gateway zugeordnet ist.
+**Lösung:** Neue Geräte werden automatisch erkannt, sobald sie im Datenstream bzw. in den Geräte-Metadaten auftauchen (spätestens nach ~60 Sekunden). Erscheint das Gerät dennoch nicht, die Integration neu laden (Einstellungen → Geräte & Dienste → Solar Manager → `⋮` → **Neu laden**) und prüfen, ob das Gerät im Portal korrekt dem Gateway zugeordnet ist.
 
 ### Werte aktualisieren sich zu selten
 
 **Symptom:** Sensoren spiegeln den aktuellen Zustand nicht schnell genug wider.  
-**Lösung:** Update-Intervall reduzieren: Einstellungen → Geräte & Dienste → Solarmanager → **Konfigurieren** → Scan-Intervall (Minimum empfohlen: 10 s, API-Rate-Limit beachten).
+**Lösung:** Update-Intervall reduzieren: Einstellungen → Geräte & Dienste → Solar Manager → **Konfigurieren** → Scan-Intervall (Minimum empfohlen: 10 s, API-Rate-Limit beachten).
 
 ### API Key kann nicht erstellt werden (Bereich nicht sichtbar)
 
@@ -491,7 +491,7 @@ automation:
 
 ## Deinstallation
 
-1. Einstellungen → Geräte & Dienste → **Solarmanager** → `⋮` → **Löschen**
+1. Einstellungen → Geräte & Dienste → **Solar Manager** → `⋮` → **Löschen**
 2. Home Assistant neu starten
 3. Den Ordner `custom_components/solarmanager` aus `<config>/custom_components/` entfernen (bei manueller Installation) oder die Integration in HACS deinstallieren
 
