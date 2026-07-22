@@ -1,5 +1,5 @@
 {
-  "name": "Solarmanager",
+  "name": "Solar Manager",
   "render_readme": true,
   "country": ["CH", "DE", "AT"],
   "homeassistant": "2025.8.0"
