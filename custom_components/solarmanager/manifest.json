@@ -1,6 +1,6 @@
 {
   "domain": "solarmanager",
-  "name": "Solarmanager",
+  "name": "Solar Manager",
   "codeowners": [
     "@Soardiac"
   ],
@@ -10,5 +10,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Soardiac/ha-solarmanager/issues",
   "requirements": [],
-  "version": "1.8.1"
+  "version": "1.8.2"
 }
