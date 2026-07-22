@@ -1,6 +1,6 @@
-# Solarmanager – Home Assistant (Custom Integration)
+# Solar Manager – Home Assistant (Custom Integration)
 
-> **Inoffiziell.** Solar Manager AG ist für diesen Code nicht verantwortlich und bietet keinen Support dafür.
+> **Inoffiziell.** Die Firma Solar Manager AG ist für diesen Code nicht verantwortlich und bietet keinen Support dafür.
 
 Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assistant ein — wahlweise über die **Cloud-API** (voller Funktionsumfang) oder direkt über die **lokale REST-API** (nur Sensoren, kein Internet nötig).
 
