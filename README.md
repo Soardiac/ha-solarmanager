@@ -13,14 +13,14 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 ## Voraussetzungen
 
 - Home Assistant ≥ 2025.8
-- Solar Manager Gateway im Netzwerk
+- Solar Manager Gateway
 
 **Cloud-Modus** (voller Funktionsumfang):
 - Solar Manager Account
 - Gateway ID (`smId`, im [Solar Manager Portal](https://web.solar-manager.ch/my-devices/) → Endkunden Information)
 - Cloud API Key (Profil → Cloud-API-Schlüssel)
 
-**Ab v.1.5.0: Lokaler Modus** (nur Sensoren):
+**Lokaler Modus** (nur Sensoren):
 - IP-Adresse des Gateways im lokalen Netzwerk
 - Kein Account, kein Internet nötig
 
