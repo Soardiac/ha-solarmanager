@@ -1,6 +1,6 @@
 # Solar Manager – Home Assistant (Custom Integration)
 
-> **Inoffiziell.** Solar Manager AG ist für diesen Code nicht verantwortlich und bietet keinen Support dafür.
+> **Inoffiziell.** Die Firma Solar Manager AG ist für diesen Code nicht verantwortlich und bietet keinen Support dafür.
 
 Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assistant ein — wahlweise über die **Cloud-API** (voller Funktionsumfang) oder direkt über die **lokale REST-API** (nur Sensoren, kein Internet nötig).
 
@@ -122,7 +122,7 @@ Im ersten Schritt den **Verbindungsmodus** wählen:
 
 Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) und meldet einen Fehler, wenn das Gateway nicht erreichbar ist. Bei HTTPS wird das selbst-signierte Zertifikat des Gateways akzeptiert.
 
-> **Hinweis:** Ein Wechsel zwischen Cloud- und Lokalem Modus ist nach der Einrichtung nicht möglich. Die Integration muss gelöscht und neu eingerichtet werden. Zugangsdaten, `smId`, Host oder Protokoll lassen sich dagegen jederzeit ohne Neueinrichtung ändern (siehe [Neu konfigurieren](#neu-konfigurieren)).
+> **Hinweis:** Zugangsdaten, `smId`, Host, Protokoll — und auch der Verbindungsmodus selbst (Cloud ↔ Lokal) — lassen sich jederzeit ohne Neueinrichtung ändern (siehe [Neu konfigurieren](#neu-konfigurieren)).
 
 ### Neu konfigurieren
 
@@ -130,6 +130,9 @@ Einstellungen → Geräte & Dienste → **Solar Manager** → `⋮` → **Neu ko
 
 - **Cloud**: E-Mail, Passwort, `smId` und API Key ändern — leere Felder behalten die gespeicherten Werte. Beim Wechsel der `smId` bleiben die Entitäten erhalten.
 - **Lokal**: IP-Adresse/Hostname, Protokoll und API Key ändern (z. B. nach einem IP-Wechsel des Gateways).
+- **Wechsel Cloud ↔ Lokal**: Im ersten Schritt von „Neu konfigurieren" den anderen Modus auswählen und die Zugangsdaten für den neuen Modus eingeben. Sensoren und Geräte behalten ihre bestehenden Entity-IDs (Historie bleibt erhalten).
+
+  > **Achtung beim Wechsel auf Lokal:** Betriebsmodi, Parameter und Ladeziel-Termine (Select/Number/Datetime-Entitäten) gibt es nur im Cloud-Modus. Nach dem Wechsel werden sie nicht mehr aktualisiert und sind nicht verfügbar — **Skripte, Automationen und Dashboards, die diese Steuerelemente verwenden, funktionieren dann nicht mehr.** Beim Zurückwechseln zu Cloud werden dieselben Entity-IDs wiederverwendet, alles läuft dann wieder ohne Anpassung.
 
 Die neuen Werte werden vor dem Speichern gegen die API validiert; danach lädt die Integration automatisch neu.
 

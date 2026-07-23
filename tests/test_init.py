@@ -42,3 +42,34 @@ async def test_remove_site_device_refused_when_entry_not_loaded(hass):
     )
 
     assert await async_remove_config_entry_device(hass, entry, device) is False
+
+
+class _StubCoordinator:
+    def __init__(self, site_id: str) -> None:
+        self.site_id = site_id
+        self.device_meta: dict = {}
+
+
+async def test_remove_current_site_device_refused(hass):
+    """Das Site-Gerät des aktuellen Modus bleibt geschützt."""
+    entry = _entry(hass)
+    entry.runtime_data = _StubCoordinator(site_id="192.168.1.100")
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "site_192.168.1.100")},
+    )
+
+    assert await async_remove_config_entry_device(hass, entry, device) is False
+
+
+async def test_remove_stale_site_device_allowed_after_mode_switch(hass):
+    """Nach einem Moduswechsel gehört die alte Site-Geräte-Karteileiche nicht
+    mehr zur aktuellen site_id -> darf entfernt werden."""
+    entry = _entry(hass)
+    entry.runtime_data = _StubCoordinator(site_id="192.168.1.100")
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "site_SM-0001")},
+    )
+
+    assert await async_remove_config_entry_device(hass, entry, device) is True

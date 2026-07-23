@@ -70,6 +70,42 @@
           "scheme": "Protocol",
           "api_key": "API key (optional)"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Solar Manager",
+        "data": {
+          "mode": "Mode"
+        },
+        "data_description": {
+          "mode": "Keep the current mode to update credentials, or pick the other mode to switch. Sensors and devices keep their existing entity IDs."
+        }
+      },
+      "switch_to_cloud": {
+        "title": "Switch to Cloud mode",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "sm_id": "System ID (smId)",
+          "api_key": "Cloud API key (recommended)"
+        },
+        "data_description": {
+          "sm_id": "The smId of your Solarmanager system from the cloud interface.",
+          "api_key": "Cloud API key for modern authentication (recommended). Found in the profile settings under «Cloud API Keys». Create the token without an expiry date, enable all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable «Allow renewal». Important: the token is only visible right after creation — copy it immediately!"
+        }
+      },
+      "switch_to_local": {
+        "title": "Switch to local mode",
+        "description": "Warning: operating modes, parameters and charging-target datetimes (select/number/datetime) only exist in Cloud mode. After switching they become unavailable — scripts, automations and dashboards using these controls will stop working. Switching back to Cloud reuses the same entity IDs.",
+        "data": {
+          "host": "IP address / hostname",
+          "scheme": "Protocol",
+          "api_key": "API key (optional)"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the Solar Manager gateway (e.g. 192.168.1.100).",
+          "scheme": "HTTP for unencrypted, HTTPS for encrypted (self-signed certificates are accepted).",
+          "api_key": "Optional API key to secure the local connection. Leave empty if no key is configured."
+        }
       }
     },
     "error": {

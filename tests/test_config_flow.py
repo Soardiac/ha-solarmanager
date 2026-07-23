@@ -540,6 +540,184 @@ async def test_reconfigure_local_success(hass):
 
 
 # ---------------------------------------------------------------------------
+# Reconfigure: Modus-Selector / Moduswechsel
+# ---------------------------------------------------------------------------
+
+async def _start_reconfigure_flow(hass, entry):
+    """Reconfigure-Flow starten wie die echte UI: nur Context, kein data=.
+
+    (Der echte Frontend-POST ruft async_init nur mit `context` auf --
+    `data=entry.data` wie in den älteren Reconfigure-Tests dient dort nur der
+    Kompatibilität, würde hier aber den neuen Modus-Selector überspringen.)
+    """
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    return result["flow_id"]
+
+
+async def test_reconfigure_shows_mode_selector(hass):
+    """Reconfigure zeigt zuerst den Modus-Selector, vorbelegt mit dem aktuellen Modus."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http"},
+        unique_id="local_192.168.1.100",
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    mode_key = next(k for k in result["data_schema"].schema if k == CONF_MODE)
+    assert mode_key.default() == MODE_LOCAL
+
+
+async def test_reconfigure_same_mode_routes_to_existing_step(hass):
+    """Gleicher Modus im Selector -> bestehender In-Place-Reconfigure-Schritt."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_CLOUD,
+            CONF_EMAIL: "test@example.com",
+            CONF_PASSWORD: "secret",
+            CONF_SM_ID: "SM-0001",
+            CONF_API_KEY: None,
+        },
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+
+    flow_id = await _start_reconfigure_flow(hass, entry)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_CLOUD}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reconfigure_cloud"
+
+
+async def test_switch_cloud_to_local_success(hass):
+    """Moduswechsel Cloud -> Lokal: Daten komplett ersetzt, unique_id/Titel folgen."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_CLOUD,
+            CONF_EMAIL: "test@example.com",
+            CONF_PASSWORD: "secret",
+            CONF_SM_ID: "SM-0001",
+            CONF_API_KEY: None,
+        },
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+
+    flow_id = await _start_reconfigure_flow(hass, entry)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_LOCAL}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "switch_to_local"
+
+    with patch(_PATCH_LOCAL) as mock_cls, patch.object(
+        hass.config_entries, "async_schedule_reload"
+    ):
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], _LOCAL_INPUT
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_MODE] == MODE_LOCAL
+    assert entry.data[CONF_HOST] == "192.168.1.100"
+    assert CONF_EMAIL not in entry.data
+    assert entry.unique_id == "local_192.168.1.100"
+    assert entry.title == "Solarmanager Local (192.168.1.100)"
+
+
+async def test_switch_local_to_cloud_success(hass):
+    """Moduswechsel Lokal -> Cloud: Daten komplett ersetzt, unique_id/Titel folgen."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http"},
+        unique_id="local_192.168.1.100",
+    )
+    entry.add_to_hass(hass)
+
+    flow_id = await _start_reconfigure_flow(hass, entry)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_CLOUD}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "switch_to_cloud"
+
+    with patch(_PATCH_CLOUD) as mock_cls, patch.object(
+        hass.config_entries, "async_schedule_reload"
+    ):
+        mock_cls.return_value.login = AsyncMock()
+        mock_cls.return_value.stream_user_v3 = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], _CLOUD_INPUT
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_MODE] == MODE_CLOUD
+    assert entry.data[CONF_SM_ID] == "SM-0001"
+    assert CONF_HOST not in entry.data
+    assert entry.unique_id == f"{DOMAIN}_SM-0001"
+    assert entry.title == "Solarmanager SM-0001"
+
+
+async def test_switch_duplicate_unique_id_aborts(hass):
+    """Moduswechsel auf eine unique_id, die ein anderer Eintrag nutzt -> Abbruch."""
+    other = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http"},
+        unique_id="local_192.168.1.100",
+    )
+    other.add_to_hass(hass)
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_CLOUD,
+            CONF_EMAIL: "test@example.com",
+            CONF_PASSWORD: "secret",
+            CONF_SM_ID: "SM-0001",
+            CONF_API_KEY: None,
+        },
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+
+    flow_id = await _start_reconfigure_flow(hass, entry)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_LOCAL}
+    )
+    assert result["step_id"] == "switch_to_local"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _LOCAL_INPUT
+    )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+# ---------------------------------------------------------------------------
 # Options-Flow
 # ---------------------------------------------------------------------------
 

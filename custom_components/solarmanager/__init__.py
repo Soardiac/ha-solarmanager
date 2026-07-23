@@ -110,8 +110,13 @@ async def async_remove_config_entry_device(
         if domain != DOMAIN:
             continue
         if identifier.startswith("site_"):
-            # Das Site-Gerät gehört fest zum Config-Entry
-            return False
+            # Das aktuelle Site-Gerät gehört fest zum Config-Entry. Nach einem
+            # Moduswechsel (Cloud <-> Lokal) ändert sich site_id jedoch, und
+            # das alte Site-Gerät bleibt als Karteileiche zurück -- die darf
+            # entfernt werden.
+            if coord is None:
+                return False
+            return identifier != f"site_{coord.site_id}"
         if identifier.startswith("device_"):
             if coord is None:
                 # Entry nicht geladen (z. B. Setup-Fehler) — keine Metadaten,

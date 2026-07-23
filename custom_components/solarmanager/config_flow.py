@@ -295,10 +295,92 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_reconfigure(self, user_input=None) -> ConfigFlowResult:
+        """Modus-Selector: gleicher Modus -> In-Place-Reconfigure, sonst Moduswechsel."""
         entry = self._get_reconfigure_entry()
-        if entry.data.get(CONF_MODE) == MODE_LOCAL:
-            return await self.async_step_reconfigure_local()
-        return await self.async_step_reconfigure_cloud()
+        current_mode = entry.data.get(CONF_MODE, MODE_CLOUD)
+
+        if user_input is not None:
+            target = user_input[CONF_MODE]
+            if target == current_mode:
+                if target == MODE_LOCAL:
+                    return await self.async_step_reconfigure_local()
+                return await self.async_step_reconfigure_cloud()
+            if target == MODE_LOCAL:
+                return await self.async_step_switch_to_local()
+            return await self.async_step_switch_to_cloud()
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({
+                vol.Required(CONF_MODE, default=current_mode): vol.In([MODE_CLOUD, MODE_LOCAL]),
+            }),
+        )
+
+    async def async_step_switch_to_cloud(self, user_input=None) -> ConfigFlowResult:
+        """Moduswechsel Lokal -> Cloud: neue Zugangsdaten, kompletter Datenersatz."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            new_uid = f"{DOMAIN}_{user_input[CONF_SM_ID]}"
+            if self._other_entry_has_unique_id(entry, new_uid):
+                return self.async_abort(reason="already_configured")
+
+            errors = await _cloud_errors(
+                self.hass,
+                email=user_input[CONF_EMAIL],
+                password=user_input[CONF_PASSWORD],
+                sm_id=user_input[CONF_SM_ID],
+                api_key=(user_input.get(CONF_API_KEY) or None),
+                check_stream=True,
+            )
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    unique_id=new_uid,
+                    title=f"Solarmanager {user_input[CONF_SM_ID]}",
+                    data={CONF_MODE: MODE_CLOUD, **user_input},
+                )
+
+        return self.async_show_form(
+            step_id="switch_to_cloud",
+            data_schema=_schema_cloud(),
+            errors=errors,
+        )
+
+    async def async_step_switch_to_local(self, user_input=None) -> ConfigFlowResult:
+        """Moduswechsel Cloud -> Lokal: neue Zugangsdaten, kompletter Datenersatz."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            host = normalize_local_host(user_input[CONF_HOST])
+            scheme = user_input[CONF_SCHEME]
+            api_key = user_input.get(CONF_API_KEY) or None
+
+            new_uid = f"local_{host}"
+            if self._other_entry_has_unique_id(entry, new_uid):
+                return self.async_abort(reason="already_configured")
+
+            errors = await _local_errors(self.hass, host=host, scheme=scheme, api_key=api_key)
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    unique_id=new_uid,
+                    title=f"Solarmanager Local ({host})",
+                    data={
+                        CONF_MODE: MODE_LOCAL,
+                        CONF_HOST: host,
+                        CONF_SCHEME: scheme,
+                        CONF_API_KEY: api_key,
+                    },
+                )
+
+        return self.async_show_form(
+            step_id="switch_to_local",
+            data_schema=_schema_local(),
+            errors=errors,
+        )
 
     async def async_step_reconfigure_cloud(self, user_input=None) -> ConfigFlowResult:
         entry = self._get_reconfigure_entry()

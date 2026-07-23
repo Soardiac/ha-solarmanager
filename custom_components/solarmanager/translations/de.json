@@ -70,6 +70,42 @@
           "scheme": "Protokoll",
           "api_key": "API Key (optional)"
         }
+      },
+      "reconfigure": {
+        "title": "Solar Manager neu konfigurieren",
+        "data": {
+          "mode": "Modus"
+        },
+        "data_description": {
+          "mode": "Aktuellen Modus behalten, um Zugangsdaten zu ändern, oder den anderen Modus wählen, um zu wechseln. Sensoren und Geräte behalten ihre bestehenden Entity-IDs."
+        }
+      },
+      "switch_to_cloud": {
+        "title": "Auf Cloud-Modus wechseln",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "sm_id": "System-ID (smId)",
+          "api_key": "Cloud API Key (empfohlen)"
+        },
+        "data_description": {
+          "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
+          "api_key": "Cloud API Key für moderne Authentifizierung (empfohlen). Zu finden in den Profileinstellungen unter «Cloud API Keys». Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Wichtig: Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
+        }
+      },
+      "switch_to_local": {
+        "title": "Auf lokalen Modus wechseln",
+        "description": "Achtung: Betriebsmodi, Parameter und Ladeziel-Termine (Select/Number/Datetime) gibt es nur im Cloud-Modus. Nach dem Wechsel sind sie nicht mehr verfügbar — Skripte, Automationen und Dashboards, die diese Steuerelemente verwenden, funktionieren dann nicht mehr. Beim Zurückwechseln zu Cloud werden dieselben Entity-IDs wiederverwendet.",
+        "data": {
+          "host": "IP-Adresse / Hostname",
+          "scheme": "Protokoll",
+          "api_key": "API Key (optional)"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname des Solar Manager Gateways (z. B. 192.168.1.100).",
+          "scheme": "HTTP für unverschlüsselt, HTTPS für verschlüsselt (selbst-signiertes Zertifikat wird akzeptiert).",
+          "api_key": "Optionaler API Key zur Absicherung der lokalen Verbindung. Leer lassen wenn kein Key konfiguriert."
+        }
       }
     },
     "error": {
