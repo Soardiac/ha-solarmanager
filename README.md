@@ -406,7 +406,7 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 - **Zweisprachig**: Entitätsnamen folgen der HA-Sprache (Deutsch und Englisch enthalten). Die **Optionen** der Modus-Selects (z. B. „Nur Solar") sind bewusst feste Werte, damit Automationen sprachunabhängig stabil bleiben.
 - **Batterie-Schreibschutz**: Batterie-Einstellungen werden immer als vollständiges Settings-Objekt geschrieben (read-modify-write). Direkt nach dem Start — bevor die Geräte-Metadaten geladen sind — wird ein Schreibversuch mit einer Fehlermeldung abgelehnt, statt fremde Felder auf Werks-Defaults zurückzusetzen. Ein paar Sekunden warten und erneut versuchen.
 - **Cloud-Abhängigkeit (Cloud-Modus)**: Bei Cloud-Ausfall sind alle Werte nicht verfügbar. Der Lokale Modus ist davon nicht betroffen. Ein transient abgelaufener Token wird automatisch erneuert, ohne dass eine Reauth-Aufforderung erscheint.
-- **Kein Modus-Wechsel**: Cloud- und Lokaler Modus sind zwei separate Entries. Ein Wechsel erfordert Löschen und Neu-Einrichten der Integration.
+- **Modus-Wechsel Cloud ↔ Lokal**: Jederzeit über **Neu konfigurieren** möglich, ohne die Integration zu löschen — Entity-IDs und Historie bleiben erhalten (siehe [Neu konfigurieren](#neu-konfigurieren)).
 - **API-Doku**: [Swagger](https://external-web.solar-manager.ch/swagger)
 
 ---
