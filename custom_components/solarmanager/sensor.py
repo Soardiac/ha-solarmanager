@@ -1,10 +1,11 @@
 # sensor.py
 from __future__ import annotations
-from typing import Any, Optional
+
+from typing import Any
 
 from homeassistant.components.sensor import (
-    SensorEntity,
     SensorDeviceClass,
+    SensorEntity,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
@@ -150,7 +151,7 @@ class SolarmanagerPowerSensor(_Base, SensorEntity):
     _attr_native_unit_of_measurement = UnitOfPower.WATT
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = (self.coordinator.data or {}).get(self._key)
         return float(v) if isinstance(v, (int, float)) else None
 
@@ -164,7 +165,7 @@ class SolarmanagerEnergySensor(_Base, SensorEntity):
     _attr_entity_registry_enabled_default = False
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = (self.coordinator.data or {}).get(self._key)
         try:
             return float(v) if v is not None else None
@@ -192,7 +193,7 @@ class SolarmanagerStatsSensor(_Base, SensorEntity):
         self._attr_suggested_display_precision = 1 if unit == PERCENTAGE else 0
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = (self.coordinator.data or {}).get(self._key)
         try:
             return float(v) if v is not None else None
@@ -209,7 +210,7 @@ class SocSensor(_Base, SensorEntity):
         super().__init__(coordinator, "soc", "battery_soc")
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = (self.coordinator.data or {}).get("soc")
         try:
             return float(v) if v is not None else None
@@ -305,7 +306,7 @@ class DevicePowerSensor(_DeviceBase):
         super().__init__(coordinator, dev_id, "power", "power")
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = self._dev_value()
         try:
             return float(v) if v is not None else None
@@ -322,7 +323,7 @@ class DeviceSocSensor(_DeviceBase):
         super().__init__(coordinator, dev_id, "soc", "soc")
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = self._dev_value()
         try:
             return float(v) if v is not None else None
@@ -339,7 +340,7 @@ class DeviceTemperatureSensor(_DeviceBase):
         super().__init__(coordinator, dev_id, "temperature", "temperature")
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = self._dev_value()
         try:
             return float(v) if v is not None else None
@@ -355,7 +356,7 @@ class DeviceActiveStateSensor(_DeviceBase):
         super().__init__(coordinator, dev_id, "activeDevice", "active_state")
 
     @property
-    def native_value(self) -> Optional[int]:
+    def native_value(self) -> int | None:
         v = self._dev_value()
         try:
             return int(v) if v is not None else None
@@ -370,7 +371,7 @@ class DeviceDailyEnergySensor(_DeviceBase):
     _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = self._dev_value()
         try:
             f = float(v) if v is not None else None
@@ -387,7 +388,7 @@ class DeviceOperationStateSensor(_DeviceBase):
         super().__init__(coordinator, dev_id, "operationState", "operation_state")
 
     @property
-    def native_value(self) -> Optional[int]:
+    def native_value(self) -> int | None:
         v = self._dev_value()
         try:
             return int(v) if v is not None else None
@@ -403,7 +404,7 @@ class DeviceSwitchStateSensor(_DeviceBase):
         super().__init__(coordinator, dev_id, "switchState", "switch_state")
 
     @property
-    def native_value(self) -> Optional[int]:
+    def native_value(self) -> int | None:
         v = self._dev_value()
         try:
             return int(v) if v is not None else None
@@ -419,7 +420,7 @@ class DeviceHeatingAdjustmentSensor(_DeviceBase):
         super().__init__(coordinator, dev_id, "heatingAdjustment", "heating_adjustment")
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = self._dev_value()
         try:
             return float(v) if v is not None else None
@@ -436,7 +437,7 @@ class DeviceRemainingRangeSensor(_DeviceBase):
         super().__init__(coordinator, dev_id, "remainingRange", "remaining_range")
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         v = self._dev_value()
         try:
             return float(v) if v is not None else None

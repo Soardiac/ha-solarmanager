@@ -1,39 +1,39 @@
 # coordinator.py
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
 import time
+from datetime import timedelta
 from typing import Any, NoReturn
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.util import dt as dt_util
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
-from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
-from .const import (
-    DOMAIN,
-    CONF_EMAIL,
-    CONF_PASSWORD,
-    CONF_SM_ID,
-    CONF_API_KEY,
-    CONF_SCAN_INTERVAL,
-    DEFAULT_SCAN,
-    CLOUD_BASE,
-    CONF_HOST,
-    CONF_SCHEME,
-    CONF_MODE,
-    MODE_LOCAL,
-)
 from .api_client import (
+    SolarmanagerApiError,
+    SolarmanagerAuthError,
     SolarmanagerCloud,
     SolarmanagerLocal,
-    SolarmanagerAuthError,
-    SolarmanagerApiError,
     SolarmanagerRateLimit,
+)
+from .const import (
+    CLOUD_BASE,
+    CONF_API_KEY,
+    CONF_EMAIL,
+    CONF_HOST,
+    CONF_MODE,
+    CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
+    CONF_SCHEME,
+    CONF_SM_ID,
+    DEFAULT_SCAN,
+    DOMAIN,
+    MODE_LOCAL,
 )
 
 _LOGGER = logging.getLogger(__name__)

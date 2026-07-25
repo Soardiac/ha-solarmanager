@@ -2,7 +2,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 

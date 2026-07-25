@@ -1,7 +1,6 @@
 """Tests für den Cloud-API-Client: Fehler-Mapping und 401-Retry."""
 import aiohttp
 import pytest
-
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.solarmanager.api_client import (

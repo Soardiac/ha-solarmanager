@@ -16,8 +16,8 @@ from homeassistant.helpers.selector import (
 )
 
 from .api_client import (
-    SolarmanagerAuthError,
     SolarmanagerApiError,
+    SolarmanagerAuthError,
     SolarmanagerCloud,
     SolarmanagerLocal,
     normalize_local_host,

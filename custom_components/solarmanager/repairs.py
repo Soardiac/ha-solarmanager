@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import voluptuous as vol
-
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir

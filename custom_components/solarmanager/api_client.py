@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
 
@@ -65,7 +65,7 @@ class SolarmanagerCloud:
         email: str,
         password: str,
         sm_id: str,
-        api_key: Optional[str] = None,  # optional: v3 API Key statt v1 Login
+        api_key: str | None = None,  # optional: v3 API Key statt v1 Login
     ):
         self._s = session
         self._base = base.rstrip("/")
@@ -75,8 +75,8 @@ class SolarmanagerCloud:
         self.api_key = api_key
 
         # Token-Zustand
-        self._access: Optional[str] = None
-        self._refresh: Optional[str] = None
+        self._access: str | None = None
+        self._refresh: str | None = None
         self._token_type: str = "Bearer"
         self._exp_ts: float = 0.0  # Epoch-Sekunden
         self._auth_lock = asyncio.Lock()
@@ -164,7 +164,7 @@ class SolarmanagerCloud:
             else:
                 await self._login_v1()
 
-    def _bearer_headers(self) -> Dict[str, str]:
+    def _bearer_headers(self) -> dict[str, str]:
         return {
             "Authorization": f"{self._token_type} {self._access}",
             "accept": "application/json",
@@ -214,7 +214,7 @@ class SolarmanagerCloud:
 
     # -------------------- v3 Stream --------------------
 
-    async def stream_user_v3(self) -> Dict[str, Any]:
+    async def stream_user_v3(self) -> dict[str, Any]:
         """
         GET /v3/users/{smId}/data/stream
         Liefert Felder wie: v, t, iv, pW, cW, iW, eW, bcW, bdW, soc, ... und devices[].

@@ -1,6 +1,7 @@
 # number.py
 from __future__ import annotations
-from typing import Any, Optional
+
+from typing import Any
 
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
@@ -281,7 +282,7 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
         return child_device_info(self.coordinator, self._dev_id)
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         meta = self.coordinator.device_meta.get(self._dev_id) or {}
         v = (meta.get("raw") or {}).get("data", {}).get(self._field)
         try:
@@ -291,7 +292,7 @@ class BatteryEcoNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity)
 
     async def async_set_native_value(self, value: float) -> None:
         await self.coordinator.async_put_battery_merged(
-            self._dev_id, {self._field: int(round(value))}
+            self._dev_id, {self._field: round(value)}
         )
 
 
@@ -327,7 +328,7 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
         return child_device_info(self.coordinator, self._dev_id)
 
     @property
-    def native_value(self) -> Optional[float]:
+    def native_value(self) -> float | None:
         meta = self.coordinator.device_meta.get(self._dev_id) or {}
         v = (meta.get("raw") or {}).get("data", {}).get(self._field)
         try:
@@ -336,7 +337,7 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
             return None
 
     async def async_set_native_value(self, value: float) -> None:
-        coerced: Any = round(value, 4) if self._float_value else int(round(value))
+        coerced: Any = round(value, 4) if self._float_value else round(value)
 
         # Batterie: vollständiges Settings-Objekt schreiben (read-modify-write),
         # damit das Backend keine nicht-gesendeten Felder auf Defaults zurücksetzt.

@@ -1,0 +1,16 @@
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+# Bewusst explizite Regel-Codes statt ganzer Buchstaben-Kategorien (z. B. "E", "UP", "RUF"):
+# Ruff hat zwischen 0.15 und 0.16 seine implizite Default-Auswahl stark erweitert (u.a.
+# E501, RUF002/003, UP041 kamen dazu) und liess dadurch CI ohne Codeänderung fehlschlagen.
+# Diese Liste pinnt genau das, was für dieses Projekt sinnvoll ist, damit künftige
+# Ruff-Releases nicht wieder unbemerkt neue Regeln aktivieren.
+select = [
+    "E4", "E7", "E9",  # pycodestyle Basisfehler (der bisherige Default)
+    "F",               # pyflakes
+    "I",               # Import-Sortierung
+    "UP006", "UP035", "UP045",  # pyupgrade: veraltete typing-Konstrukte
+    "RUF046",          # unnötige int()-Casts
+]
