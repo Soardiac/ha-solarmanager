@@ -460,6 +460,8 @@ automation:
         title: "Solar Manager"
         message: "Batterie voll – {{ states('sensor.solarmanager_netz_export') }} W Überschuss ins Netz."
 ```
+### Dashboard-Beispiel E-Auto und Batterie Lademodi
+<img width="1372" height="851" alt="image" src="https://github.com/user-attachments/assets/f296c939-d4c1-4a22-a829-55fd932954f6" />
 
 ---
 
