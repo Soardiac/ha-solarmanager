@@ -140,3 +140,29 @@ async def test_attach_runner_raises_for_unknown_device(hass):
 
     with pytest.raises(HomeAssistantError):
         await trigger.async_attach_runner(lambda *a, **k: None)
+
+
+async def test_validate_config_accepts_real_nested_target_options_shape(hass):
+    """Regression: async_validate_complete_config() reicht {target, options} als EIN
+    kombiniertes Dict durch, nicht die flachen Options-Felder direkt (führte zu
+    "extra keys not allowed @ data['options']" beim Speichern in der echten UI)."""
+    validated = await SurplusAvailableTrigger.async_validate_config(
+        hass,
+        {
+            "target": {"device_id": ["some-device-id"]},
+            "options": {"threshold": 500, "for": "00:02:00"},
+        },
+    )
+
+    assert validated["target"]["device_id"] == ["some-device-id"]
+    assert validated["options"]["threshold"] == 500.0
+    assert validated["options"]["for"] == timedelta(minutes=2)
+
+
+async def test_validate_config_fills_option_defaults_when_omitted(hass):
+    validated = await SurplusAvailableTrigger.async_validate_config(
+        hass, {"target": {"device_id": ["some-device-id"]}}
+    )
+
+    assert validated["options"]["threshold"] == 0.0
+    assert validated["options"]["for"] == timedelta(minutes=2)

@@ -439,9 +439,11 @@ automation:
   alias: "Wallbox Solar-Modus bei PV-Überschuss"
   trigger:
     - trigger: solarmanager.surplus_available
-      device_id: <device_id des Solar-Manager-Geräts>
-      threshold: 500  # W
-      for: "00:02:00"
+      target:
+        device_id: <device_id des Solar-Manager-Geräts>
+      options:
+        threshold: 500  # W
+        for: "00:02:00"
   action:
     - action: select.select_option
       target:

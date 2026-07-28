@@ -1,7 +1,9 @@
 """Tests für die PV-Überschuss-Condition (Datenverfügbarkeit + `for`-Tracking)."""
 from datetime import timedelta
 
+import pytest
 from freezegun import freeze_time
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.condition import ConditionConfig
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -96,6 +98,43 @@ async def test_true_after_for_duration_continuously_above_threshold(hass):
             assert condition.async_check() is True
         finally:
             condition.async_unload()
+
+
+async def test_validate_config_accepts_real_nested_target_options_shape(hass):
+    """Regression: async_validate_complete_config() reicht {target, options} als EIN
+    kombiniertes Dict durch, nicht die flachen Options-Felder direkt (führte zu
+    "extra keys not allowed @ data['options']" beim Speichern in der echten UI)."""
+    validated = await SurplusPresentCondition.async_validate_config(
+        hass,
+        {
+            "target": {"device_id": ["some-device-id"]},
+            "options": {"threshold": 500, "for": "00:02:00"},
+        },
+    )
+
+    assert validated["target"]["device_id"] == ["some-device-id"]
+    assert validated["options"]["threshold"] == 500.0
+    assert validated["options"]["for"] == FOR
+
+
+async def test_missing_device_target_raises_but_leaves_object_del_safe(hass):
+    """Regression: __init__ warf HomeAssistantError, bevor _remove_listener gesetzt
+    war. ConditionChecker.__del__ ruft beim Garbage Collection immer async_unload()
+    auf (schluckt Exceptions selbst nur mit einem Log-Eintrag) -- _async_unload griff
+    dabei auf das nie gesetzte self._remove_listener zu -> AttributeError im Log.
+
+    target ohne device_id (hier: leer) muss weiterhin sauber HomeAssistantError
+    werfen, aber das Objekt muss auch nach der fehlgeschlagenen Konstruktion
+    _async_unload()-sicher sein.
+    """
+    config = ConditionConfig(target={}, options={"threshold": 0.0, "for": FOR})
+    instance = SurplusPresentCondition.__new__(SurplusPresentCondition)
+
+    with pytest.raises(HomeAssistantError):
+        instance.__init__(hass, config)
+
+    assert instance._remove_listener is None
+    instance._async_unload()  # darf nicht mit AttributeError crashen
 
 
 async def test_drop_below_threshold_resets_since(hass):

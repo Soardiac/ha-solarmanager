@@ -17,7 +17,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
 from .coordinator import compute_surplus_w, resolve_coordinator_for_device
-from .trigger import CONF_THRESHOLD, SURPLUS_OPTIONS_SCHEMA
+from .trigger import CONF_THRESHOLD, SURPLUS_CONFIG_SCHEMA
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +31,14 @@ class SurplusPresentCondition(Condition):
 
     def __init__(self, hass: HomeAssistant, config: ConditionConfig) -> None:
         super().__init__(hass, config)
+        # Unconditional zuerst setzen: ConditionChecker.__del__ ruft beim Garbage
+        # Collection immer async_unload() -> _async_unload() auf, auch wenn unten
+        # eine HomeAssistantError-Exception das __init__ abbricht. Ohne diese
+        # Attribute schon gesetzt zu haben, crasht das __del__ mit AttributeError.
+        self._last_surplus: float | None = None
+        self._since: datetime | None = None
+        self._remove_listener: CALLBACK_TYPE | None = None
+
         device_ids = (config.target or {}).get("device_id") or []
         if not device_ids:
             raise HomeAssistantError(
@@ -40,13 +48,10 @@ class SurplusPresentCondition(Condition):
         options = config.options or {}
         self._threshold: float = float(options[CONF_THRESHOLD])
         self._for: timedelta = options[CONF_FOR]
-        self._last_surplus: float | None = None
-        self._since: datetime | None = None
-        self._remove_listener: CALLBACK_TYPE | None = None
 
     @classmethod
     async def async_validate_config(cls, hass: HomeAssistant, config: ConfigType) -> ConfigType:
-        return SURPLUS_OPTIONS_SCHEMA(config)
+        return SURPLUS_CONFIG_SCHEMA(config)
 
     async def _async_setup(self) -> None:
         coord = resolve_coordinator_for_device(self._hass, self._device_id)

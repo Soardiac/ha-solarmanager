@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.const import CONF_FOR
+from homeassistant.const import CONF_FOR, CONF_OPTIONS, CONF_TARGET
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
@@ -21,11 +21,21 @@ _LOGGER = logging.getLogger(__name__)
 CONF_THRESHOLD = "threshold"
 DEFAULT_FOR = timedelta(minutes=2)
 
-# Gemeinsames Options-Schema für Trigger und Condition (condition.py importiert es).
 SURPLUS_OPTIONS_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_THRESHOLD, default=0): vol.Coerce(float),
         vol.Required(CONF_FOR, default=DEFAULT_FOR): cv.positive_time_period,
+    }
+)
+
+# async_validate_complete_config() (homeassistant.helpers.trigger) reicht {target, options}
+# als EIN kombiniertes Dict durch — nicht die flachen Options-Felder direkt. Gemeinsames
+# Schema für Trigger und Condition (condition.py importiert es), Muster übernommen von
+# ENTITY_STATE_CONDITION_SCHEMA_ANY_ALL in homeassistant/helpers/condition.py.
+SURPLUS_CONFIG_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_TARGET): cv.TARGET_FIELDS,
+        vol.Required(CONF_OPTIONS, default={}): SURPLUS_OPTIONS_SCHEMA,
     }
 )
 
@@ -39,7 +49,7 @@ class SurplusAvailableTrigger(Trigger):
 
     @classmethod
     async def async_validate_config(cls, hass: HomeAssistant, config: ConfigType) -> ConfigType:
-        return SURPLUS_OPTIONS_SCHEMA(config)
+        return SURPLUS_CONFIG_SCHEMA(config)
 
     def __init__(self, hass: HomeAssistant, config: TriggerConfig) -> None:
         super().__init__(hass, config)
