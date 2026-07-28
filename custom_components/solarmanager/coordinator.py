@@ -9,6 +9,7 @@ from typing import Any, NoReturn
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -92,6 +93,41 @@ BATTERY_PUT_FIELDS = frozenset({
 def daily_store(hass: HomeAssistant, entry_id: str) -> Store[dict[str, Any]]:
     """Store für die persistierten Tageszähler eines Config-Entries."""
     return Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}_daily")
+
+
+def compute_surplus_w(data: dict[str, Any] | None) -> float | None:
+    """PV-Überschuss (W) = PV-Leistung - Hausverbrauch - Batterie-Leistung.
+
+    None, wenn pW oder cW (noch) nicht vorliegen — fehlende Daten sollen nicht
+    stillschweigend als 0 gewertet werden. batW ist selbst schon optional
+    abgeleitet (siehe _async_update_data) und wird bei Fehlen als 0 behandelt.
+    """
+    d = data or {}
+    p_w = d.get("pW")
+    c_w = d.get("cW")
+    if p_w is None or c_w is None:
+        return None
+    return p_w - c_w - (d.get("batW") or 0.0)
+
+
+def resolve_coordinator_for_device(hass: HomeAssistant, device_id: str) -> "SolarmanagerCoordinator":
+    """Zur Device-ID eines Trigger/Condition-Targets den geladenen Coordinator auflösen.
+
+    Genutzt von trigger.py/condition.py: Nutzer wählt in der Automation-UI ein
+    Solarmanager-Gerät (Site oder Kind-Gerät), wir brauchen den Coordinator des
+    zugehörigen, geladenen Config-Entries.
+    """
+    device = dr.async_get(hass).async_get(device_id)
+    if device is None:
+        raise HomeAssistantError(f"Solarmanager: unknown device_id {device_id}")
+    for entry_id in device.config_entries:
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if entry is None or entry.domain != DOMAIN:
+            continue
+        coord = getattr(entry, "runtime_data", None)
+        if isinstance(coord, SolarmanagerCoordinator):
+            return coord
+    raise HomeAssistantError(f"Solarmanager: device {device_id} has no loaded config entry")
 
 
 class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):

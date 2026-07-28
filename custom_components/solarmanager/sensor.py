@@ -21,7 +21,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .coordinator import SolarmanagerCoordinator
+from .coordinator import SolarmanagerCoordinator, compute_surplus_w
 from .entity import child_device_info, find_device, site_device_info
 
 PARALLEL_UPDATES = 1
@@ -82,6 +82,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         *(SolarmanagerPowerSensor(coord, key, tkey) for key, tkey in POWER_SENSORS),
         *(SolarmanagerEnergySensor(coord, key, tkey) for key, tkey in ENERGY_SENSORS),
         SocSensor(coord),
+        PvSurplusPowerSensor(coord),
         DevicesOverviewSensor(coord),
     ]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS]
@@ -216,6 +217,25 @@ class SocSensor(_Base, SensorEntity):
             return float(v) if v is not None else None
         except Exception:
             return None
+
+
+class PvSurplusPowerSensor(_Base, SensorEntity):
+    """PV-Überschuss (W) = PV-Leistung - Hausverbrauch - Batterie-Leistung.
+
+    Positiv = Überschuss (Richtung Netzeinspeisung/steuerbare Verbraucher),
+    negativ = Defizit (Netzbezug/Batterie deckt die Lücke).
+    """
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+
+    def __init__(self, coordinator: SolarmanagerCoordinator):
+        super().__init__(coordinator, "surplusW", "surplus_power")
+
+    @property
+    def native_value(self) -> float | None:
+        return compute_surplus_w(self.coordinator.data)
 
 
 class DevicesOverviewSensor(_Base, SensorEntity):

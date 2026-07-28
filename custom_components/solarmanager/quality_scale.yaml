@@ -34,12 +34,12 @@ rules:
     comment: Integration registers no actions/services.
 
   docs-triggers:
-    status: exempt
-    comment: Integration provides no device/entity triggers.
+    status: done
+    comment: solarmanager.surplus_available trigger (trigger.py/triggers.yaml) documented in README "Beispiele" section.
 
   docs-conditions:
-    status: exempt
-    comment: Integration provides no device/entity conditions.
+    status: done
+    comment: solarmanager.is_surplus_present condition (condition.py/conditions.yaml) documented in README "Beispiele" section.
 
   docs-high-level-description:
     status: done

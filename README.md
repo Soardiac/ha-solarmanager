@@ -174,6 +174,7 @@ Alle Werte beziehen sich auf die gesamte Anlage.
 | Netz Import | W | Bezug aus dem Netz |
 | Netz Export | W | Einspeisung ins Netz |
 | Netzleistung | W | Positiv = Bezug, negativ = Einspeisung |
+| PV-Überschuss | W | PV-Leistung − Hausverbrauch − Batterie-Leistung; positiv = Überschuss |
 
 #### Energie-Intervallwerte
 
@@ -423,7 +424,35 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 
 ## Beispiele
 
-### Automation: Wallbox auf «Nur Solar» bei PV-Überschuss
+### Nativer Trigger/Condition: PV-Überschuss (ab HA 2026.7)
+
+Seit HA 2026.7 können Integrationen eigene Trigger/Conditions anbieten (siehe
+[Release-Notes](https://www.home-assistant.io/blog/2026/07/01/release-20267/)). Solar Manager
+liefert damit `solarmanager.surplus_available` (Trigger) und `solarmanager.is_surplus_present`
+(Condition) — beide berechnen den Überschuss (PV-Leistung − Hausverbrauch − Batterie-Leistung)
+selbst und bringen einen eingebauten `for`-Debounce (Default 2 Minuten) mit, damit eine einzelne
+Wolkenlücke nicht sofort auslöst. Das ersetzt das `numeric_state`-Beispiel weiter unten, ohne dass
+man wissen muss, dass negative Netzleistung Einspeisung bedeutet:
+
+```yaml
+automation:
+  alias: "Wallbox Solar-Modus bei PV-Überschuss"
+  trigger:
+    - trigger: solarmanager.surplus_available
+      device_id: <device_id des Solar-Manager-Geräts>
+      threshold: 500  # W
+      for: "00:02:00"
+  action:
+    - action: select.select_option
+      target:
+        entity_id: select.meine_wallbox_modus
+      data:
+        option: "Nur Solar"
+```
+
+Status: experimenteller Spike — Details siehe [Issues](https://github.com/Soardiac/ha-solarmanager/issues).
+
+### Automation: Wallbox auf «Nur Solar» bei PV-Überschuss (klassisch mit `numeric_state`)
 
 ```yaml
 automation:

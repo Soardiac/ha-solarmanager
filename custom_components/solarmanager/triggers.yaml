@@ -1,0 +1,17 @@
+surplus_available:
+  target:
+    device:
+      integration: solarmanager
+  fields:
+    threshold:
+      required: true
+      default: 0
+      selector:
+        number:
+          mode: box
+          unit_of_measurement: W
+    for:
+      required: true
+      default: "00:02:00"
+      selector:
+        duration:

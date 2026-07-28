@@ -153,6 +153,26 @@
       }
     }
   },
+  "triggers": {
+    "surplus_available": {
+      "name": "PV-Überschuss verfügbar",
+      "description": "Löst aus, sobald der PV-Überschuss (PV-Leistung minus Verbrauch minus Batterie-Leistung) für eine festgelegte Dauer über einem Schwellwert bleibt.",
+      "fields": {
+        "threshold": { "name": "Überschuss-Schwellwert" },
+        "for": { "name": "Für mindestens" }
+      }
+    }
+  },
+  "conditions": {
+    "is_surplus_present": {
+      "name": "PV-Überschuss vorhanden",
+      "description": "Prüft, ob der PV-Überschuss durchgehend seit einer festgelegten Dauer über einem Schwellwert liegt.",
+      "fields": {
+        "threshold": { "name": "Überschuss-Schwellwert" },
+        "for": { "name": "Für mindestens" }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "pv_power": { "name": "PV-Leistung" },
@@ -187,7 +207,8 @@
       "operation_state": { "name": "Betriebszustand" },
       "switch_state": { "name": "Schaltzustand" },
       "heating_adjustment": { "name": "Heizungskorrektur" },
-      "remaining_range": { "name": "Restreichweite" }
+      "remaining_range": { "name": "Restreichweite" },
+      "surplus_power": { "name": "PV-Überschuss" }
     },
     "binary_sensor": {
       "signal": { "name": "Verbindung" }

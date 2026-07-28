@@ -117,6 +117,26 @@
       }
     }
   },
+  "triggers": {
+    "surplus_available": {
+      "name": "PV surplus available",
+      "description": "Triggers once PV surplus (PV power minus consumption minus battery power) stays above a threshold for a set duration.",
+      "fields": {
+        "threshold": { "name": "Surplus threshold" },
+        "for": { "name": "For at least" }
+      }
+    }
+  },
+  "conditions": {
+    "is_surplus_present": {
+      "name": "PV surplus present",
+      "description": "Tests whether PV surplus has been continuously above a threshold for a set duration.",
+      "fields": {
+        "threshold": { "name": "Surplus threshold" },
+        "for": { "name": "For at least" }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "pv_power": { "name": "PV power" },
@@ -151,7 +171,8 @@
       "operation_state": { "name": "Operation state" },
       "switch_state": { "name": "Switch state" },
       "heating_adjustment": { "name": "Heating adjustment" },
-      "remaining_range": { "name": "Remaining range" }
+      "remaining_range": { "name": "Remaining range" },
+      "surplus_power": { "name": "PV surplus" }
     },
     "binary_sensor": {
       "signal": { "name": "Connection" }
