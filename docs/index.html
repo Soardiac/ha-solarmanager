@@ -1,1 +1,206 @@
-nothing here.
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solarmanager für Home Assistant – Inoffizielle HACS-Integration</title>
+<meta name="description" content="Inoffizielle Home Assistant Integration für Solar Manager (solar-manager.ch). Sensoren und Steuerung über Cloud-API oder lokale Gateway-API, installierbar via HACS.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://ha-solarmanager.soardiac.ch/">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Solarmanager für Home Assistant">
+<meta property="og:description" content="Inoffizielle Home Assistant Integration für Solar Manager (solar-manager.ch) – Cloud-API oder lokale Gateway-API.">
+<meta property="og:url" content="https://ha-solarmanager.soardiac.ch/">
+<meta property="og:image" content="https://opengraph.githubassets.com/48c4068ea47d44c1c8bee3013e35228f04b3e5d50a311b95eb592d7967fd9766/Soardiac/ha-solarmanager">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23111'/%3E%3Ccircle cx='16' cy='13' r='6' fill='none' stroke='%23E63312' stroke-width='2'/%3E%3Cpath d='M6 27h20M9 27v-6M23 27v-6M12 27v-9M20 27v-9M16 27v-12' stroke='%23fff' stroke-width='1.6'/%3E%3C/svg%3E">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Solarmanager – Home Assistant Custom Integration",
+  "alternateName": "ha-solarmanager",
+  "description": "Inoffizielle Home Assistant Integration für Solar Manager (solar-manager.ch). Cloud-API oder lokale Gateway-API, Sensoren und Steuerung von Batterie, Wallbox, Wärmepumpe und weiteren Geräten.",
+  "url": "https://ha-solarmanager.soardiac.ch/",
+  "applicationCategory": "HomeAutomationApplication",
+  "operatingSystem": "Home Assistant \u2265 2025.8",
+  "softwareVersion": "1.8.0",
+  "codeRepository": "https://github.com/Soardiac/ha-solarmanager",
+  "downloadUrl": "https://github.com/Soardiac/ha-solarmanager",
+  "license": "https://github.com/Soardiac/ha-solarmanager/blob/main/LICENSE.txt",
+  "author": { "@type": "Person", "name": "Soardiac", "url": "https://github.com/Soardiac" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CHF" }
+}
+</script>
+
+<style>
+:root{
+  --paper:#FFFFFF;
+  --ink:#14151A;
+  --ink-soft:#5B5D64;
+  --line:#E3E3DC;
+  --red:#E63312;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+}
+a{color:var(--red);text-decoration-thickness:1px;}
+a:hover{text-decoration:none;}
+.wrap{max-width:640px;margin:0 auto;padding:64px 24px 80px;}
+header{display:flex;align-items:center;gap:10px;margin-bottom:40px;}
+header svg{flex:none;}
+header span{font-family:var(--mono);font-size:14px;color:var(--ink-soft);}
+
+h1{font-size:28px;font-weight:700;letter-spacing:-.01em;margin-bottom:10px;}
+.tagline{color:var(--ink-soft);font-size:16px;margin-bottom:28px;}
+
+.cta-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:36px;}
+.btn{
+  font-family:var(--mono);font-size:13.5px;padding:10px 16px;
+  border:1px solid var(--ink);text-decoration:none;color:var(--ink);
+}
+.btn-primary{background:var(--ink);color:var(--paper);}
+.btn-primary:hover{background:var(--red);border-color:var(--red);color:var(--paper);}
+.btn:not(.btn-primary):hover{background:var(--ink);color:var(--paper);}
+
+h2{font-size:15px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:36px 0 12px;padding-top:24px;border-top:1px solid var(--line);}
+section:first-of-type h2{border-top:none;padding-top:0;}
+
+p{margin-bottom:14px;}
+ul{list-style:none;margin-bottom:14px;}
+li{padding-left:16px;position:relative;margin-bottom:6px;}
+li::before{content:"–";position:absolute;left:0;color:var(--red);}
+
+code{font-family:var(--mono);font-size:13.5px;background:#F2F2ED;padding:1px 5px;}
+
+.steps{margin-bottom:14px;}
+.steps li{list-style:none;counter-increment:step;padding-left:26px;margin-bottom:10px;}
+.steps{counter-reset:step;}
+.steps li::before{content:counter(step) ".";position:absolute;left:0;color:var(--red);font-family:var(--mono);font-weight:600;}
+
+.codebox{background:var(--ink);color:#EDEDE6;font-family:var(--mono);font-size:12.5px;line-height:1.7;padding:18px 20px;overflow-x:auto;white-space:pre;margin-bottom:14px;}
+
+footer{margin-top:44px;padding-top:24px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-soft);}
+footer a{color:var(--ink-soft);}
+.disclaimer{margin-bottom:16px;}
+.foot-links a{margin-right:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="#14151A"/><circle cx="16" cy="13" r="6" fill="none" stroke="#E63312" stroke-width="2"/><path d="M6 27h20M9 27v-6M23 27v-6M12 27v-9M20 27v-9M16 27v-12" stroke="#fff" stroke-width="1.6"/></svg>
+    <span>ha-solarmanager</span>
+  </header>
+
+  <main>
+    <h1>Solarmanager für Home Assistant</h1>
+    <p class="tagline">Inoffizielle Integration für Solar Manager (solar-manager.ch) – Sensoren und Steuerung über Cloud-API oder lokale Gateway-API.</p>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/Soardiac/ha-solarmanager#installation">In HACS installieren</a>
+      <a class="btn" href="https://github.com/Soardiac/ha-solarmanager">GitHub</a>
+    </div>
+
+    <section>
+      <h2>Was sie macht</h2>
+      <p>Verbindet dein Solar Manager Gateway mit Home Assistant. Zwei Modi stehen zur Wahl:</p>
+      <ul>
+        <li><strong>Cloud-API</strong> – voller Funktionsumfang inkl. Steuerung von Batterie, Wallbox, Wärmepumpe und weiteren Geräten.</li>
+        <li><strong>Lokale API</strong> – nur Sensoren, direkt vom Gateway, ganz ohne Internet und ohne Account.</li>
+      </ul>
+      <p>Neue Geräte am Gateway werden automatisch erkannt, Tages-Energiewerte sind Energy-Dashboard-tauglich und überstehen Neustarts.</p>
+    </section>
+
+    <section>
+      <h2>Voraussetzungen</h2>
+      <p>Home Assistant ≥ 2025.8 und ein Solar Manager Gateway im Netzwerk.</p>
+      <ul>
+        <li><strong>Cloud-Modus</strong> – ein Solar Manager Account, die Gateway-ID (<code>smId</code>) sowie ein Cloud API Key aus dem Solar Manager Portal.</li>
+        <li><strong>Lokaler Modus</strong> (ab v1.5.0) – nur die IP-Adresse des Gateways im lokalen Netzwerk. Kein Account, kein Internet nötig.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Installation</h2>
+      <ol class="steps">
+        <li>HACS → Integrationen → <code>⋮</code> → Benutzerdefinierte Repositories → <code>https://github.com/Soardiac/ha-solarmanager</code>, Kategorie <code>Integration</code>.</li>
+        <li>„Solarmanager" installieren, Home Assistant neu starten.</li>
+        <li>Einstellungen → Geräte &amp; Dienste → Integration hinzufügen → Solarmanager. Verbindungsmodus wählen und Cloud API Key oder lokale Gateway-IP eintragen.</li>
+      </ol>
+      <p>Alternativ manuell: Ordner <code>custom_components/solarmanager</code> in <code>&lt;config&gt;/custom_components/</code> kopieren und Home Assistant neu starten.</p>
+    </section>
+
+    <section>
+      <h2>Cloud API Key erstellen</h2>
+      <p>Für Neueinrichtungen ist der Cloud API Key der einzig unterstützte Weg – die Authentifizierung per E-Mail/Passwort stellt Solar Manager schrittweise ein.</p>
+      <ol class="steps">
+        <li>Im Solar Manager Portal → Profil bearbeiten → Cloud-API-Schlüssel → API Schlüssel hinzufügen.</li>
+        <li>Enddatum leer lassen, alle vier Scopes aktivieren, „Erneuerung erlauben" nicht aktivieren.</li>
+        <li>Den generierten Token sofort kopieren – er ist danach nicht mehr abrufbar – und beim Einrichten der Integration eintragen.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Anwendungsfälle</h2>
+      <ul>
+        <li><strong>PV-Überschuss nutzen</strong> – Wallbox, Smart Plug oder Boiler automatisch einschalten, sobald die PV-Leistung den Hausverbrauch übersteigt.</li>
+        <li><strong>Batterie schonen</strong> – Automationen nur ausführen, wenn der Batterie-SOC über einem Schwellwert liegt, um ungewollte Tiefentladung zu verhindern.</li>
+        <li><strong>Tages-Dashboard</strong> – Autarkiegrad und Eigenverbrauchsquote visualisieren und historisch verfolgen.</li>
+        <li><strong>Lastspitzen vermeiden</strong> – bei hohem Netzbezug benachrichtigen oder steuerbare Lasten reduzieren.</li>
+        <li><strong>Anwesenheitsbasiertes Laden</strong> – Wallbox-Lademodus wechseln, wenn jemand nach Hause kommt und der SOC unter 50 % liegt.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Beispiel-Automation</h2>
+      <p>Wallbox automatisch auf «Nur Solar» schalten, sobald mehr als 500 W ins Netz eingespeist werden:</p>
+      <div class="codebox">automation:
+  alias: "Wallbox Solar-Modus bei PV-Überschuss"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solarmanager_netzleistung
+      below: -500
+      for: "00:02:00"
+  action:
+    - action: select.select_option
+      target:
+        entity_id: select.meine_wallbox_modus
+      data:
+        option: "Nur Solar"</div>
+    </section>
+
+    <section>
+      <h2>Fehlerbehebung</h2>
+      <ul>
+        <li><strong>Alle Entities „nicht verfügbar"</strong> – meist Cloud nicht erreichbar oder abgelaufene Zugangsdaten. Unter Geräte &amp; Dienste → Neu authentifizieren beheben.</li>
+        <li><strong>Gerät taucht nicht auf</strong> – neue Geräte werden automatisch erkannt, spätestens nach ~60 Sekunden. Sonst Integration neu laden.</li>
+        <li><strong>Werte aktualisieren zu selten</strong> – Scan-Intervall in den Optionen reduzieren (empfohlenes Minimum: 10 s).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Hinweis vom Autor</h2>
+      <p>Ich habe diese Integration für mich geschrieben, weil keine der anderen passend für mich war. Die Arbeit ist besser investiert, wenn auch andere davon profitieren, darum ist sie hier verfügbar und wird gepflegt. Ich verwende Claude Code (oder andere Tools) zur Unterstützung, anders ist es nicht zu machen. KI-Code ist von mir gechecked.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p class="disclaimer">Inoffizielle Integration. Solar Manager AG ist dafür nicht verantwortlich und bietet keinen Support dafür.</p>
+    <div class="foot-links">
+      <a href="https://github.com/Soardiac/ha-solarmanager">GitHub</a>
+      <a href="https://github.com/Soardiac/ha-solarmanager/issues">Issues</a>
+      <a href="https://www.solar-manager.ch/">solar-manager.ch</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
