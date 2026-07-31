@@ -26,7 +26,7 @@
   "url": "https://ha-solarmanager.soardiac.ch/",
   "applicationCategory": "HomeAutomationApplication",
   "operatingSystem": "Home Assistant \u2265 2025.8",
-  "softwareVersion": "1.8.0",
+  "softwareVersion": "1.10.0",
   "codeRepository": "https://github.com/Soardiac/ha-solarmanager",
   "downloadUrl": "https://github.com/Soardiac/ha-solarmanager",
   "license": "https://github.com/Soardiac/ha-solarmanager/blob/main/LICENSE.txt",
@@ -95,18 +95,13 @@ footer a{color:var(--ink-soft);}
 <body>
 <div class="wrap">
 
-  <header>
-    <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="#14151A"/><circle cx="16" cy="13" r="6" fill="none" stroke="#E63312" stroke-width="2"/><path d="M6 27h20M9 27v-6M23 27v-6M12 27v-9M20 27v-9M16 27v-12" stroke="#fff" stroke-width="1.6"/></svg>
-    <span>ha-solarmanager</span>
-  </header>
-
   <main>
     <h1>Solar Manager für Home Assistant</h1>
     <p class="tagline">Inoffizielle Integration für Solar Manager (solar-manager.ch) – Sensoren und Steuerung über Cloud-API oder lokale Gateway-API.</p>
 
     <div class="cta-row">
       <a class="btn btn-primary" href="https://github.com/Soardiac/ha-solarmanager#installation">In HACS installieren</a>
-      <a class="btn" href="https://github.com/Soardiac/ha-solarmanager">GitHub</a>
+      <a class="btn" href="https://github.com/Soardiac/ha-solarmanager" target="_blank">GitHub</a>
     </div>
 
     <section>
@@ -124,7 +119,7 @@ footer a{color:var(--ink-soft);}
       <p>Home Assistant ≥ 2025.8 und ein Solar Manager Gateway im Netzwerk.</p>
       <ul>
         <li><strong>Cloud-Modus</strong> – ein Solar Manager Account, die Gateway-ID (<code>smId</code>) sowie ein Cloud API Key aus dem Solar Manager Portal.</li>
-        <li><strong>Lokaler Modus</strong> (ab v1.5.0) – nur die IP-Adresse des Gateways im lokalen Netzwerk. Kein Account, kein Internet nötig.</li>
+        <li><strong>Lokaler Modus</strong> – nur die IP-Adresse des Gateways im lokalen Netzwerk. Kein Account, kein Internet nötig.</li>
       </ul>
     </section>
 
