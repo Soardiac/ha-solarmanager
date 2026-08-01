@@ -156,6 +156,16 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._stats_last: float = 0.0
         self._stats_date: str = ""
 
+        # Tages-Netzenergie (nur Cloud): Riemann-Integration von iW/eW.
+        # Ersetzt die fehlerhafte REST-Ableitung consumption - selfConsumption
+        # bei Batterie-Nachtentladung (#25). Lokaler Modus ist nicht betroffen,
+        # dort übernehmen bereits _local_grid_import_wh/_local_grid_export_wh
+        # dieselbe Aufgabe.
+        self._cloud_grid_import_wh: float = 0.0
+        self._cloud_grid_export_wh: float = 0.0
+        self._cloud_grid_day: str = ""
+        self._cloud_grid_t: float = 0.0
+
         # Tages-Energie (Lokal): Riemann-Integration von pW/cW/iW/eW
         self._local_production_wh: float = 0.0
         self._local_consumption_wh: float = 0.0
@@ -227,6 +237,11 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._local_grid_import_wh = float(stored.get("local_grid_import_wh", 0.0))
             self._local_grid_export_wh = float(stored.get("local_grid_export_wh", 0.0))
             # _local_t bleibt 0 → die Lücke seit dem Neustart wird nicht integriert
+        if stored.get("cloud_grid_day") == today:
+            self._cloud_grid_day = today
+            self._cloud_grid_import_wh = float(stored.get("cloud_grid_import_wh", 0.0))
+            self._cloud_grid_export_wh = float(stored.get("cloud_grid_export_wh", 0.0))
+            # _cloud_grid_t bleibt 0 → die Lücke seit dem Neustart wird nicht integriert
         if stored.get("bat_day") == today:
             self._bat_day = today
             self._bat_charge_wh = float(stored.get("bat_charge_wh", 0.0))
@@ -240,6 +255,9 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "local_consumption_wh": self._local_consumption_wh,
             "local_grid_import_wh": self._local_grid_import_wh,
             "local_grid_export_wh": self._local_grid_export_wh,
+            "cloud_grid_day": self._cloud_grid_day,
+            "cloud_grid_import_wh": self._cloud_grid_import_wh,
+            "cloud_grid_export_wh": self._cloud_grid_export_wh,
             "bat_day": self._bat_day,
             "bat_charge_wh": self._bat_charge_wh,
             "bat_discharge_wh": self._bat_discharge_wh,
@@ -423,6 +441,32 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Tages-Statistiken: Cloud via API, Lokal via Integration
             if not self.is_local:
+                # Tages-Netzenergie: iW/eW über die Zeit integrieren → Wh-Tageszähler
+                # (#25). Muss vor dem await _load_gateway_stats() unten laufen,
+                # sonst fließt dessen Netzwerk-Latenz ins Zeitintervall der
+                # Integration ein.
+                now_t = time.time()
+                interval_s = (
+                    self.update_interval.total_seconds()
+                    if self.update_interval
+                    else DEFAULT_SCAN
+                )
+                max_gap_s = max(3 * interval_s, 30.0)
+                if today != self._cloud_grid_day:
+                    self._cloud_grid_import_wh = 0.0
+                    self._cloud_grid_export_wh = 0.0
+                    self._cloud_grid_day = today
+                elif self._cloud_grid_t > 0:
+                    dt_s = now_t - self._cloud_grid_t
+                    if 0 < dt_s <= max_gap_s:
+                        self._cloud_grid_import_wh += (data.get("iW") or 0.0) * dt_s / 3600
+                        self._cloud_grid_export_wh += (data.get("eW") or 0.0) * dt_s / 3600
+                    else:
+                        _LOGGER.debug(
+                            "Skipping cloud grid energy integration over %.0f s gap", dt_s
+                        )
+                self._cloud_grid_t = now_t
+
                 if self._stats_date != today:
                     # Tageswechsel: Vortageswerte nicht weiterzeigen, bis der
                     # erste Fetch des neuen Tages gelungen ist
@@ -441,9 +485,8 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else:
                     data["stat_self_consumption_rate"] = self._stats_data.get("selfConsumptionRate")
                     data["stat_autarchy_degree"] = self._stats_data.get("autarchyDegree")
-                _sc = self._stats_data.get("selfConsumption") or 0
-                data["stat_grid_import"] = max(0.0, (self._stats_data.get("consumption") or 0) - _sc)
-                data["stat_grid_export"] = max(0.0, (self._stats_data.get("production") or 0) - _sc)
+                data["stat_grid_import"] = self._cloud_grid_import_wh
+                data["stat_grid_export"] = self._cloud_grid_export_wh
             else:
                 # Lokal: pW/cW/iW/eW (W) über die Zeit integrieren → Wh-Tageszähler
                 now_t = time.time()

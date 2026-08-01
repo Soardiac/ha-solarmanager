@@ -1,7 +1,9 @@
 """Tests für Coordinator-Kernlogik: Batterie-Dedup, Merged-PUT-Guard und Auth-Mapping."""
+from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import pytest
+from freezegun import freeze_time
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -23,6 +25,17 @@ HOST = "192.168.1.100"
 POINT_URL = f"http://{HOST}/v2/point"
 DEVICES_URL = f"http://{HOST}/v2/devices"
 LOGIN_URL = f"{CLOUD_BASE}/v1/oauth/login"
+
+SM_ID = "SM1"
+STREAM_URL = f"{CLOUD_BASE}/v3/users/{SM_ID}/data/stream"
+SENSORS_URL = f"{CLOUD_BASE}/v1/info/sensors/{SM_ID}"
+STATS_URL = f"{CLOUD_BASE}/v1/statistics/gateways/{SM_ID}"
+LOGIN_RESPONSE = {
+    "accessToken": "tok",
+    "refreshToken": "ref",
+    "tokenType": "Bearer",
+    "expiresIn": 3600,
+}
 
 
 def _local_entry(hass) -> MockConfigEntry:
@@ -95,6 +108,63 @@ async def test_battery_daily_sum_skips_points_without_timestamp(hass, aioclient_
     assert coord.last_update_success
     assert coord.data["stat_bat_charge"] == 0.0
     assert coord.data["stat_bat_discharge"] == 0.0
+
+
+async def test_cloud_grid_import_zero_at_night_despite_rest_stats_consumption(hass, aioclient_mock):
+    """iW=0 (Netz unbeteiligt, Batterie deckt Verbrauch) → stat_grid_import bleibt 0,
+    auch wenn die REST-Tagesstatistik consumption>0 und selfConsumption=0 zeigt (#25)."""
+    entry = _cloud_entry(hass)
+    aioclient_mock.post(LOGIN_URL, json=LOGIN_RESPONSE)
+    aioclient_mock.get(SENSORS_URL, json=[])
+    aioclient_mock.get(STREAM_URL, json={"t": "2026-08-01T02:00:00Z", "iv": 10, "iW": 0, "eW": 0})
+    aioclient_mock.get(
+        STATS_URL,
+        json={
+            "production": 0,
+            "consumption": 500,
+            "selfConsumption": 0,
+            "selfConsumptionRate": 0,
+            "autarchyDegree": 100,
+        },
+    )
+
+    coord = SolarmanagerCoordinator(hass, entry)
+    await coord.async_refresh()
+    assert coord.last_update_success
+    assert coord.data["stat_grid_import"] == 0.0
+    assert coord.data["stat_grid_export"] == 0.0
+    assert coord.data["stat_consumption"] == 500  # REST-Wert bleibt unverändert Quelle
+
+    await coord.async_refresh()
+    assert coord.data["stat_grid_import"] == 0.0
+
+
+async def test_cloud_grid_import_accumulates_over_time(hass, aioclient_mock):
+    """iW>0 über ein definiertes Zeitintervall → stat_grid_import wächst um P*dt/3600."""
+    entry = _cloud_entry(hass)
+    aioclient_mock.post(LOGIN_URL, json=LOGIN_RESPONSE)
+    aioclient_mock.get(SENSORS_URL, json=[])
+    aioclient_mock.get(STREAM_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10, "iW": 1200, "eW": 0})
+    aioclient_mock.get(
+        STATS_URL,
+        json={
+            "production": 0,
+            "consumption": 0,
+            "selfConsumption": 0,
+            "selfConsumptionRate": None,
+            "autarchyDegree": None,
+        },
+    )
+
+    with freeze_time("2026-08-01 10:00:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+        assert coord.data["stat_grid_import"] == 0.0  # erster Poll: kein vorheriges _cloud_grid_t
+
+        frozen.tick(delta=timedelta(seconds=30))
+        await coord.async_refresh()
+        assert coord.data["stat_grid_import"] == pytest.approx(10.0)  # 1200W * 30s/3600
+        assert coord.data["stat_grid_export"] == 0.0
 
 
 async def test_cloud_login_auth_error_maps_to_config_entry_auth_failed(hass, aioclient_mock):
