@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> Helft mir bei der Weiterentwicklung und [beantwortet eine Frage](https://github.com/Soardiac/ha-solarmanager/discussions/26) - danke!
+
 # Solar Manager – Home Assistant (Custom Integration)
 
 > **Inoffiziell.** Die Firma Solar Manager AG ist für diesen Code nicht verantwortlich und bietet keinen Support dafür.
