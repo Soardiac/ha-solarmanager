@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Solar Manager for Home Assistant – HACS Integration</title>
+<meta name="description" content="Home Assistant integration for Solar Manager (solar-manager.ch). Cloud API or fully local, sensors and control, installable via HACS.">
+<meta name="robots" content="index, follow">
+<meta name="author" content="Soardiac">
+
+<link rel="canonical" href="https://ha-solarmanager.soardiac.ch/en/">
+<link rel="alternate" hreflang="en" href="https://ha-solarmanager.soardiac.ch/en/">
+<link rel="alternate" hreflang="de" href="https://ha-solarmanager.soardiac.ch/">
+<link rel="alternate" hreflang="x-default" href="https://ha-solarmanager.soardiac.ch/">
+
+<meta property="og:type" content="website">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="de_CH">
+<meta property="og:site_name" content="Solar Manager for Home Assistant">
+<meta property="og:title" content="Solar Manager for Home Assistant">
+<meta property="og:description" content="Unofficial Home Assistant integration for Solar Manager (solar-manager.ch) – cloud API or local gateway API.">
+<meta property="og:url" content="https://ha-solarmanager.soardiac.ch/en/">
+<meta property="og:image" content="https://opengraph.githubassets.com/48c4068ea47d44c1c8bee3013e35228f04b3e5d50a311b95eb592d7967fd9766/Soardiac/ha-solarmanager">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Solar Manager for Home Assistant">
+<meta name="twitter:description" content="Unofficial Home Assistant integration for Solar Manager (solar-manager.ch) – cloud API or local gateway API.">
+<meta name="twitter:image" content="https://opengraph.githubassets.com/48c4068ea47d44c1c8bee3013e35228f04b3e5d50a311b95eb592d7967fd9766/Soardiac/ha-solarmanager">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Solar Manager for Home Assistant",
+      "alternateName": "ha-solarmanager",
+      "applicationCategory": "BrowserApplication",
+      "applicationSubCategory": "Home Assistant Integration",
+      "operatingSystem": "Home Assistant 2025.8 or newer",
+      "url": "https://ha-solarmanager.soardiac.ch/en/",
+      "codeRepository": "https://github.com/Soardiac/ha-solarmanager",
+      "description": "Unofficial Home Assistant integration for Solar Manager (solar-manager.ch). Sensors and control via the cloud API, or sensors only via the local gateway API. Installable through HACS.",
+      "inLanguage": "en",
+      "author": { "@type": "Person", "name": "Soardiac" },
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CHF" }
+    },
+    {
+      "@type": "FAQPage",
+      "inLanguage": "en",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What do I need to run the Solar Manager integration in Home Assistant?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Home Assistant 2025.8 or newer and a Solar Manager gateway on your network. Cloud mode additionally needs a Solar Manager account, the gateway ID (smId) and a cloud API key. Local mode only needs the gateway's IP address."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the difference between cloud mode and local mode?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Cloud mode gives you the full feature set including control of battery, wallbox, heat pump and other devices. Local mode reads sensors straight from the gateway, with no internet connection and no account required."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "All entities show as unavailable. What should I do?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Usually the cloud is unreachable or the credentials have expired. Go to Settings, then Devices & services, and re-authenticate the integration."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "A new device does not show up in Home Assistant.",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "New devices on the gateway are detected automatically, normally within about 60 seconds. If it still does not appear, reload the integration."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "The values update too slowly.",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Lower the scan interval in the integration options. The recommended minimum is 10 seconds."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+
+<style>
+  :root{
+    --bg:#0f1115;
+    --surface:#161a21;
+    --line:#252b35;
+    --text:#e6e9ee;
+    --muted:#a2abb8;
+    --accent:#f7a600;
+    --accent-soft:rgba(247,166,0,.12);
+    --maxw:52rem;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#ffffff;
+      --surface:#f6f7f9;
+      --line:#e2e6ec;
+      --text:#1a1d23;
+      --muted:#5c6673;
+      --accent:#c47f00;
+      --accent-soft:rgba(196,127,0,.10);
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:0 1.25rem;
+  }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:3rem 0 4rem}
+  .langbar{
+    max-width:var(--maxw);margin:0 auto;padding:1rem 0 0;
+    font-size:.875rem;color:var(--muted);
+  }
+  .langbar a{color:var(--muted)}
+  .langbar strong{color:var(--text);font-weight:600}
+  h1{font-size:clamp(1.8rem,4.5vw,2.5rem);line-height:1.2;margin:0 0 .75rem;letter-spacing:-.01em}
+  h2{font-size:1.35rem;line-height:1.3;margin:2.75rem 0 .75rem;letter-spacing:-.005em}
+  h3{font-size:1.05rem;margin:1.75rem 0 .5rem}
+  p{margin:0 0 1rem}
+  .lead{font-size:1.075rem;color:var(--muted);margin-bottom:1.25rem}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+  ul,ol{margin:0 0 1rem;padding-left:1.25rem}
+  li{margin:.35rem 0}
+  hr{border:0;border-top:1px solid var(--line);margin:2.5rem 0}
+  code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:.875em;background:var(--surface);border:1px solid var(--line);
+    border-radius:4px;padding:.1em .35em;
+  }
+  pre{
+    background:var(--surface);border:1px solid var(--line);border-radius:8px;
+    padding:1rem;overflow-x:auto;margin:0 0 1rem;
+  }
+  pre code{background:none;border:0;padding:0;font-size:.85rem;line-height:1.55}
+  .callout{
+    background:var(--accent-soft);border-left:3px solid var(--accent);
+    border-radius:0 6px 6px 0;padding:.9rem 1rem;margin:0 0 1rem;
+  }
+  .note{color:var(--muted);font-size:.925rem}
+  footer{border-top:1px solid var(--line);margin-top:3rem;padding-top:1.5rem}
+  .links{display:flex;flex-wrap:wrap;gap:1.25rem;margin-bottom:1rem}
+</style>
+</head>
+<body>
+
+<nav class="langbar" aria-label="Language">
+  <a href="/">Deutsch</a> · <strong lang="en">English</strong>
+</nav>
+
+<div class="wrap">
+<main>
+
+  <h1>Integrate Solar Manager with Home Assistant</h1>
+
+  <p class="lead">Home Assistant integration for Solar Manager (solar-manager.ch) – sensors and control via the cloud API or the local gateway API (unofficial).</p>
+
+  <p>Source code, releases, questions and HACS installation: <a href="https://github.com/Soardiac/ha-solarmanager">Solar Manager Home Assistant integration on GitHub</a></p>
+
+  <h2 id="features">Features</h2>
+
+  <p>Connects your Solar Manager gateway to Home Assistant. There are two modes to choose from:</p>
+
+  <ul>
+    <li><strong>Cloud API</strong> – the full feature set, including control of battery, wallbox, heat pump and other devices.</li>
+    <li><strong>Local API</strong> – sensors only, straight from the gateway, with no internet connection and no account.</li>
+  </ul>
+
+  <p>New devices on the gateway are detected automatically, and daily energy values work with the Energy Dashboard and survive restarts.</p>
+
+  <h2 id="requirements">Requirements</h2>
+
+  <p>Home Assistant 2025.8 or newer and a Solar Manager gateway on your network.</p>
+
+  <ul>
+    <li><strong>Cloud mode</strong> – a Solar Manager account, the gateway ID (<code>smId</code>) and a cloud API key from the Solar Manager portal.</li>
+    <li><strong>Local mode</strong> – just the gateway's IP address on your local network. No account, no internet needed.</li>
+  </ul>
+
+  <h2 id="installation">Installation</h2>
+
+  <ol>
+    <li>HACS → Integrations → <code>⋮</code> → Custom repositories → <code>https://github.com/Soardiac/ha-solarmanager</code>, category <code>Integration</code>.</li>
+    <li>Install “Solarmanager”, then restart Home Assistant.</li>
+    <li>Settings → Devices &amp; services → Add integration → Solarmanager. Pick the connection mode and enter either the cloud API key or the local gateway IP.</li>
+  </ol>
+
+  <p>Or install it manually: copy the folder <code>custom_components/solarmanager</code> into <code>&lt;config&gt;/custom_components/</code> and restart Home Assistant.</p>
+
+  <h2 id="cloud-api-key">Creating a cloud API key</h2>
+
+  <p class="callout">For new setups the cloud API key is the only supported route – Solar Manager is phasing out email and password authentication.</p>
+
+  <ol>
+    <li>In the Solar Manager portal → Edit profile → Cloud API keys → Add API key.</li>
+    <li>Leave the end date empty, enable all four scopes, and leave “Allow renewal” switched off.</li>
+    <li>Copy the generated token straight away – it cannot be retrieved later – and enter it when you set up the integration.</li>
+  </ol>
+
+  <h2 id="use-cases">Use cases</h2>
+
+  <ul>
+    <li><strong>Use surplus PV</strong> – switch on a wallbox, smart plug or water heater as soon as PV output exceeds household consumption.</li>
+    <li><strong>Protect the battery</strong> – only run automations while the battery SOC is above a threshold, to avoid unwanted deep discharge.</li>
+    <li><strong>Daily dashboard</strong> – visualise self-sufficiency and self-consumption rates and track them over time.</li>
+    <li><strong>Avoid load peaks</strong> – get a notification or reduce controllable loads when grid draw runs high.</li>
+    <li><strong>Presence-based charging</strong> – switch the wallbox charging mode when someone gets home and the SOC is below 50 %.</li>
+  </ul>
+
+  <h2 id="example-automation">Example automation</h2>
+
+  <p>Switch the wallbox to solar-only mode as soon as more than 500 W is being fed into the grid:</p>
+
+<pre><code>automation:
+  alias: "Wallbox solar mode on PV surplus"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.solarmanager_grid_power
+      below: -500
+      for: "00:02:00"
+  action:
+    - action: select.select_option
+      target:
+        entity_id: select.my_wallbox_mode
+      data:
+        option: "Only Solar"</code></pre>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+
+  <ul>
+    <li><strong>All entities show as “unavailable”</strong> – usually the cloud is unreachable or the credentials have expired. Fix it under Devices &amp; services → Re-authenticate.</li>
+    <li><strong>A device does not show up</strong> – new devices are detected automatically, normally within about 60 seconds. If not, reload the integration.</li>
+    <li><strong>Values update too rarely</strong> – lower the scan interval in the options (recommended minimum: 10 s).</li>
+  </ul>
+
+  <h2 id="note-from-the-author">A note from the author</h2>
+
+  <p>I wrote this integration for myself, because none of the others fitted what I needed. The work is better spent if other people benefit from it too, so it lives here and is maintained. I use Claude Code (and other tools) to help – there is no other way to get it done. AI-written code is reviewed by me.</p>
+
+  <p class="note">Unofficial integration. Solar Manager AG is not responsible for it and does not provide support for it.</p>
+
+</main>
+
+<footer>
+  <div class="links">
+    <a href="https://github.com/Soardiac/ha-solarmanager">GitHub</a>
+    <a href="https://github.com/Soardiac/ha-solarmanager/issues">Issues</a>
+    <a href="https://www.solar-manager.ch/">solar-manager.ch</a>
+    <a href="/" hreflang="de">Deutsche Version</a>
+  </div>
+</footer>
+</div>
+
+</body>
+</html>
