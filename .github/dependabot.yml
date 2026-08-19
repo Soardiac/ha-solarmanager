@@ -1,0 +1,40 @@
+version: 2
+updates:
+  # ---------------------------------------------------------------------------
+  # GitHub Actions
+  #
+  # Nicht abgedeckt (erwartetes Verhalten, kein Fehler):
+  #   - hacs/action@main und home-assistant/actions/hassfest@master sind
+  #     Branch-Refs; Dependabot aktualisiert nur getaggte Versionen.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # ---------------------------------------------------------------------------
+  # Python — bewusst NUR ruff.
+  #
+  # Ein Ruff-Bump hat echtes CI-Signal: der Ruff-Job in validate.yml liest die
+  # Version via `version-file` aus requirements_test.txt, laeuft also im PR
+  # direkt gegen die neue Version und wird rot, wenn eine Regel bricht.
+  #
+  # pytest-homeassistant-custom-component ist deshalb NICHT freigegeben: es
+  # released mehrmals pro Woche, und mangels pytest-Job in der CI waere so ein
+  # PR gruen, ohne dass je ein Test lief — ein Signal ohne Aussagekraft.
+  # Sobald ein Test-Job existiert, kann es hier ergaenzt werden.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "ci"
+    allow:
+      - dependency-name: "ruff"
