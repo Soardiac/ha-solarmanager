@@ -12,6 +12,7 @@
       },
       "cloud": {
         "title": "Set up Solarmanager Cloud",
+        "description": "The **Cloud API key** is recommended — it replaces signing in with email and password.\n\nEither one is enough: enter the API key **or** email and password. Email/password sign-in still works until {deadline}, after which Solar Manager will discontinue it.",
         "data": {
           "email": "Email",
           "password": "Password",
@@ -75,6 +76,7 @@
     "error": {
       "auth": "Invalid credentials or API key. Please check and try again.",
       "cannot_connect": "Connection failed. Is the gateway reachable?",
+      "auth_method_required": "Enter either a Cloud API key or both email and password.",
       "unknown": "Unknown error. Please check the logs."
     },
     "abort": {

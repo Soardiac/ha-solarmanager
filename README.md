@@ -21,7 +21,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 **Cloud-Modus** (voller Funktionsumfang):
 - Solar Manager Account
 - Gateway ID (`smId`, im [Solar Manager Portal](https://web.solar-manager.ch/my-devices/) → Endkunden Information)
-- Cloud API Key (Profil → Cloud-API-Schlüssel)
+- Cloud API Key (Profil → Cloud-API-Schlüssel) — empfohlen; alternativ E-Mail + Passwort
 
 **Lokaler Modus** (nur Sensoren):
 - IP-Adresse des Gateways im lokalen Netzwerk
@@ -88,7 +88,7 @@ Alle über das Gateway registrierten Geräte werden automatisch erkannt (Cloud u
 
 ### Cloud API Key erstellen
 
-> **Solar Manager stellt die Authentifizierung per E-Mail/Passwort ein.** Für Neueinrichtungen ist der Cloud API Key der einzig unterstützte Weg. Bestehende Instanzen mit E-Mail/Passwort funktionieren noch bis **30. Juni 2027** — danach ist ein Wechsel auf den API Key erforderlich (siehe [Migration für bestehende Nutzer](#migration-für-bestehende-nutzer)).
+> **Solar Manager stellt die Authentifizierung per E-Mail/Passwort ein.** Der Cloud API Key ist daher der empfohlene Weg — auch für Neueinrichtungen. E-Mail/Passwort funktioniert weiterhin, aber nur noch bis **30. Juni 2027**; danach ist ein Wechsel auf den API Key erforderlich (siehe [Migration für bestehende Nutzer](#migration-für-bestehende-nutzer)). Wer im Portal keinen Key erstellen kann, richtet die Integration bis dahin mit E-Mail und Passwort ein.
 
 1. Im [Solar Manager Portal](https://web.solar-manager.ch/) → **Profil bearbeiten** → **Cloud-API-Schlüssel** → **API Schlüssel hinzufügen**
 2. Neuen Key erstellen:
@@ -111,9 +111,11 @@ Im ersten Schritt den **Verbindungsmodus** wählen:
 | Feld | Pflicht | Beschreibung |
 |---|---|---|
 | Solar Manager ID | Ja | Gateway-ID (`smId`) aus dem Portal |
-| Cloud API Key | Ja | Zuvor erstellter API Key (siehe oben) |
-| E-Mail | Nein | Nur als Fallback wenn noch kein API Key verfügbar |
-| Passwort | Nein | Nur als Fallback wenn noch kein API Key verfügbar |
+| Cloud API Key | Ja¹ | Zuvor erstellter API Key (siehe oben) — empfohlener Weg |
+| E-Mail | Ja¹ | Nur nötig, wenn kein API Key eingetragen wird |
+| Passwort | Ja¹ | Nur nötig, wenn kein API Key eingetragen wird |
+
+> ¹ Als Anmeldung genügt **eines von beidem**: entweder der API Key **oder** E-Mail + Passwort. Wird der API Key eingetragen, hat er Vorrang und E-Mail/Passwort bleiben ungenutzt. Fehlt beides, bricht die Einrichtung mit einem Hinweis ab. Ohne API Key erscheint nach der Einrichtung dauerhaft ein Reparatur-Hinweis auf die Abschaltung am 30. Juni 2027.
 
 #### Lokaler Modus
 

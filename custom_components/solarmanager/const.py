@@ -11,6 +11,9 @@ CONF_PASSWORD = "password"
 CONF_SM_ID = "sm_id"
 CONF_API_KEY = "api_key"  # optional; nur nutzen, wenn du bewusst Basic-Auth statt OAuth brauchst
 
+# E-Mail/Passwort-Login (v1) wird von Solar Manager zu diesem Datum abgeschaltet.
+PASSWORD_AUTH_DEADLINE = "30.06.2027"
+
 # Optionen
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_SCAN = 10  # Sekunden – der v3-Stream liefert typischerweise iv≈10s

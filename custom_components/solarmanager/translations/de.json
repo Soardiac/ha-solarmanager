@@ -12,6 +12,7 @@
       },
       "cloud": {
         "title": "Solarmanager Cloud einrichten",
+        "description": "Empfohlen ist der **Cloud API Key** — er ersetzt die Anmeldung mit E-Mail und Passwort.\n\nEs genügt eines von beidem: entweder den API Key eintragen **oder** E-Mail und Passwort. Die Anmeldung mit E-Mail/Passwort funktioniert noch bis zum {deadline} und wird von Solar Manager danach abgeschaltet.",
         "data": {
           "email": "E-Mail",
           "password": "Passwort",
@@ -82,6 +83,7 @@
       },
       "switch_to_cloud": {
         "title": "Auf Cloud-Modus wechseln",
+        "description": "Es genügt eines von beidem: entweder den **Cloud API Key** eintragen **oder** E-Mail und Passwort. Die Anmeldung mit E-Mail/Passwort funktioniert noch bis zum {deadline}.",
         "data": {
           "email": "E-Mail",
           "password": "Passwort",
@@ -111,6 +113,7 @@
     "error": {
       "auth": "Ungültige Anmeldedaten oder API Key. Bitte prüfen und erneut versuchen.",
       "cannot_connect": "Verbindung fehlgeschlagen. Gateway erreichbar?",
+      "auth_method_required": "Bitte entweder einen Cloud API Key oder E-Mail und Passwort angeben.",
       "unknown": "Unbekannter Fehler. Bitte Logs prüfen."
     },
     "abort": {

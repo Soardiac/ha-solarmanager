@@ -36,6 +36,7 @@ from .const import (
     DOMAIN,
     MODE_CLOUD,
     MODE_LOCAL,
+    PASSWORD_AUTH_DEADLINE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,13 +46,35 @@ EMAIL_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.EMAIL))
 
 
 def _schema_cloud(defaults: dict | None = None) -> vol.Schema:
+    """Cloud-Felder. Nur die smId ist Pflicht — als Auth genügt entweder der
+    API Key oder E-Mail+Passwort (siehe _cloud_auth_error)."""
     defaults = defaults or {}
     return vol.Schema({
-        vol.Required(CONF_EMAIL, default=defaults.get(CONF_EMAIL, "")): EMAIL_SELECTOR,
-        vol.Required(CONF_PASSWORD): PASSWORD_SELECTOR,
         vol.Required(CONF_SM_ID, default=defaults.get(CONF_SM_ID, "")): str,
         vol.Optional(CONF_API_KEY, default=""): PASSWORD_SELECTOR,
+        vol.Optional(CONF_EMAIL, default=defaults.get(CONF_EMAIL, "")): EMAIL_SELECTOR,
+        vol.Optional(CONF_PASSWORD, default=""): PASSWORD_SELECTOR,
     })
+
+
+def _cloud_auth_error(user_input: Mapping[str, Any]) -> dict[str, str]:
+    """Prüft, dass genau ein vollständiger Auth-Weg vorliegt (Key ODER Mail+Passwort)."""
+    if user_input.get(CONF_API_KEY):
+        return {}
+    if user_input.get(CONF_EMAIL) and user_input.get(CONF_PASSWORD):
+        return {}
+    return {"base": "auth_method_required"}
+
+
+def _cloud_entry_data(user_input: Mapping[str, Any]) -> dict[str, Any]:
+    """Config-Entry-Daten aus dem Formular — leerer API Key wird zu None."""
+    return {
+        CONF_MODE: MODE_CLOUD,
+        CONF_SM_ID: user_input[CONF_SM_ID],
+        CONF_EMAIL: user_input.get(CONF_EMAIL, ""),
+        CONF_PASSWORD: user_input.get(CONF_PASSWORD, ""),
+        CONF_API_KEY: user_input.get(CONF_API_KEY) or None,
+    }
 
 
 def _schema_local(defaults: dict | None = None) -> vol.Schema:
@@ -158,27 +181,30 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input:
-            errors = await _cloud_errors(
-                self.hass,
-                email=user_input[CONF_EMAIL],
-                password=user_input[CONF_PASSWORD],
-                sm_id=user_input[CONF_SM_ID],
-                api_key=(user_input.get(CONF_API_KEY) or None),
-                check_stream=True,
-            )
+            errors = _cloud_auth_error(user_input)
+            if not errors:
+                errors = await _cloud_errors(
+                    self.hass,
+                    email=user_input.get(CONF_EMAIL, ""),
+                    password=user_input.get(CONF_PASSWORD, ""),
+                    sm_id=user_input[CONF_SM_ID],
+                    api_key=(user_input.get(CONF_API_KEY) or None),
+                    check_stream=True,
+                )
             if not errors:
                 await self.async_set_unique_id(f"{DOMAIN}_{user_input[CONF_SM_ID]}")
                 self._abort_if_unique_id_configured()
 
                 return self.async_create_entry(
                     title=f"Solarmanager {user_input[CONF_SM_ID]}",
-                    data={CONF_MODE: MODE_CLOUD, **user_input},
+                    data=_cloud_entry_data(user_input),
                 )
 
         return self.async_show_form(
             step_id="cloud",
             data_schema=_schema_cloud(user_input),
             errors=errors,
+            description_placeholders={"deadline": PASSWORD_AUTH_DEADLINE},
         )
 
     async def async_step_local(self, user_input=None) -> ConfigFlowResult:
@@ -326,26 +352,29 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._other_entry_has_unique_id(entry, new_uid):
                 return self.async_abort(reason="already_configured")
 
-            errors = await _cloud_errors(
-                self.hass,
-                email=user_input[CONF_EMAIL],
-                password=user_input[CONF_PASSWORD],
-                sm_id=user_input[CONF_SM_ID],
-                api_key=(user_input.get(CONF_API_KEY) or None),
-                check_stream=True,
-            )
+            errors = _cloud_auth_error(user_input)
+            if not errors:
+                errors = await _cloud_errors(
+                    self.hass,
+                    email=user_input.get(CONF_EMAIL, ""),
+                    password=user_input.get(CONF_PASSWORD, ""),
+                    sm_id=user_input[CONF_SM_ID],
+                    api_key=(user_input.get(CONF_API_KEY) or None),
+                    check_stream=True,
+                )
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry,
                     unique_id=new_uid,
                     title=f"Solarmanager {user_input[CONF_SM_ID]}",
-                    data={CONF_MODE: MODE_CLOUD, **user_input},
+                    data=_cloud_entry_data(user_input),
                 )
 
         return self.async_show_form(
             step_id="switch_to_cloud",
-            data_schema=_schema_cloud(),
+            data_schema=_schema_cloud(user_input),
             errors=errors,
+            description_placeholders={"deadline": PASSWORD_AUTH_DEADLINE},
         )
 
     async def async_step_switch_to_local(self, user_input=None) -> ConfigFlowResult:

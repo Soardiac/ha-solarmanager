@@ -129,6 +129,81 @@ async def test_cloud_flow_cannot_connect(hass):
     assert result["errors"]["base"] == "cannot_connect"
 
 
+async def test_cloud_flow_api_key_only(hass):
+    """Nur API Key, keine Zugangsdaten → Entry wird angelegt."""
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_CLOUD}
+    )
+
+    with patch(_PATCH_CLOUD) as mock_cls:
+        mock_cls.return_value.login = AsyncMock()
+        mock_cls.return_value.stream_user_v3 = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_SM_ID: "SM-0001", CONF_API_KEY: "key-123"},
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_API_KEY] == "key-123"
+    assert result["data"][CONF_EMAIL] == ""
+    assert result["data"][CONF_PASSWORD] == ""
+
+
+async def test_cloud_flow_without_any_auth(hass):
+    """Weder Key noch Zugangsdaten → Fehler, ohne die API zu kontaktieren."""
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_CLOUD}
+    )
+
+    with patch(_PATCH_CLOUD) as mock_cls:
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_SM_ID: "SM-0001", CONF_API_KEY: "", CONF_EMAIL: "", CONF_PASSWORD: ""},
+        )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"]["base"] == "auth_method_required"
+    mock_cls.assert_not_called()
+
+
+async def test_cloud_flow_password_without_email(hass):
+    """Halbe Zugangsdaten zählen nicht als Auth-Weg."""
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_CLOUD}
+    )
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_SM_ID: "SM-0001", CONF_API_KEY: "", CONF_EMAIL: "", CONF_PASSWORD: "secret"},
+    )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"]["base"] == "auth_method_required"
+
+
+async def test_cloud_flow_empty_api_key_stored_as_none(hass):
+    """Leeres Key-Feld landet als None in den Entry-Daten, nicht als Leerstring."""
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_MODE: MODE_CLOUD}
+    )
+
+    with patch(_PATCH_CLOUD) as mock_cls:
+        mock_cls.return_value.login = AsyncMock()
+        mock_cls.return_value.stream_user_v3 = AsyncMock(return_value={})
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], _CLOUD_INPUT
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_API_KEY] is None
+
+
 # ---------------------------------------------------------------------------
 # Lokaler Flow
 # ---------------------------------------------------------------------------

@@ -15,7 +15,13 @@ from homeassistant.helpers import (
     issue_registry as ir,
 )
 
-from .const import CONF_API_KEY, CONF_SM_ID, DOMAIN, PLATFORMS
+from .const import (
+    CONF_API_KEY,
+    CONF_SM_ID,
+    DOMAIN,
+    PASSWORD_AUTH_DEADLINE,
+    PLATFORMS,
+)
 from .coordinator import SolarmanagerCoordinator, daily_store
 from .entity import site_device_info
 
@@ -23,8 +29,6 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-# E-Mail/Passwort-Login (v1) wird von Solar Manager zu diesem Datum abgeschaltet.
-PASSWORD_AUTH_DEADLINE = "30.06.2027"
 MIGRATION_URL = (
     "https://github.com/Soardiac/ha-solarmanager#migration-für-bestehende-nutzer"
 )
