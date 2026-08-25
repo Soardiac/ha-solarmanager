@@ -21,7 +21,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .coordinator import SolarmanagerCoordinator, compute_surplus_w
+from .coordinator import DEVICE_DAILY_KEYS, SolarmanagerCoordinator, compute_surplus_w
 from .entity import child_device_info, find_device, site_device_info
 
 PARALLEL_UPDATES = 1
@@ -385,19 +385,40 @@ class DeviceActiveStateSensor(_DeviceBase):
 
 
 class DeviceDailyEnergySensor(_DeviceBase):
-    """Tageszähler (Wh), akkumuliert seit Mitternacht."""
+    """Tageszähler (Wh), startet um Mitternacht wieder bei 0.
+
+    Das Quellfeld (iWhTotal/eWhTotal) ist ein kumulativer Zählerstand; den
+    Tageswert dazu berechnet der Coordinator (siehe DEVICE_DAILY_KEYS).
+    """
+
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        coordinator: SolarmanagerCoordinator,
+        dev_id: str,
+        key: str,
+        translation_key: str,
+    ):
+        # unique_id bleibt am Quellfeld hängen (bestehende Entitäten behalten
+        # ihre Historie), gelesen wird der abgeleitete Tageswert
+        super().__init__(coordinator, dev_id, key, translation_key)
+        self._value_key = DEVICE_DAILY_KEYS[key]
 
     @property
     def native_value(self) -> float | None:
-        v = self._dev_value()
-        try:
-            f = float(v) if v is not None else None
-            return None if f is not None and f < 0 else f
-        except Exception:
+        d = self._dev()
+        v = d.get(self._value_key) if d else None
+        if v is None:
             return None
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        return None if f < 0 else f
 
 
 class DeviceOperationStateSensor(_DeviceBase):

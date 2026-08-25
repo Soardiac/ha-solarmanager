@@ -51,6 +51,14 @@ STATS_TTL = 300  # Sekunden
 STORAGE_VERSION = 1
 STORAGE_SAVE_DELAY = 60  # Sekunden
 
+# Geräte-Tageszähler: der Stream liefert unter iWhTotal/eWhTotal kumulative
+# Zählerstände, keine Tageswerte. Daraus werden Tageswerte abgeleitet, die um
+# Mitternacht wieder bei 0 starten (Quellfeld → abgeleitetes Feld).
+DEVICE_DAILY_KEYS = {
+    "iWhTotal": "iWhToday",
+    "eWhTotal": "eWhToday",
+}
+
 # Alle laut Swagger (BatteryModeAndSettingsSchema) gültigen Felder des
 # PUT /v2/control/battery/{sensorId}. Das Schema hat kein required-Feld, aber
 # Defaults auf fast allen Feldern; fehlende Keys werden serverseitig mit dem
@@ -180,6 +188,10 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._bat_day: str = ""
         self._bat_last_t: Any = None  # Stream-Timestamp des zuletzt summierten Punkts
 
+        # Geräte-Tageszähler: Zählerstand um Mitternacht je "{dev_id}:{feld}"
+        self._dev_base: dict[str, float] = {}
+        self._dev_day: str = ""
+
         # Persistenz der Tageszähler (Neustart/Reload mitten am Tag)
         self._store = daily_store(hass, entry.entry_id)
         self._store_loaded = False
@@ -247,6 +259,15 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._bat_charge_wh = float(stored.get("bat_charge_wh", 0.0))
             self._bat_discharge_wh = float(stored.get("bat_discharge_wh", 0.0))
             self._bat_last_t = stored.get("bat_last_t")
+        if stored.get("dev_day") == today:
+            self._dev_day = today
+            base: dict[str, float] = {}
+            for key, value in (stored.get("dev_base") or {}).items():
+                try:
+                    base[str(key)] = float(value)
+                except (TypeError, ValueError):
+                    continue
+            self._dev_base = base
 
     def _daily_state(self) -> dict[str, Any]:
         return {
@@ -262,7 +283,43 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "bat_charge_wh": self._bat_charge_wh,
             "bat_discharge_wh": self._bat_discharge_wh,
             "bat_last_t": self._bat_last_t,
+            "dev_day": self._dev_day,
+            "dev_base": self._dev_base,
         }
+
+    # -------------------- Geräte-Tageszähler --------------------
+
+    def _apply_device_daily(self, devices: list[dict[str, Any]], today: str) -> None:
+        """Tageswerte aus den kumulativen Geräte-Zählern ableiten.
+
+        iWhTotal/eWhTotal laufen über Tage hinweg weiter. Der Zählerstand des
+        ersten Punkts nach Mitternacht wird als Basis gemerkt; der Tagessensor
+        zeigt die Differenz dazu und startet damit jeden Tag bei 0.
+        """
+        if today != self._dev_day:
+            self._dev_day = today
+            self._dev_base = {}
+        for dev in devices:
+            if not isinstance(dev, dict):
+                continue
+            dev_id = str(dev.get("_id") or "")
+            if not dev_id:
+                continue
+            for src, dst in DEVICE_DAILY_KEYS.items():
+                if src not in dev:
+                    continue
+                try:
+                    total = float(dev[src])
+                except (TypeError, ValueError):
+                    continue
+                base_key = f"{dev_id}:{src}"
+                base = self._dev_base.get(base_key)
+                # Kein Basiswert (erster Punkt des Tages / neues Gerät) oder
+                # Zählerstand kleiner als die Basis (Reset im Gerät) → neu basieren
+                if base is None or total < base:
+                    base = total
+                    self._dev_base[base_key] = base
+                dev[dst] = round(total - base, 3)
 
     # -------------------- Geräte-Metadaten --------------------
 
@@ -438,6 +495,9 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await self._load_device_meta()
 
             today = dt_util.now().strftime("%Y-%m-%d")
+
+            # Geräte-Tageszähler aus den kumulativen Zählern ableiten
+            self._apply_device_daily(data["devices"], today)
 
             # Tages-Statistiken: Cloud via API, Lokal via Integration
             if not self.is_local:

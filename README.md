@@ -236,6 +236,12 @@ Pro Gerät werden automatisch Sensoren erstellt, wenn das entsprechende Feld im 
 | Heizungskorrektur | – | – | Feld `heatingAdjustment` vorhanden |
 | Restreichweite | km | – | Feld `remainingRange` vorhanden |
 
+> **Tagesverbrauch / Tageseinspeisung:** Die Stream-Felder `iWhTotal`/`eWhTotal` sind kumulative
+> Zählerstände, die über Tage hinweg weiterlaufen. Die Integration merkt sich den Zählerstand um
+> Mitternacht und zeigt die Differenz dazu — die Sensoren starten also jeden Tag wieder bei 0.
+> Der Basiswert wird zusammen mit den übrigen Tageszählern gespeichert und übersteht Neustart
+> und Reload.
+
 #### Binärsensor: Verbindung
 
 Pro Gerät mit `signal`-Feld: **Ein** = `connected`, **Aus** = getrennt (Diagnose-Kategorie).

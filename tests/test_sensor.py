@@ -1,4 +1,4 @@
-"""Tests für den PV-Überschuss-Sensor."""
+"""Tests für den PV-Überschuss-Sensor und die Geräte-Tageszähler."""
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.solarmanager.const import (
@@ -9,7 +9,10 @@ from custom_components.solarmanager.const import (
     MODE_LOCAL,
 )
 from custom_components.solarmanager.coordinator import SolarmanagerCoordinator
-from custom_components.solarmanager.sensor import PvSurplusPowerSensor
+from custom_components.solarmanager.sensor import (
+    DeviceDailyEnergySensor,
+    PvSurplusPowerSensor,
+)
 
 HOST = "192.168.1.100"
 
@@ -52,3 +55,26 @@ async def test_surplus_sensor_treats_missing_battery_power_as_zero(hass):
     sensor = PvSurplusPowerSensor(coord)
 
     assert sensor.native_value == 1500.0
+
+
+async def test_device_daily_energy_sensor_reads_derived_daily_value(hass):
+    """Der Tagessensor zeigt den abgeleiteten Tageswert, nicht den kumulativen Zähler."""
+    entry = _entry(hass)
+    coord = SolarmanagerCoordinator(hass, entry)
+    coord.data = {"devices": [{"_id": "dev1", "iWhTotal": 12345.0, "iWhToday": 780.0}]}
+
+    sensor = DeviceDailyEnergySensor(coord, "dev1", "iWhTotal", "daily_consumption")
+
+    assert sensor.native_value == 780.0
+    assert sensor.unique_id.endswith("_dev_dev1_iWhTotal")
+
+
+async def test_device_daily_energy_sensor_unknown_before_first_daily_value(hass):
+    """Ohne abgeleiteten Tageswert bleibt der Sensor unbekannt (kein Gesamtzähler-Fallback)."""
+    entry = _entry(hass)
+    coord = SolarmanagerCoordinator(hass, entry)
+    coord.data = {"devices": [{"_id": "dev1", "iWhTotal": 12345.0}]}
+
+    sensor = DeviceDailyEnergySensor(coord, "dev1", "iWhTotal", "daily_consumption")
+
+    assert sensor.native_value is None
