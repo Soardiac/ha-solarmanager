@@ -237,10 +237,15 @@ Pro Gerät werden automatisch Sensoren erstellt, wenn das entsprechende Feld im 
 | Restreichweite | km | – | Feld `remainingRange` vorhanden |
 
 > **Tagesverbrauch / Tageseinspeisung:** Die Stream-Felder `iWhTotal`/`eWhTotal` sind kumulative
-> Zählerstände, die über Tage hinweg weiterlaufen. Die Integration merkt sich den Zählerstand um
-> Mitternacht und zeigt die Differenz dazu — die Sensoren starten also jeden Tag wieder bei 0.
-> Der Basiswert wird zusammen mit den übrigen Tageszählern gespeichert und übersteht Neustart
+> Zählerstände, die über Tage hinweg weiterlaufen. Die Integration summiert deren Zuwächse und
+> setzt die Summe um Mitternacht auf 0 — die Sensoren starten also jeden Tag wieder bei null.
+> Der Zwischenstand wird zusammen mit den übrigen Tageszählern gespeichert und übersteht Neustart
 > und Reload.
+>
+> Nicht plausible Sprünge des Zählers zählen dabei nicht mit: ein Rückwärtssprung (Zählerreset im
+> Gerät) und ein Zuwachs, der mehr Leistung erfordern würde, als ein Hausgerät aufnehmen kann.
+> Letzteres tritt auf, wenn der Stream kurzzeitig `0` meldet und danach wieder den Gesamtstand —
+> ohne diese Prüfung landet der komplette Lebenszähler als Tagesverbrauch in der HA-Statistik.
 
 #### Binärsensor: Verbindung
 

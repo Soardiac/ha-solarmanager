@@ -59,6 +59,19 @@ DEVICE_DAILY_KEYS = {
     "eWhTotal": "eWhToday",
 }
 
+# Plausibilitätsgrenze für den Zuwachs eines Geräte-Zählers zwischen zwei Polls.
+# Meldet der Stream einmalig 0 (Gerät getrennt, Gateway-Hickup) und danach wieder
+# den echten Gesamtstand, sähe das sonst wie ein Verbrauch in Höhe des kompletten
+# Lebenszählers aus — HA schreibt so einen Sprung als Tagesverbrauch in die
+# Langzeitstatistik. Mehr als DEVICE_MAX_POWER_W über die verstrichene Zeit kann
+# kein Hausgerät umsetzen, solche Sprünge werden daher verworfen.
+DEVICE_MAX_POWER_W = 50_000.0
+# Obergrenze der für die Plausibilitätsprüfung angerechneten Lücke: Nach einem
+# Neustart oder Ausfall wird der real angefallene Verbrauch nachgezählt (der
+# Zählerstand weiß ihn ja), aber nicht unbegrenzt — sonst wäre die Grenze nach
+# einer langen Lücke wirkungslos.
+DEVICE_MAX_GAP_S = 6 * 3600
+
 # Alle laut Swagger (BatteryModeAndSettingsSchema) gültigen Felder des
 # PUT /v2/control/battery/{sensorId}. Das Schema hat kein required-Feld, aber
 # Defaults auf fast allen Feldern; fehlende Keys werden serverseitig mit dem
@@ -188,9 +201,11 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._bat_day: str = ""
         self._bat_last_t: Any = None  # Stream-Timestamp des zuletzt summierten Punkts
 
-        # Geräte-Tageszähler: Zählerstand um Mitternacht je "{dev_id}:{feld}"
-        self._dev_base: dict[str, float] = {}
+        # Geräte-Tageszähler je "{dev_id}:{feld}": zuletzt gesehener Zählerstand
+        # ("total") und die daraus seit Mitternacht summierte Energie ("today")
+        self._dev_daily: dict[str, dict[str, float | None]] = {}
         self._dev_day: str = ""
+        self._dev_t: float = 0.0
 
         # Persistenz der Tageszähler (Neustart/Reload mitten am Tag)
         self._store = daily_store(hass, entry.entry_id)
@@ -261,13 +276,23 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._bat_last_t = stored.get("bat_last_t")
         if stored.get("dev_day") == today:
             self._dev_day = today
-            base: dict[str, float] = {}
-            for key, value in (stored.get("dev_base") or {}).items():
+            daily: dict[str, dict[str, float | None]] = {}
+            for key, value in (stored.get("dev_daily") or {}).items():
+                if not isinstance(value, dict):
+                    continue
                 try:
-                    base[str(key)] = float(value)
+                    total = value.get("total")
+                    daily[str(key)] = {
+                        "total": None if total is None else float(total),
+                        "today": float(value.get("today", 0.0)),
+                    }
                 except (TypeError, ValueError):
                     continue
-            self._dev_base = base
+            self._dev_daily = daily
+            try:
+                self._dev_t = float(stored.get("dev_t") or 0.0)
+            except (TypeError, ValueError):
+                self._dev_t = 0.0
 
     def _daily_state(self) -> dict[str, Any]:
         return {
@@ -284,21 +309,42 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "bat_discharge_wh": self._bat_discharge_wh,
             "bat_last_t": self._bat_last_t,
             "dev_day": self._dev_day,
-            "dev_base": self._dev_base,
+            "dev_daily": self._dev_daily,
+            "dev_t": self._dev_t,
         }
 
     # -------------------- Geräte-Tageszähler --------------------
 
-    def _apply_device_daily(self, devices: list[dict[str, Any]], today: str) -> None:
+    def _apply_device_daily(
+        self, devices: list[dict[str, Any]], today: str, now_t: float
+    ) -> None:
         """Tageswerte aus den kumulativen Geräte-Zählern ableiten.
 
-        iWhTotal/eWhTotal laufen über Tage hinweg weiter. Der Zählerstand des
-        ersten Punkts nach Mitternacht wird als Basis gemerkt; der Tagessensor
-        zeigt die Differenz dazu und startet damit jeden Tag bei 0.
+        iWhTotal/eWhTotal laufen über Tage hinweg weiter. Summiert werden daher
+        die Zuwächse zwischen zwei Polls; um Mitternacht startet die Summe wieder
+        bei 0. Nicht plausible Sprünge zählen nicht mit, es wird nur der
+        Referenzstand nachgezogen:
+
+        - Zuwachs negativ → Zählerreset im Gerät oder ein Ausreißer nach unten
+        - Zuwachs größer als DEVICE_MAX_POWER_W über die verstrichene Zeit →
+          Rücksprung auf den Gesamtstand nach einem Ausreißer (sonst landet der
+          komplette Lebenszähler als Tagesverbrauch in der Statistik)
         """
         if today != self._dev_day:
             self._dev_day = today
-            self._dev_base = {}
+            for state in self._dev_daily.values():
+                state["today"] = 0.0
+        interval_s = (
+            self.update_interval.total_seconds()
+            if self.update_interval
+            else DEFAULT_SCAN
+        )
+        # Gegen die real verstrichene Zeit prüfen, damit ein verzögerter Poll oder
+        # eine Lücke durch Neustart/Ausfall den echten Zuwachs nicht verwirft
+        elapsed = now_t - self._dev_t if self._dev_t > 0 else interval_s
+        elapsed = min(max(elapsed, 3 * interval_s, 30.0), DEVICE_MAX_GAP_S)
+        max_delta = DEVICE_MAX_POWER_W * elapsed / 3600
+        self._dev_t = now_t
         for dev in devices:
             if not isinstance(dev, dict):
                 continue
@@ -312,14 +358,24 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     total = float(dev[src])
                 except (TypeError, ValueError):
                     continue
-                base_key = f"{dev_id}:{src}"
-                base = self._dev_base.get(base_key)
-                # Kein Basiswert (erster Punkt des Tages / neues Gerät) oder
-                # Zählerstand kleiner als die Basis (Reset im Gerät) → neu basieren
-                if base is None or total < base:
-                    base = total
-                    self._dev_base[base_key] = base
-                dev[dst] = round(total - base, 3)
+                state = self._dev_daily.setdefault(
+                    f"{dev_id}:{src}", {"total": None, "today": 0.0}
+                )
+                last = state["total"]
+                if last is not None:
+                    delta = total - last
+                    if 0.0 <= delta <= max_delta:
+                        state["today"] = (state["today"] or 0.0) + delta
+                    else:
+                        _LOGGER.debug(
+                            "Ignoring implausible %s step for device %s: %s -> %s",
+                            src,
+                            dev_id,
+                            last,
+                            total,
+                        )
+                state["total"] = total
+                dev[dst] = round(state["today"] or 0.0, 3)
 
     # -------------------- Geräte-Metadaten --------------------
 
@@ -497,7 +553,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             today = dt_util.now().strftime("%Y-%m-%d")
 
             # Geräte-Tageszähler aus den kumulativen Zählern ableiten
-            self._apply_device_daily(data["devices"], today)
+            self._apply_device_daily(data["devices"], today, time.time())
 
             # Tages-Statistiken: Cloud via API, Lokal via Integration
             if not self.is_local:

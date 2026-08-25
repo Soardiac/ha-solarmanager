@@ -238,12 +238,12 @@ def _mock_point(aioclient_mock, point: dict) -> None:
 
 
 async def test_device_daily_energy_starts_at_zero_and_resets_at_midnight(hass, aioclient_mock):
-    """iWhTotal/eWhTotal sind kumulativ → Tageswert ist die Differenz zum Stand um Mitternacht."""
+    """iWhTotal/eWhTotal sind kumulativ → summiert wird der Zuwachs, um Mitternacht ab 0."""
     await hass.config.async_set_time_zone("UTC")
     entry = _local_entry(hass)
-    _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:00Z", 1000.0, 200.0))
+    _mock_point(aioclient_mock, _point_with_device("2026-08-01T23:59:40Z", 1000.0, 200.0))
 
-    with freeze_time("2026-08-01 10:00:00+00:00") as frozen:
+    with freeze_time("2026-08-01 23:59:40+00:00") as frozen:
         coord = SolarmanagerCoordinator(hass, entry)
         await coord.async_refresh()
         assert coord.last_update_success
@@ -251,32 +251,51 @@ async def test_device_daily_energy_starts_at_zero_and_resets_at_midnight(hass, a
         assert dev["iWhToday"] == 0.0
         assert dev["eWhToday"] == 0.0
 
-        # Gleicher Tag: Tageswert wächst mit dem Zählerstand
-        _mock_point(aioclient_mock, _point_with_device("2026-08-01T12:00:00Z", 1500.0, 260.0))
-        frozen.tick(delta=timedelta(hours=2))
+        # Gleicher Tag: Tageswert wächst um den Zuwachs des Zählers
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T23:59:50Z", 1100.0, 220.0))
+        frozen.tick(delta=timedelta(seconds=10))
         await coord.async_refresh()
         dev = coord.data["devices"][0]
-        assert dev["iWhToday"] == 500.0
-        assert dev["eWhToday"] == 60.0
+        assert dev["iWhToday"] == 100.0
+        assert dev["eWhToday"] == 20.0
 
-        # Nach Mitternacht: neue Basis, Tageswert startet wieder bei 0
-        _mock_point(aioclient_mock, _point_with_device("2026-08-02T00:00:05Z", 1600.0, 300.0))
-        frozen.tick(delta=timedelta(hours=12, seconds=5))
+        # Tageswechsel ohne Zuwachs in diesem Schritt → Tageswert exakt 0
+        _mock_point(aioclient_mock, _point_with_device("2026-08-02T00:00:00Z", 1100.0, 220.0))
+        frozen.tick(delta=timedelta(seconds=10))
         await coord.async_refresh()
         dev = coord.data["devices"][0]
         assert dev["iWhToday"] == 0.0
         assert dev["eWhToday"] == 0.0
 
-        _mock_point(aioclient_mock, _point_with_device("2026-08-02T01:00:00Z", 1750.0, 310.0))
-        frozen.tick(delta=timedelta(hours=1))
+        # Neuer Tag zählt vom Gesamtstand um Mitternacht weiter
+        _mock_point(aioclient_mock, _point_with_device("2026-08-02T00:00:10Z", 1150.0, 230.0))
+        frozen.tick(delta=timedelta(seconds=10))
         await coord.async_refresh()
         dev = coord.data["devices"][0]
-        assert dev["iWhToday"] == 150.0
+        assert dev["iWhToday"] == 50.0
         assert dev["eWhToday"] == 10.0
 
 
-async def test_device_daily_energy_rebases_on_counter_reset(hass, aioclient_mock):
-    """Zählerstand kleiner als die Basis (Reset im Gerät) → neu basieren statt negativ werden."""
+async def test_device_daily_energy_counts_real_gap_after_restart(hass, aioclient_mock):
+    """Nach einer Lücke (Neustart/Ausfall) zählt der echte Zuwachs mit — die
+    Plausibilitätsgrenze richtet sich nach der verstrichenen Zeit."""
+    await hass.config.async_set_time_zone("UTC")
+    entry = _local_entry(hass)
+    _mock_point(aioclient_mock, _point_with_device("2026-08-01T08:00:00Z", 1000.0, 0.0))
+
+    with freeze_time("2026-08-01 08:00:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+
+        # 2 h Lücke, in der das Gerät real 20 kWh bezogen hat
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:00Z", 21_000.0, 0.0))
+        frozen.tick(delta=timedelta(hours=2))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 20_000.0
+
+
+async def test_device_daily_energy_survives_counter_reset(hass, aioclient_mock):
+    """Zählerreset im Gerät → Tageswert läuft weiter, statt negativ zu werden."""
     await hass.config.async_set_time_zone("UTC")
     entry = _local_entry(hass)
     _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:00Z", 1000.0, 0.0))
@@ -285,12 +304,54 @@ async def test_device_daily_energy_rebases_on_counter_reset(hass, aioclient_mock
         coord = SolarmanagerCoordinator(hass, entry)
         await coord.async_refresh()
 
-        _mock_point(aioclient_mock, _point_with_device("2026-08-01T11:00:00Z", 40.0, 0.0))
-        frozen.tick(delta=timedelta(hours=1))
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:10Z", 1100.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
         await coord.async_refresh()
-        assert coord.data["devices"][0]["iWhToday"] == 0.0
+        assert coord.data["devices"][0]["iWhToday"] == 100.0
 
-        _mock_point(aioclient_mock, _point_with_device("2026-08-01T12:00:00Z", 90.0, 0.0))
-        frozen.tick(delta=timedelta(hours=1))
+        # Zähler springt auf 0 (Reset im Gerät) → kein negativer Wert, nur Resync
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:20Z", 0.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
         await coord.async_refresh()
-        assert coord.data["devices"][0]["iWhToday"] == 50.0
+        assert coord.data["devices"][0]["iWhToday"] == 100.0
+
+        # Danach zählt der Tageswert vom neuen Stand aus weiter
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:30Z", 50.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 150.0
+
+
+async def test_device_daily_energy_ignores_zero_glitch_and_recovery_jump(hass, aioclient_mock):
+    """Kurzzeitige 0 mit Rücksprung auf den Gesamtstand darf keinen Tagesverbrauch
+    in Höhe des Lebenszählers erzeugen (HA schreibt den Sprung sonst als Statistik)."""
+    await hass.config.async_set_time_zone("UTC")
+    entry = _local_entry(hass)
+    _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:00Z", 2_300_000.0, 0.0))
+
+    with freeze_time("2026-08-01 10:00:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:10Z", 2_300_300.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 300.0
+
+        # Ausreißer: Stream meldet 0
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:20Z", 0.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 300.0
+
+        # Rücksprung auf den echten Gesamtstand → nicht plausibel, zählt nicht mit
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:30Z", 2_300_400.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 300.0
+
+        # Normalbetrieb läuft danach wieder
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:40Z", 2_300_450.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 350.0
