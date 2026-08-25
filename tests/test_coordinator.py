@@ -355,3 +355,38 @@ async def test_device_daily_energy_ignores_zero_glitch_and_recovery_jump(hass, a
         frozen.tick(delta=timedelta(seconds=10))
         await coord.async_refresh()
         assert coord.data["devices"][0]["iWhToday"] == 350.0
+
+
+async def test_device_daily_energy_survives_prolonged_zero_outage(hass, aioclient_mock):
+    """Gerät meldet über mehrere Polls 0 (getrennt) → auch der spätere Rücksprung
+    auf den Gesamtstand darf nicht als Tagesverbrauch gezählt werden."""
+    await hass.config.async_set_time_zone("UTC")
+    entry = _local_entry(hass)
+    _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:00Z", 2_300_000.0, 0.0))
+
+    with freeze_time("2026-08-01 10:00:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:00:10Z", 2_300_300.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 300.0
+
+        # Fünf Polls lang 0
+        for i in range(5):
+            _mock_point(aioclient_mock, _point_with_device(f"2026-08-01T10:00:{20 + i * 10}Z", 0.0, 0.0))
+            frozen.tick(delta=timedelta(seconds=10))
+            await coord.async_refresh()
+            assert coord.data["devices"][0]["iWhToday"] == 300.0
+
+        # Gerät meldet sich mit dem echten Gesamtstand zurück
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:01:10Z", 2_300_500.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 300.0
+
+        _mock_point(aioclient_mock, _point_with_device("2026-08-01T10:01:20Z", 2_300_560.0, 0.0))
+        frozen.tick(delta=timedelta(seconds=10))
+        await coord.async_refresh()
+        assert coord.data["devices"][0]["iWhToday"] == 360.0
