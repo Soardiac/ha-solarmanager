@@ -141,7 +141,14 @@ def resolve_coordinator_for_device(hass: HomeAssistant, device_id: str) -> "Sola
     device = dr.async_get(hass).async_get(device_id)
     if device is None:
         raise HomeAssistantError(f"Solarmanager: unknown device_id {device_id}")
-    for entry_id in device.config_entries:
+
+    # Ab HA 2026.8 gibt es DeviceEntry.config_entry_id (Singular); das alte
+    # config_entries-Set ist dort nur noch ein deprecated Shim (Removal 2027.8).
+    # Mindestversion dieser Integration ist 2025.8, wo es config_entry_id noch
+    # nicht gibt -- deshalb zur Laufzeit erkennen statt fest zu binden.
+    single_entry_id = getattr(device, "config_entry_id", None)
+    entry_ids = (single_entry_id,) if single_entry_id else device.config_entries
+    for entry_id in entry_ids:
         entry = hass.config_entries.async_get_entry(entry_id)
         if entry is None or entry.domain != DOMAIN:
             continue
