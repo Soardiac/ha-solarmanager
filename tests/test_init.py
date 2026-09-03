@@ -1,8 +1,14 @@
-"""Tests für __init__: Geräte-Entfernung über die Device-Registry."""
+"""Tests für __init__: Geräte-Entfernung und Registrierung des Site-Geräts."""
+from unittest.mock import AsyncMock, patch
+
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.solarmanager import async_remove_config_entry_device
+from custom_components.solarmanager import (
+    async_remove_config_entry_device,
+    async_setup_entry,
+)
 from custom_components.solarmanager.const import (
     CONF_HOST,
     CONF_MODE,
@@ -11,12 +17,14 @@ from custom_components.solarmanager.const import (
     MODE_LOCAL,
 )
 
+HOST = "192.168.1.100"
+
 
 def _entry(hass) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http"},
-        unique_id="local_192.168.1.100",
+        data={CONF_MODE: MODE_LOCAL, CONF_HOST: HOST, CONF_SCHEME: "http"},
+        unique_id=f"local_{HOST}",
     )
     entry.add_to_hass(hass)
     return entry
@@ -73,3 +81,28 @@ async def test_remove_stale_site_device_allowed_after_mode_switch(hass):
     )
 
     assert await async_remove_config_entry_device(hass, entry, device) is True
+
+
+async def test_setup_stores_site_device_id(hass, aioclient_mock):
+    """Die Registry-ID des Site-Geräts landet am Coordinator.
+
+    child_device_info() verknüpft die Kind-Geräte ab HA 2026.8 über
+    via_device_id mit der Site. Fehlt die ID, verlieren alle Kind-Geräte
+    stillschweigend ihre Zuordnung (Issue #30).
+    """
+    entry = _entry(hass)
+    # async_config_entry_first_refresh() besteht auf diesem Zustand
+    entry.mock_state(hass, ConfigEntryState.SETUP_IN_PROGRESS)
+    aioclient_mock.get(f"http://{HOST}/v2/point", json={"iv": 10, "pW": 0, "cW": 0})
+    aioclient_mock.get(f"http://{HOST}/v2/devices", json=[])
+
+    with patch.object(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock()
+    ):
+        assert await async_setup_entry(hass, entry) is True
+
+    site_device = dr.async_get(hass).async_get_device(
+        identifiers={(DOMAIN, f"site_{HOST}")}
+    )
+    assert site_device is not None
+    assert entry.runtime_data.site_device_id == site_device.id

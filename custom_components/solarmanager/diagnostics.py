@@ -60,7 +60,10 @@ async def async_get_config_entry_diagnostics(
     return {
         "config_entry": {
             "entry_id": entry.entry_id,
-            "title": entry.title,
+            # Der Titel enthält die sm_id im Klartext ("Solarmanager <sm_id>") und
+            # würde sie an async_redact_data vorbei in öffentlich geteilte
+            # Diagnose-Dateien tragen.
+            "title": "**REDACTED**",
             "version": entry.version,
             "data": async_redact_data(dict(entry.data), TO_REDACT),
             "options": async_redact_data(dict(entry.options), TO_REDACT),

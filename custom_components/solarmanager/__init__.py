@@ -80,17 +80,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.runtime_data = coord
 
-    # Site-Gerät explizit registrieren bevor Plattformen geladen werden,
-    # damit via_device-Referenzen in number/select/datetime/binary_sensor greifen.
+    # Site-Gerät explizit registrieren bevor Plattformen geladen werden, damit die
+    # Kind-Geräte in allen Plattformen darauf verweisen können. Die Registry-ID
+    # merken: child_device_info() verknüpft darüber via via_device_id (ab HA 2026.8).
     info = site_device_info(coord)
     registry = dr.async_get(hass)
-    registry.async_get_or_create(
+    site_device = registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers=info["identifiers"],
         name=info["name"],
         manufacturer=info["manufacturer"],
         model=info["model"],
     )
+    coord.site_device_id = site_device.id
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

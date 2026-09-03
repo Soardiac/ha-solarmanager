@@ -175,6 +175,11 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.is_local: bool = entry.data.get(CONF_MODE) == MODE_LOCAL
         self.client: SolarmanagerCloud | SolarmanagerLocal | None = None
 
+        # Registry-ID des Site-Geräts; von async_setup_entry gesetzt, bevor die
+        # Plattformen geladen werden. child_device_info() verknüpft die Kind-Geräte
+        # darüber mit der Site (via_device_id, ab HA 2026.8).
+        self.site_device_id: str | None = None
+
         # Cache für Geräte-Metadaten: exakt per _id
         self.device_meta: dict[str, dict] = {}
         self._meta_last: float = 0.0
