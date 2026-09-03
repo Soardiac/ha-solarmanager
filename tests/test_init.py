@@ -101,8 +101,9 @@ async def test_setup_stores_site_device_id(hass, aioclient_mock):
     ):
         assert await async_setup_entry(hass, entry) is True
 
-    site_device = dr.async_get(hass).async_get_device(
-        identifiers={(DOMAIN, f"site_{HOST}")}
-    )
+    # Über die Registry-ID auflösen statt über die Identifier: async_get_device()
+    # ist seit HA 2026.9 deprecated (Identifier sind nicht mehr eindeutig über
+    # Config-Entries hinweg) und bricht in 2027.8.
+    site_device = dr.async_get(hass).async_get(entry.runtime_data.site_device_id)
     assert site_device is not None
-    assert entry.runtime_data.site_device_id == site_device.id
+    assert (DOMAIN, f"site_{HOST}") in site_device.identifiers

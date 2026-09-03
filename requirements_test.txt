@@ -1,4 +1,4 @@
-pytest-homeassistant-custom-component==0.13.346
+pytest-homeassistant-custom-component==0.13.363
 
 # Einzige verbindliche Ruff-Version: die CI liest sie via `version-file` aus
 # dieser Datei (siehe .github/workflows/validate.yml), damit lokaler Lint und
