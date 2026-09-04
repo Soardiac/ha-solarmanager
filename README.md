@@ -1,5 +1,5 @@
-> [!IMPORTANT]
-> Helft mir bei der Weiterentwicklung und [beantwortet eine Frage](https://github.com/Soardiac/ha-solarmanager/discussions/26) - danke!
+> [!WARNING]
+> **Für HA Core 2026.9 und neuer bracuht ihr zwingend v1.12.0 oder höher!**
 
 # Solar Manager – Home Assistant (Custom Integration)
 
