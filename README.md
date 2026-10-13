@@ -7,8 +7,8 @@
 
 Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assistant ein — wahlweise über die **Cloud-API** (voller Funktionsumfang) oder direkt über die **lokale REST-API** (nur Sensoren, kein Internet nötig).
 
-- **Cloud-API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) – voller Funktionsumfang inkl. Steuerung
-- **Lokale API**: `GET /v2/point` direkt am Gateway – Sensoren, kein Account nötig
+- **Cloud-API**: [cloud.solar-manager.ch](https://external-web.solar-manager.ch/swagger) – voller Funktionsumfang inkl. Steuerung (Werte lesen und schreiben)
+- **Lokale API**: `GET /v2/point` direkt am Gateway – nur Sensoren (Werte auslesen) möglich; kein Account nötig
 - [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/) (Selbsteinschätzung): Bronze ✓ · Silver 95 % (volle Testabdeckung in Arbeit) · Gold: alle anwendbaren Regeln umgesetzt (Repair-Issue für die E-Mail/Passwort-Migration; Discovery nicht anwendbar)
 
 ---
