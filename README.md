@@ -126,6 +126,9 @@ Im ersten Schritt den **Verbindungsmodus** wählen:
 | API Key | Nein | Lokaler API Key falls am Gateway konfiguriert (`X-API-Key`-Header) |
 
 Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) und meldet einen Fehler, wenn das Gateway nicht erreichbar ist. Bei HTTPS wird das selbst-signierte Zertifikat des Gateways akzeptiert.
+> **Lokale API muss am Gateway aktiviert sein.** Antwortet das Gateway nicht auf `http://<gateway-ip>/v2/point`, ist die lokale API vermutlich ausgeschaltet. Solar-Manager-Kunden aktivieren sie im [Solar Manager Portal](https://web.solar-manager.ch/) unter Einstellungen → Lokale API.
+>
+> **Rebrands (z. B. Helion ONE):** Kunden von Partner-Marken haben oft keinen Zugang zum Solar Manager Portal und finden die Option in der App des Anbieters nicht. Am besten zuerst beim Support des Anbieters nachfragen, ob er die lokale API freischaltet. Ein Community-Nutzer hat einen inoffiziellen Weg über die Solar-Manager-API beschrieben, siehe [Discussion #34](https://github.com/Soardiac/ha-solarmanager/discussions/34). Dieser Weg wird von dieser Integration nicht unterstützt (muss also manuell vorgenommen werden) und erfolgt auf eigenes Risiko; er kann jederzeit nicht mehr funktionieren.
 
 > **Hinweis:** Zugangsdaten, `smId`, Host, Protokoll — und auch der Verbindungsmodus selbst (Cloud ↔ Lokal) — lassen sich jederzeit ohne Neueinrichtung ändern (siehe [Neu konfigurieren](#neu-konfigurieren)).
 
