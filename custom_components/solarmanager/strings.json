@@ -198,7 +198,15 @@
       "switch_state": { "name": "Switch state" },
       "heating_adjustment": { "name": "Heating adjustment" },
       "remaining_range": { "name": "Remaining range" },
-      "surplus_power": { "name": "PV surplus" }
+      "surplus_power": { "name": "PV surplus" },
+      "forecast_power_now": { "name": "PV forecast now" },
+      "forecast_power_15m": { "name": "PV forecast in 15 min" },
+      "forecast_power_30m": { "name": "PV forecast in 30 min" },
+      "forecast_energy_today": { "name": "PV forecast today" },
+      "forecast_energy_remaining_today": { "name": "PV forecast remaining today" },
+      "forecast_energy_tomorrow": { "name": "PV forecast tomorrow" },
+      "forecast_peak_power_today": { "name": "PV forecast peak today" },
+      "forecast_peak_time_today": { "name": "PV forecast peak time today" }
     },
     "binary_sensor": {
       "signal": { "name": "Connection" }

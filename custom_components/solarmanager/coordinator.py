@@ -36,6 +36,7 @@ from .const import (
     DOMAIN,
     MODE_LOCAL,
 )
+from .forecast import PvForecast, parse_forecast
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +47,11 @@ META_TTL = 60  # Sekunden
 
 # Tages-Statistiken (Cloud) höchstens alle 5 Minuten laden
 STATS_TTL = 300  # Sekunden
+
+# PV-Prognose (Cloud) ändert sich langsam — höchstens alle 30 Minuten laden
+FORECAST_TTL = 1800  # Sekunden
+# Anzahl Rohdaten-Einträge der Prognose, die in der Diagnose landen
+FORECAST_SAMPLE_SIZE = 4
 
 # Persistenz der Tageszähler (überleben Neustart/Reload)
 STORAGE_VERSION = 1
@@ -188,6 +194,14 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._stats_data: dict[str, Any] = {}
         self._stats_last: float = 0.0
         self._stats_date: str = ""
+
+        # PV-Prognose (nur Cloud). Bewusst nicht in coordinator.data: Die
+        # Zeitreihe ist groß und ändert sich nur alle FORECAST_TTL Sekunden.
+        # Bei einem Fehler bleibt der letzte gültige Stand erhalten.
+        self.forecast: PvForecast | None = None
+        self._forecast_last: float = 0.0
+        self._forecast_fetched_at: str | None = None
+        self._forecast_raw_sample: list[Any] = []
 
         # Tages-Netzenergie (nur Cloud): Riemann-Integration von iW/eW.
         # Ersetzt die fehlerhafte REST-Ableitung consumption - selfConsumption
@@ -470,6 +484,33 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as e:
             _LOGGER.debug("Could not fetch gateway statistics: %s", e)
 
+    async def _load_forecast(self) -> None:
+        """PV-Prognose via GET /v3/users/{smId}/data/forecast laden (alle 30 min)."""
+        if not isinstance(self.client, SolarmanagerCloud):
+            return
+        # Auch bei Fehlern erst nach FORECAST_TTL erneut versuchen (Rate-Limit-Schonung)
+        self._forecast_last = time.time()
+        try:
+            payload = await self.client.get_forecast()
+            entries = payload.get("data") if isinstance(payload, dict) else payload
+            if isinstance(entries, list):
+                self._forecast_raw_sample = entries[:FORECAST_SAMPLE_SIZE]
+            forecast = parse_forecast(payload)
+            if forecast is None:
+                _LOGGER.debug("Forecast response without usable data: %s", payload)
+                return
+            # Vergangene Intervalle des heutigen Tages aus dem letzten Abruf behalten
+            self.forecast = forecast.merged_with(self.forecast, dt_util.start_of_local_day())
+            self._forecast_fetched_at = dt_util.utcnow().isoformat()
+            _LOGGER.debug(
+                "Forecast loaded: %d points (%s – %s)",
+                len(forecast.points),
+                forecast.first_start,
+                forecast.last_end,
+            )
+        except Exception as e:
+            _LOGGER.debug("Could not fetch forecast: %s", e)
+
     def _raise_mapped_client_error(self, err: Exception) -> NoReturn:
         """Client-Exception auf ConfigEntryAuthFailed/UpdateFailed mappen.
 
@@ -615,6 +656,9 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     data["stat_autarchy_degree"] = self._stats_data.get("autarchyDegree")
                 data["stat_grid_import"] = self._cloud_grid_import_wh
                 data["stat_grid_export"] = self._cloud_grid_export_wh
+
+                if time.time() - self._forecast_last > FORECAST_TTL:
+                    await self._load_forecast()
             else:
                 # Lokal: pW/cW/iW/eW (W) über die Zeit integrieren → Wh-Tageszähler
                 now_t = time.time()

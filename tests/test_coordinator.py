@@ -390,3 +390,109 @@ async def test_device_daily_energy_survives_prolonged_zero_outage(hass, aioclien
         frozen.tick(delta=timedelta(seconds=10))
         await coord.async_refresh()
         assert coord.data["devices"][0]["iWhToday"] == 360.0
+
+
+# -------------------- PV-Prognose --------------------
+
+FORECAST_URL = f"{CLOUD_BASE}/v3/users/{SM_ID}/data/forecast"
+FORECAST_RESPONSE = {
+    "data": [
+        {"t": "2026-08-01T10:00:00.000Z", "pW": 1000, "pWmin": 800, "pWmax": 1200},
+        {"t": "2026-08-01T10:15:00.000Z", "pW": 2000, "pWmin": 1500, "pWmax": 2500},
+    ]
+}
+
+
+def _mock_cloud(aioclient_mock, forecast: dict | None = None, forecast_status: int = 200) -> None:
+    aioclient_mock.clear_requests()
+    aioclient_mock.post(LOGIN_URL, json=LOGIN_RESPONSE)
+    aioclient_mock.get(SENSORS_URL, json=[])
+    aioclient_mock.get(STREAM_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10})
+    aioclient_mock.get(STATS_URL, json={})
+    aioclient_mock.get(FORECAST_URL, json=forecast, status=forecast_status)
+
+
+def _forecast_calls(aioclient_mock) -> int:
+    return sum(1 for call in aioclient_mock.mock_calls if str(call[1]) == FORECAST_URL)
+
+
+async def test_forecast_loaded_with_min_max_and_kept_out_of_data(hass, aioclient_mock):
+    entry = _cloud_entry(hass)
+    _mock_cloud(aioclient_mock, FORECAST_RESPONSE)
+
+    with freeze_time("2026-08-01 10:05:00+00:00"):
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+
+    assert coord.last_update_success
+    assert coord.forecast is not None
+    assert [p.watts for p in coord.forecast.points] == [1000, 2000]
+    assert coord.forecast.points[1].watts_max == 2500
+    assert coord._forecast_raw_sample == FORECAST_RESPONSE["data"]
+    # Die Zeitreihe bleibt aus coordinator.data (Größe, Diagnose)
+    assert not any("forecast" in key for key in coord.data)
+
+
+async def test_forecast_respects_ttl(hass, aioclient_mock):
+    entry = _cloud_entry(hass)
+    _mock_cloud(aioclient_mock, FORECAST_RESPONSE)
+
+    with freeze_time("2026-08-01 10:05:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+        frozen.tick(delta=timedelta(minutes=10))
+        await coord.async_refresh()
+        assert _forecast_calls(aioclient_mock) == 1
+
+        frozen.tick(delta=timedelta(minutes=21))
+        await coord.async_refresh()
+        assert _forecast_calls(aioclient_mock) == 2
+
+
+async def test_forecast_error_keeps_last_good_value_and_stream_running(hass, aioclient_mock):
+    entry = _cloud_entry(hass)
+    _mock_cloud(aioclient_mock, FORECAST_RESPONSE)
+
+    with freeze_time("2026-08-01 10:05:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+        first = coord.forecast
+
+        _mock_cloud(aioclient_mock, forecast_status=500)
+        frozen.tick(delta=timedelta(minutes=31))
+        await coord.async_refresh()
+
+    assert coord.last_update_success
+    assert coord.forecast is first
+
+
+async def test_forecast_keeps_todays_past_intervals_across_fetches(hass, aioclient_mock):
+    """Liefert die API nur ab jetzt, bleiben die bereits vergangenen Intervalle erhalten."""
+    entry = _cloud_entry(hass)
+    _mock_cloud(aioclient_mock, FORECAST_RESPONSE)
+
+    with freeze_time("2026-08-01 10:05:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+
+        _mock_cloud(
+            aioclient_mock,
+            {"data": [{"t": "2026-08-01T10:15:00.000Z", "pW": 3000}]},
+        )
+        frozen.tick(delta=timedelta(minutes=31))
+        await coord.async_refresh()
+
+    assert [p.watts for p in coord.forecast.points] == [1000, 3000]
+
+
+async def test_forecast_not_fetched_in_local_mode(hass, aioclient_mock):
+    entry = _local_entry(hass)
+    aioclient_mock.get(DEVICES_URL, json=[])
+    aioclient_mock.get(POINT_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10})
+
+    coord = SolarmanagerCoordinator(hass, entry)
+    await coord.async_refresh()
+
+    assert coord.last_update_success
+    assert coord.forecast is None
+    assert not any("forecast" in str(call[1]) for call in aioclient_mock.mock_calls)

@@ -57,6 +57,16 @@ async def async_get_config_entry_diagnostics(
         for dev_id, meta in coord.device_meta.items()
     }
 
+    forecast = coord.forecast
+    forecast_info: dict[str, Any] = {
+        "points": len(forecast.points) if forecast else 0,
+        "first_start": forecast.first_start.isoformat() if forecast else None,
+        "last_end": forecast.last_end.isoformat() if forecast else None,
+        "fetched_at": coord._forecast_fetched_at,
+        # Rohdaten der ersten Einträge: Damit lässt sich das echte Antwortformat prüfen
+        "raw_sample": coord._forecast_raw_sample,
+    }
+
     return {
         "config_entry": {
             "entry_id": entry.entry_id,
@@ -79,6 +89,7 @@ async def async_get_config_entry_diagnostics(
             "data": async_redact_data(dict(coord.data) if coord.data else {}, TO_REDACT),
             "stats_data": async_redact_data(dict(coord._stats_data), TO_REDACT),
         },
+        "forecast": forecast_info,
         "device_metadata": device_metadata,
         "client": client_info,
     }

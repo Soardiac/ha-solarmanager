@@ -6,7 +6,15 @@
       "operation_state": { "default": "mdi:state-machine" },
       "switch_state": { "default": "mdi:toggle-switch" },
       "heating_adjustment": { "default": "mdi:thermometer-auto" },
-      "remaining_range": { "default": "mdi:car-electric" }
+      "remaining_range": { "default": "mdi:car-electric" },
+      "forecast_power_now": { "default": "mdi:solar-power-variant" },
+      "forecast_power_15m": { "default": "mdi:solar-power-variant" },
+      "forecast_power_30m": { "default": "mdi:solar-power-variant" },
+      "forecast_energy_today": { "default": "mdi:weather-sunny" },
+      "forecast_energy_remaining_today": { "default": "mdi:weather-sunset-down" },
+      "forecast_energy_tomorrow": { "default": "mdi:weather-partly-cloudy" },
+      "forecast_peak_power_today": { "default": "mdi:chart-bell-curve" },
+      "forecast_peak_time_today": { "default": "mdi:clock-star-four-points-outline" }
     },
     "select": {
       "battery_mode": { "default": "mdi:battery-sync" },

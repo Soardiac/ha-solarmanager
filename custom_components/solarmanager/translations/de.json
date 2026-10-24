@@ -211,7 +211,15 @@
       "switch_state": { "name": "Schaltzustand" },
       "heating_adjustment": { "name": "Heizungskorrektur" },
       "remaining_range": { "name": "Restreichweite" },
-      "surplus_power": { "name": "PV-Überschuss" }
+      "surplus_power": { "name": "PV-Überschuss" },
+      "forecast_power_now": { "name": "PV-Prognose jetzt" },
+      "forecast_power_15m": { "name": "PV-Prognose in 15 min" },
+      "forecast_power_30m": { "name": "PV-Prognose in 30 min" },
+      "forecast_energy_today": { "name": "PV-Prognose heute" },
+      "forecast_energy_remaining_today": { "name": "PV-Prognose Rest heute" },
+      "forecast_energy_tomorrow": { "name": "PV-Prognose morgen" },
+      "forecast_peak_power_today": { "name": "PV-Prognose Spitze heute" },
+      "forecast_peak_time_today": { "name": "PV-Prognose Spitze Zeitpunkt" }
     },
     "binary_sensor": {
       "signal": { "name": "Verbindung" }

@@ -1,6 +1,7 @@
 # sensor.py
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -20,9 +21,11 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .coordinator import DEVICE_DAILY_KEYS, SolarmanagerCoordinator, compute_surplus_w
 from .entity import child_device_info, find_device, site_device_info
+from .forecast import ForecastPoint, PvForecast
 
 PARALLEL_UPDATES = 1
 
@@ -73,6 +76,16 @@ BAT_STATS_SENSORS = [
     ("stat_bat_discharge", "battery_discharge_today", UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING),
 ]
 
+# PV-Prognose (nur Cloud) — (key, translation_key, Zeitfenster)
+FORECAST_ENERGY_SENSORS = [
+    ("forecast_energy_today", "forecast_energy_today", "today"),
+    ("forecast_energy_remaining_today", "forecast_energy_remaining_today", "remaining_today"),
+    ("forecast_energy_tomorrow", "forecast_energy_tomorrow", "tomorrow"),
+]
+
+# Länge der Prognose-Zeitreihe im Attribut von forecast_power_now
+FORECAST_SERIES_HOURS = 48
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: SolarmanagerCoordinator = entry.runtime_data
@@ -89,6 +102,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS_PERCENT]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in GRID_STATS_SENSORS]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in BAT_STATS_SENSORS]
+    if not coord.is_local:
+        # PV-Prognose gibt es nur in der Cloud
+        site_entities += [
+            ForecastPowerSensor(coord, "forecast_power_now", "forecast_power_now", 0, with_series=True),
+            ForecastPowerSensor(coord, "forecast_power_15m", "forecast_power_15m", 15),
+            ForecastPowerSensor(coord, "forecast_power_30m", "forecast_power_30m", 30),
+            *(ForecastEnergySensor(coord, key, tkey, window) for key, tkey, window in FORECAST_ENERGY_SENSORS),
+            ForecastPeakPowerSensor(coord),
+            ForecastPeakTimeSensor(coord),
+        ]
     async_add_entities(site_entities, True)
 
     # Geräte-Sensoren dynamisch aus devices[] — auch für Geräte, die erst
@@ -279,6 +302,193 @@ class DevicesOverviewSensor(_Base, SensorEntity):
             "interval_s": d.get("iv"),
             "devices": compact,
         }
+
+
+# ---------- PV-Prognose (nur Cloud) ----------
+
+def _day_bounds(now: datetime, offset_days: int = 0) -> tuple[datetime, datetime]:
+    """Lokaler Tag [Mitternacht, nächste Mitternacht) — korrekt auch bei Zeitumstellung."""
+    day = dt_util.as_local(now).date() + timedelta(days=offset_days)
+    return (
+        dt_util.start_of_local_day(day),
+        dt_util.start_of_local_day(day + timedelta(days=1)),
+    )
+
+
+def _rounded(value: float | None) -> float | None:
+    return None if value is None else round(value)
+
+
+class _ForecastBase(_Base, SensorEntity):
+    """Basis der Prognose-Sensoren: Werte aus coordinator.forecast, bezogen auf jetzt.
+
+    Aktualisiert sich mit jedem Stream-Poll mit, daher springen jetzt/+15/+30
+    pünktlich ins nächste Intervall, ohne dass die Prognose neu geladen wird.
+    """
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.coordinator.forecast is not None
+
+    @property
+    def _forecast(self) -> PvForecast | None:
+        return self.coordinator.forecast
+
+
+class ForecastPowerSensor(_ForecastBase):
+    """Prognostizierte PV-Leistung jetzt bzw. in N Minuten (W), mit min/max-Band."""
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_suggested_display_precision = 0
+    # Die Zeitreihe ändert sich alle 15 Minuten — nicht in den Recorder schreiben
+    _unrecorded_attributes = frozenset({"forecast"})
+
+    def __init__(
+        self,
+        coordinator: SolarmanagerCoordinator,
+        key: str,
+        translation_key: str,
+        offset_minutes: int,
+        *,
+        with_series: bool = False,
+    ) -> None:
+        super().__init__(coordinator, key, translation_key)
+        self._offset = timedelta(minutes=offset_minutes)
+        self._with_series = with_series
+
+    def _at(self) -> datetime:
+        return dt_util.utcnow() + self._offset
+
+    @property
+    def native_value(self) -> float | None:
+        f = self._forecast
+        return _rounded(f.power_at(self._at())) if f else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        f = self._forecast
+        if f is None:
+            return None
+        at = self._at()
+        attrs: dict[str, Any] = {
+            "min": _rounded(f.power_at(at, "min")),
+            "max": _rounded(f.power_at(at, "max")),
+        }
+        if self._with_series:
+            now = dt_util.utcnow()
+            attrs["forecast"] = [
+                {
+                    "t": dt_util.as_local(p.start).isoformat(),
+                    "w": _rounded(p.watts),
+                    "min": _rounded(p.watts_min),
+                    "max": _rounded(p.watts_max),
+                }
+                for p in f.points_between(now, now + timedelta(hours=FORECAST_SERIES_HOURS))
+            ]
+        return attrs
+
+
+class ForecastEnergySensor(_ForecastBase):
+    """Prognostizierte PV-Energie (Wh) für heute, den Rest von heute oder morgen.
+
+    Bewusst ohne state_class: eine Prognose ist kein Zähler und gehört nicht in
+    die Langzeitstatistik. Das Attribut ``complete`` sagt, ob die Zeitreihe das
+    ganze Zeitfenster abdeckt (z. B. nach einem Neustart fehlen bei „heute“ die
+    bereits vergangenen Intervalle, falls die API nur ab jetzt liefert).
+    """
+
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        coordinator: SolarmanagerCoordinator,
+        key: str,
+        translation_key: str,
+        window: str,
+    ) -> None:
+        super().__init__(coordinator, key, translation_key)
+        self._window = window
+
+    def _bounds(self) -> tuple[datetime, datetime]:
+        now = dt_util.utcnow()
+        if self._window == "tomorrow":
+            return _day_bounds(now, 1)
+        start, end = _day_bounds(now)
+        if self._window == "remaining_today":
+            start = now
+        return start, end
+
+    @property
+    def native_value(self) -> float | None:
+        f = self._forecast
+        if f is None:
+            return None
+        return _rounded(f.energy_between(*self._bounds()))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        f = self._forecast
+        if f is None:
+            return None
+        start, end = self._bounds()
+        return {
+            "min": _rounded(f.energy_between(start, end, "min")),
+            "max": _rounded(f.energy_between(start, end, "max")),
+            "complete": f.covers(start, end),
+        }
+
+
+class _ForecastPeakBase(_ForecastBase):
+    """Intervall mit der höchsten prognostizierten Leistung heute."""
+
+    def _peak(self) -> ForecastPoint | None:
+        f = self._forecast
+        if f is None:
+            return None
+        peak = f.peak_between(*_day_bounds(dt_util.utcnow()))
+        # Ohne Produktion (Nacht, Schnee) gibt es keine sinnvolle Spitze
+        return peak if peak is not None and peak.watts > 0 else None
+
+
+class ForecastPeakPowerSensor(_ForecastPeakBase):
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator: SolarmanagerCoordinator) -> None:
+        super().__init__(coordinator, "forecast_peak_power_today", "forecast_peak_power_today")
+
+    @property
+    def native_value(self) -> float | None:
+        peak = self._peak()
+        return _rounded(peak.watts) if peak else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        peak = self._peak()
+        if peak is None:
+            return None
+        return {
+            "time": dt_util.as_local(peak.start).isoformat(),
+            "min": _rounded(peak.watts_min),
+            "max": _rounded(peak.watts_max),
+        }
+
+
+class ForecastPeakTimeSensor(_ForecastPeakBase):
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator: SolarmanagerCoordinator) -> None:
+        super().__init__(coordinator, "forecast_peak_time_today", "forecast_peak_time_today")
+
+    @property
+    def native_value(self) -> datetime | None:
+        peak = self._peak()
+        return peak.start if peak else None
 
 
 # ---------- Geräte-Sensoren ----------

@@ -221,6 +221,13 @@ class SolarmanagerCloud:
         """
         return await self._authed_request("GET", f"/v3/users/{self.sm_id}/data/stream")
 
+    async def get_forecast(self) -> dict[str, Any]:
+        """
+        GET /v3/users/{smId}/data/forecast
+        PV-Prognose für die nächsten 3 Tage: {"data": [{t, pW, pWmin, pWmax}, ...]}.
+        """
+        return await self._authed_request("GET", f"/v3/users/{self.sm_id}/data/forecast")
+
     async def list_devices(self) -> list[dict]:
         """GET /v1/info/sensors/{smId} → Liste der Geräte mit _id und (tag.name | name)."""
         return await self._authed_request("GET", f"/v1/info/sensors/{self.sm_id}")
