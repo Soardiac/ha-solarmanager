@@ -217,6 +217,8 @@ Klasse `total_increasing` — direkt im Energie-Dashboard verwendbar. Quelle im 
 
 Die Prognose von Solar Manager (`/v3/users/{smId}/data/forecast`, 15-Minuten-Raster für die nächsten 3 Tage) wird alle 30 Minuten geladen. Neben dem erwarteten Wert liefert Solar Manager ein Unsicherheitsband. Jeder Prognose-Sensor hat deshalb die Attribute `min` und `max`. Die lokale API kennt keine Prognose, im lokalen Modus fehlen diese Sensoren.
 
+Ein Prognosepunkt der API beschreibt die 15 Minuten *vor* seinem Zeitstempel, so wie die Energie-Intervallwerte im Stream. In den Attributen (`forecast[].t`, `time`) steht dagegen der Beginn des Intervalls, so wie Diagramme es erwarten. Diese Zeiten liegen also 15 Minuten vor den Zeitstempeln der API.
+
 | Entität | Einheit | Beschreibung |
 |---|---|---|
 | PV-Prognose jetzt | W | Erwartete Leistung im aktuellen 15-Minuten-Intervall. Attribut `forecast`: Verlauf der nächsten 48 h als Liste `{t, w, min, max}` (z. B. für ApexCharts), wird nicht im Recorder gespeichert |

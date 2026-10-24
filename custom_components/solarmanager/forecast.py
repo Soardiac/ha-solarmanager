@@ -4,9 +4,11 @@
 Bewusst ohne Home-Assistant-Abhängigkeit: Sensoren, Energie-Dashboard und ein
 späteres Abregelungsmodell (#23) arbeiten alle auf derselben Zeitreihe.
 
-Annahme zur Semantik: ``t`` ist der Beginn eines Intervalls, ``pW`` die mittlere
-Leistung darin. Ein Intervall dauert eine Rasterweite (häufigster Abstand der
-Zeitstempel, sonst DEFAULT_INTERVAL), höchstens aber bis zum nächsten Zeitstempel.
+Semantik: ``t`` ist das Ende eines Intervalls (wie ``pWh`` im Stream), ``pW``
+die mittlere Leistung darin. Belegt im Echtbetrieb: Ein Abruf um 12:08 liefert
+als ersten Punkt ``t = 12:15`` — das ist die laufende Viertelstunde. Ein
+Intervall reicht eine Rasterweite (häufigster Abstand der Zeitstempel, sonst
+DEFAULT_INTERVAL) vor ``t`` zurück, höchstens aber bis zum vorherigen Zeitstempel.
 """
 from __future__ import annotations
 
@@ -184,7 +186,7 @@ def parse_forecast(payload: Any) -> PvForecast | None:
     """Antwort von /v3/users/{smId}/data/forecast in eine Zeitreihe übersetzen.
 
     Erwartet ``{"data": [{"t", "pW", "pWmin", "pWmax"}, ...]}``; eine nackte
-    Liste wird ebenfalls akzeptiert. Einträge ohne gültiges ``t``/``pW`` werden
+    Liste wird ebenfalls akzeptiert. ``t`` wird als Intervallende gelesen. Einträge ohne gültiges ``t``/``pW`` werden
     übersprungen. None, wenn kein einziger Eintrag brauchbar ist.
     """
     entries = payload.get("data") if isinstance(payload, dict) else payload
@@ -195,11 +197,11 @@ def parse_forecast(payload: Any) -> PvForecast | None:
     for entry in entries:
         if not isinstance(entry, dict):
             continue
-        start = _parse_time(entry.get("t"))
+        end = _parse_time(entry.get("t"))
         watts = _parse_watts(entry.get("pW"))
-        if start is None or watts is None:
+        if end is None or watts is None:
             continue
-        raw[start] = (
+        raw[end] = (
             watts,
             _parse_watts(entry.get("pWmin")),
             _parse_watts(entry.get("pWmax")),
@@ -207,15 +209,15 @@ def parse_forecast(payload: Any) -> PvForecast | None:
     if not raw:
         return None
 
-    starts = sorted(raw)
-    step = _typical_step(starts)
+    ends = sorted(raw)
+    step = _typical_step(ends)
     points: list[ForecastPoint] = []
-    for idx, start in enumerate(starts):
-        # Höchstens eine Rasterweite: Fehlt ein Stück der Reihe, bleibt die
-        # Lücke leer, statt den letzten Wert über Stunden zu strecken
-        end = start + step
-        if idx + 1 < len(starts):
-            end = min(end, starts[idx + 1])
-        watts, watts_min, watts_max = raw[start]
+    for idx, end in enumerate(ends):
+        # Höchstens eine Rasterweite zurück: Fehlt ein Stück der Reihe, bleibt
+        # die Lücke leer, statt den Wert über Stunden zu strecken
+        start = end - step
+        if idx > 0:
+            start = max(start, ends[idx - 1])
+        watts, watts_min, watts_max = raw[end]
         points.append(ForecastPoint(start, end, watts, watts_min, watts_max))
     return PvForecast(points)

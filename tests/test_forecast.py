@@ -1,4 +1,7 @@
-"""Tests für die reine Prognose-Logik (forecast.py), ohne Home Assistant."""
+"""Tests für die reine Prognose-Logik (forecast.py), ohne Home Assistant.
+
+``t`` in den API-Daten ist das Intervallende: ``t = 10:15`` beschreibt 10:00–10:15.
+"""
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -23,20 +26,33 @@ def _payload(*entries: tuple[str, float, float | None, float | None]) -> dict:
     }
 
 
-def test_parse_reads_swagger_format_and_sorts():
+def test_parse_reads_swagger_format_sorts_and_treats_t_as_interval_end():
     f = parse_forecast(
         _payload(
-            ("2026-07-01T10:15:00.000Z", 2000, 1500, 2500),
-            ("2026-07-01T10:00:00.000Z", 1000, 800, 1200),
+            ("2026-07-01T10:30:00.000Z", 2000, 1500, 2500),
+            ("2026-07-01T10:15:00.000Z", 1000, 800, 1200),
         )
     )
     assert f is not None
-    assert [p.start for p in f.points] == [_utc(10), _utc(10, 15)]
-    assert f.points[0].end == _utc(10, 15)
-    # Letztes Intervall bekommt die Standarddauer von 15 Minuten
-    assert f.points[1].end == _utc(10, 30)
+    assert [(p.start, p.end) for p in f.points] == [
+        (_utc(10), _utc(10, 15)),
+        (_utc(10, 15), _utc(10, 30)),
+    ]
     assert f.points[0].watts_min == 800
     assert f.points[0].watts_max == 1200
+
+
+def test_running_quarter_hour_is_covered_right_after_fetch():
+    """Echtbetrieb: Abruf um 12:08:56 liefert als ersten Punkt t=12:15 — das ist jetzt."""
+    f = parse_forecast(
+        _payload(
+            ("2026-10-24T12:15:00Z", 658, 226, 1090),
+            ("2026-10-24T12:30:00Z", 647, 219, 1076),
+        )
+    )
+    now = datetime(2026, 10, 24, 12, 8, 56, tzinfo=UTC)
+    assert f.power_at(now) == 658
+    assert f.power_at(now, "max") == 1090
 
 
 def test_parse_accepts_bare_list_and_skips_invalid_entries():
@@ -53,6 +69,8 @@ def test_parse_accepts_bare_list_and_skips_invalid_entries():
     assert f is not None
     assert len(f.points) == 1
     assert f.points[0].watts_min is None
+    # Einzelner Punkt: Standarddauer von 15 Minuten vor t
+    assert f.points[0].start == _utc(9, 45)
 
 
 @pytest.mark.parametrize("payload", [None, {}, {"data": None}, {"data": []}, {"data": [{"x": 1}]}, "text"])
@@ -61,7 +79,7 @@ def test_parse_returns_none_without_usable_data(payload):
 
 
 def test_power_at_uses_interval_containing_time_and_none_outside():
-    f = parse_forecast(_payload(("2026-07-01T10:00:00Z", 1000, 800, 1200), ("2026-07-01T10:15:00Z", 2000, None, None)))
+    f = parse_forecast(_payload(("2026-07-01T10:15:00Z", 1000, 800, 1200), ("2026-07-01T10:30:00Z", 2000, None, None)))
     assert f.power_at(_utc(10)) == 1000
     assert f.power_at(_utc(10, 14)) == 1000
     assert f.power_at(_utc(10, 15)) == 2000
@@ -74,7 +92,7 @@ def test_power_at_uses_interval_containing_time_and_none_outside():
 
 
 def test_energy_between_prorates_partial_intervals():
-    f = parse_forecast(_payload(("2026-07-01T10:00:00Z", 1000, 400, None), ("2026-07-01T10:15:00Z", 2000, 1000, None)))
+    f = parse_forecast(_payload(("2026-07-01T10:15:00Z", 1000, 400, None), ("2026-07-01T10:30:00Z", 2000, 1000, None)))
     # Volle Intervalle: 1000 W * 0.25 h + 2000 W * 0.25 h
     assert f.energy_between(_utc(0), _utc(23)) == pytest.approx(750)
     # Ab 10:10 → 5 min von 1000 W + 15 min von 2000 W
@@ -84,7 +102,7 @@ def test_energy_between_prorates_partial_intervals():
 
 
 def test_covers_and_points_between():
-    f = parse_forecast(_payload(("2026-07-01T10:00:00Z", 1, None, None), ("2026-07-01T10:15:00Z", 2, None, None)))
+    f = parse_forecast(_payload(("2026-07-01T10:15:00Z", 1, None, None), ("2026-07-01T10:30:00Z", 2, None, None)))
     assert f.covers(_utc(10), _utc(10, 30))
     assert not f.covers(_utc(9, 45), _utc(10, 30))
     assert not f.covers(_utc(10), _utc(10, 45))
@@ -94,9 +112,9 @@ def test_covers_and_points_between():
 def test_peak_between_prefers_earlier_on_tie_and_respects_window():
     f = parse_forecast(
         _payload(
-            ("2026-07-01T10:00:00Z", 3000, None, None),
             ("2026-07-01T10:15:00Z", 3000, None, None),
-            ("2026-07-02T10:00:00Z", 9000, None, None),
+            ("2026-07-01T10:30:00Z", 3000, None, None),
+            ("2026-07-02T10:15:00Z", 9000, None, None),
         )
     )
     peak = f.peak_between(_utc(0), _utc(0, day=2))
@@ -109,12 +127,12 @@ def test_merged_with_keeps_todays_past_intervals_and_prefers_new_values():
     day_start = _utc(0)
     older = parse_forecast(
         _payload(
-            ("2026-06-30T23:45:00Z", 5, None, None),  # gestern → verworfen
-            ("2026-07-01T10:00:00Z", 1000, None, None),
-            ("2026-07-01T10:15:00Z", 1100, None, None),  # von neuer Reihe überdeckt
+            ("2026-07-01T00:00:00Z", 5, None, None),  # 23:45–00:00 gestern → verworfen
+            ("2026-07-01T10:15:00Z", 1000, None, None),
+            ("2026-07-01T10:30:00Z", 1100, None, None),  # von neuer Reihe überdeckt
         )
     )
-    newer = parse_forecast(_payload(("2026-07-01T10:15:00Z", 1500, None, None)))
+    newer = parse_forecast(_payload(("2026-07-01T10:30:00Z", 1500, None, None)))
     merged = newer.merged_with(older, day_start)
     assert [(p.start, p.watts) for p in merged.points] == [(_utc(10), 1000), (_utc(10, 15), 1500)]
     assert merged.points[0].end == _utc(10, 15)
@@ -122,17 +140,17 @@ def test_merged_with_keeps_todays_past_intervals_and_prefers_new_values():
 
 
 def test_wh_hours_splits_at_hour_boundaries_in_local_time():
-    # Unregelmäßiges Raster: 10:30–11:30 UTC, eine Stunde mit 1200 W
-    f = parse_forecast(_payload(("2026-07-01T10:30:00Z", 1200, None, None), ("2026-07-01T11:30:00Z", 0, None, None)))
+    # Stundenraster: Punkt t=11:30 beschreibt 10:30–11:30 UTC mit 1200 W
+    f = parse_forecast(_payload(("2026-07-01T11:30:00Z", 1200, None, None), ("2026-07-01T12:30:00Z", 0, None, None)))
     hours = f.wh_hours(ZURICH)
     # Je 600 Wh auf die Stunden 10:00 und 11:00 UTC (= 12:00/13:00 lokal);
-    # das 0-W-Intervall (Rasterweite 1 h) reicht bis in die Stunde 12:00
+    # das 0-W-Intervall 11:30–12:30 trägt 0 zu 11:00 und 12:00 bei
     assert hours == {_utc(10): pytest.approx(600), _utc(11): pytest.approx(600), _utc(12): 0}
 
 
 def test_wh_hours_follows_local_half_hour_offsets():
     # Indien (UTC+5:30): lokale Stunden beginnen um :30 UTC
-    f = parse_forecast(_payload(("2026-07-01T10:00:00Z", 1000, None, None), ("2026-07-01T11:00:00Z", 0, None, None)))
+    f = parse_forecast(_payload(("2026-07-01T11:00:00Z", 1000, None, None), ("2026-07-01T12:00:00Z", 0, None, None)))
     hours = f.wh_hours(ZoneInfo("Asia/Kolkata"))
     assert hours[_utc(9, 30)] == pytest.approx(500)
     assert hours[_utc(10, 30)] == pytest.approx(500)
@@ -141,7 +159,7 @@ def test_wh_hours_follows_local_half_hour_offsets():
 def test_wh_hours_keeps_both_hours_at_dst_fall_back():
     # 25.10.2026: 03:00 CEST → 02:00 CET. Die lokale Stunde 02:00 kommt zweimal vor.
     start = datetime(2026, 10, 25, 0, 0, tzinfo=UTC)  # = 02:00 CEST
-    entries = [((start + timedelta(minutes=15 * i)).strftime("%Y-%m-%dT%H:%M:%SZ"), 400, None, None) for i in range(8)]
+    entries = [((start + timedelta(minutes=15 * (i + 1))).strftime("%Y-%m-%dT%H:%M:%SZ"), 400, None, None) for i in range(8)]
     hours = parse_forecast(_payload(*entries)).wh_hours(ZURICH)
     # Zwei getrennte Stunden (02:00 CEST und 02:00 CET) mit je 4 × 400 W × 0.25 h
     assert hours == {
@@ -153,13 +171,14 @@ def test_wh_hours_keeps_both_hours_at_dst_fall_back():
 def test_gap_in_series_is_not_filled_with_last_value():
     f = parse_forecast(
         _payload(
-            ("2026-07-01T10:00:00Z", 1000, None, None),
-            ("2026-07-01T10:15:00Z", 2000, None, None),
+            ("2026-07-01T10:15:00Z", 1000, None, None),
             ("2026-07-01T10:30:00Z", 2000, None, None),
-            ("2026-07-01T12:00:00Z", 500, None, None),
+            ("2026-07-01T10:45:00Z", 2000, None, None),
+            ("2026-07-01T12:15:00Z", 500, None, None),
         )
     )
-    assert f.points[2].end == _utc(10, 45)
+    # Der Punkt nach der Lücke reicht nur eine Rasterweite zurück
+    assert (f.points[3].start, f.points[3].end) == (_utc(12), _utc(12, 15))
     assert f.power_at(_utc(11)) is None
     assert f.energy_between(_utc(10), _utc(13)) == pytest.approx(250 + 500 + 500 + 125)
     assert f.covers(_utc(10), _utc(10, 45))

@@ -32,10 +32,11 @@ NOW = "2026-08-01 10:05:00+00:00"
 
 
 def _series(start: datetime, watts: list[float]) -> dict:
+    """Viertelstunden ab ``start``; ``t`` der API ist jeweils das Intervallende."""
     return {
         "data": [
             {
-                "t": (start + timedelta(minutes=15 * i)).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "t": (start + timedelta(minutes=15 * (i + 1))).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
                 "pW": w,
                 "pWmin": w / 2,
                 "pWmax": w * 2,
