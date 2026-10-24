@@ -33,9 +33,8 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 
 ### HACS (empfohlen)
 
-1. HACS → Integrationen → `⋮` → **Benutzerdefinierte Repositories**
-2. URL: `https://github.com/Soardiac/ha-solarmanager` · Kategorie: **Integration**
-3. „Solar Manager" suchen → installieren → Home Assistant neu starten
+Diese Integration ist nun standardmässig in HACS enthalten. Man muss also nicht mehr das Repo als "Benutzerdedfniertes Repositoty" hinzufügen.
+Einfach in HACS nach „Solar Manager" suchen → installieren → Home Assistant neu starten
 
 ### Manuell
 
