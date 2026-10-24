@@ -213,6 +213,24 @@ Klasse `total_increasing` — direkt im Energie-Dashboard verwendbar. Quelle im 
 | Eigenverbrauchsquote | % | ✓ | – | Anteil PV-Strom, der selbst verbraucht wurde |
 | Autarkiegrad | % | ✓ | – | Anteil des Verbrauchs, der aus PV/Batterie gedeckt wurde |
 
+#### PV-Prognose (nur Cloud)
+
+Die Prognose von Solar Manager (`/v3/users/{smId}/data/forecast`, 15-Minuten-Raster für die nächsten 3 Tage) wird alle 30 Minuten geladen. Neben dem erwarteten Wert liefert Solar Manager ein Unsicherheitsband. Jeder Prognose-Sensor hat deshalb die Attribute `min` und `max`. Die lokale API kennt keine Prognose, im lokalen Modus fehlen diese Sensoren.
+
+| Entität | Einheit | Beschreibung |
+|---|---|---|
+| PV-Prognose jetzt | W | Erwartete Leistung im aktuellen 15-Minuten-Intervall. Attribut `forecast`: Verlauf der nächsten 48 h als Liste `{t, w, min, max}` (z. B. für ApexCharts), wird nicht im Recorder gespeichert |
+| PV-Prognose in 15 min / in 30 min | W | Erwartete Leistung im Intervall in 15 bzw. 30 Minuten |
+| PV-Prognose heute | Wh | Erwartete Erzeugung des ganzen Tages. Attribut `complete`: `false`, wenn die Zeitreihe nicht den ganzen Tag abdeckt (z. B. nach einem Neustart am Nachmittag) |
+| PV-Prognose Rest heute | Wh | Erwartete Erzeugung von jetzt bis Mitternacht |
+| PV-Prognose morgen | Wh | Erwartete Erzeugung des morgigen Tages |
+| PV-Prognose Spitze heute | W | Höchste erwartete Leistung heute, Attribut `time` = Beginn des Intervalls |
+| PV-Prognose Spitze Zeitpunkt | Zeitstempel | Zeitpunkt der höchsten erwarteten Leistung heute |
+
+Die Energie-Prognosen haben bewusst keine `state_class`: Eine Prognose ist kein Zähler und gehört nicht in die Langzeitstatistik.
+
+**Energie-Dashboard:** Unter *Einstellungen → Dashboards → Energie → Solarmodule → Prognose* den Eintrag „Solar Manager“ auswählen. Das Dashboard zeigt dann die erwartete Erzeugung als gestrichelte Linie.
+
 #### Sonstige Anlage-Sensoren
 
 | Entität | Einheit | Beschreibung |
