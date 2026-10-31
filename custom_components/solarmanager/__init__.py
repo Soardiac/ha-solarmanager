@@ -91,6 +91,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name=info["name"],
         manufacturer=info["manufacturer"],
         model=info["model"],
+        serial_number=info["serial_number"],
     )
     coord.site_device_id = site_device.id
 

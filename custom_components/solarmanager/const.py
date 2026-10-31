@@ -17,6 +17,9 @@ PASSWORD_AUTH_DEADLINE = "30.06.2027"
 # Optionen
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_SCAN = 10  # Sekunden – der v3-Stream liefert typischerweise iv≈10s
+# PV-Generatorleistung (kWp, Summe der Module) — überschreibt den Wert aus
+# Solar Manager (/v1/info/gateway → settings.kWp). Leer = API-Wert verwenden.
+CONF_GENERATOR_KWP = "generator_kwp"
 
 # API: eine gemeinsame Basis-URL für alles
 CLOUD_BASE = "https://cloud.solar-manager.ch"

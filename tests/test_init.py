@@ -107,3 +107,29 @@ async def test_setup_stores_site_device_id(hass, aioclient_mock):
     site_device = dr.async_get(hass).async_get(entry.runtime_data.site_device_id)
     assert site_device is not None
     assert (DOMAIN, f"site_{HOST}") in site_device.identifiers
+
+
+async def test_setup_renames_existing_site_device_but_keeps_user_name(hass, aioclient_mock):
+    """Bestehende Installationen: „Solarmanager <id>“ wird zu „Solar Manager“,
+    ein vom Nutzer vergebener Name bleibt erhalten."""
+    entry = _entry(hass)
+    registry = dr.async_get(hass)
+    old = registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"site_{HOST}")},
+        name=f"Solarmanager {HOST}",
+    )
+    registry.async_update_device(old.id, name_by_user="Mein PV")
+    entry.mock_state(hass, ConfigEntryState.SETUP_IN_PROGRESS)
+    aioclient_mock.get(f"http://{HOST}/v2/point", json={"iv": 10, "pW": 0, "cW": 0})
+    aioclient_mock.get(f"http://{HOST}/v2/devices", json=[])
+
+    with patch.object(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock()
+    ):
+        assert await async_setup_entry(hass, entry) is True
+
+    device = registry.async_get(old.id)
+    assert device.name == "Solar Manager"
+    assert device.name_by_user == "Mein PV"
+    assert device.serial_number == HOST

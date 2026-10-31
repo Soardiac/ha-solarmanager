@@ -1,12 +1,16 @@
 # entity.py — gemeinsame Helper für alle Plattformen
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MANUFACTURER, MODEL, MODEL_LOCAL
 from .coordinator import SolarmanagerCoordinator
+
+SITE_DEVICE_NAME = "Solar Manager"
 
 # HA hat `via_device` (Identifier-Tupel) zugunsten von `via_device_id` (Registry-ID)
 # abgelöst: ab 2026.8 gibt es beide Felder, ab 2026.9 nur noch `via_device_id`.
@@ -32,12 +36,25 @@ def find_device(data: dict[str, Any] | None, dev_id: str) -> dict[str, Any] | No
     return None
 
 
+def local_day_bounds(now: datetime, offset_days: int = 0) -> tuple[datetime, datetime]:
+    """Lokaler Tag [Mitternacht, nächste Mitternacht) — korrekt auch bei Zeitumstellung."""
+    day = dt_util.as_local(now).date() + timedelta(days=offset_days)
+    return (
+        dt_util.start_of_local_day(day),
+        dt_util.start_of_local_day(day + timedelta(days=1)),
+    )
+
+
 def site_device_info(coordinator: SolarmanagerCoordinator) -> dict[str, Any]:
     """device_info für das Site-Gerät (Gateway)."""
     site_id = coordinator.site_id
+    # Bewusst ohne smId/Host im Namen: Der Gerätename wird Präfix der Entity-IDs
+    # (sensor.solar_manager_…). Die Kennung steht stattdessen als Seriennummer
+    # auf der Geräteseite. Die identifiers bleiben unverändert.
     return {
         "identifiers": {(DOMAIN, f"site_{site_id}")},
-        "name": f"Solarmanager {site_id}",
+        "name": SITE_DEVICE_NAME,
+        "serial_number": site_id,
         "manufacturer": MANUFACTURER,
         "model": MODEL_LOCAL if coordinator.is_local else MODEL,
     }

@@ -10,6 +10,9 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -26,6 +29,7 @@ from .const import (
     CLOUD_BASE,
     CONF_API_KEY,
     CONF_EMAIL,
+    CONF_GENERATOR_KWP,
     CONF_HOST,
     CONF_MODE,
     CONF_PASSWORD,
@@ -43,6 +47,11 @@ _LOGGER = logging.getLogger(__name__)
 
 PASSWORD_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 EMAIL_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.EMAIL))
+KWP_SELECTOR = NumberSelector(
+    NumberSelectorConfig(
+        min=0, max=1000, step=0.1, mode=NumberSelectorMode.BOX, unit_of_measurement="kWp"
+    )
+)
 
 
 def _schema_cloud(defaults: dict | None = None) -> vol.Schema:
@@ -520,6 +529,12 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlowWithReload):
                     **self.config_entry.options,
                     CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL],
                 }
+                # Leer oder 0 → Schlüssel entfernen, dann gilt der Wert aus Solar Manager
+                kwp = user_input.get(CONF_GENERATOR_KWP)
+                if kwp:
+                    new_options[CONF_GENERATOR_KWP] = float(kwp)
+                else:
+                    new_options.pop(CONF_GENERATOR_KWP, None)
                 if new_data is not None:
                     data_changed = self.hass.config_entries.async_update_entry(
                         self.config_entry, data=new_data
@@ -533,26 +548,43 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlowWithReload):
                         )
                 return self.async_create_entry(title="", data=new_options)
 
-        if is_local:
-            schema = vol.Schema({
-                vol.Optional(
-                    CONF_SCAN_INTERVAL,
-                    default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN),
-                ): vol.All(vol.Coerce(int), vol.Range(min=10)),
-            })
-            return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
-
-        has_api_key = bool(self.config_entry.data.get(CONF_API_KEY))
-        schema = vol.Schema({
-            vol.Optional(CONF_API_KEY, default=""): PASSWORD_SELECTOR,
+        common = {
             vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN),
             ): vol.All(vol.Coerce(int), vol.Range(min=10)),
+            # suggested_value statt default: das Feld lässt sich wieder leeren
+            vol.Optional(
+                CONF_GENERATOR_KWP,
+                description={"suggested_value": self.config_entry.options.get(CONF_GENERATOR_KWP)},
+            ): KWP_SELECTOR,
+        }
+        # Wert aus Solar Manager als Orientierung anzeigen (nur Cloud, nur wenn geladen)
+        coord = getattr(self.config_entry, "runtime_data", None)
+        api_kwp = getattr(coord, "api_kwp", None)
+        placeholders = {
+            "api_kwp": f"{api_kwp:g} kWp" if api_kwp else "nicht verfügbar",
+        }
+
+        if is_local:
+            return self.async_show_form(
+                step_id="init",
+                data_schema=vol.Schema(common),
+                errors=errors,
+                description_placeholders={**placeholders, "api_key_status": "–"},
+            )
+
+        has_api_key = bool(self.config_entry.data.get(CONF_API_KEY))
+        schema = vol.Schema({
+            vol.Optional(CONF_API_KEY, default=""): PASSWORD_SELECTOR,
+            **common,
         })
         return self.async_show_form(
             step_id="init",
             data_schema=schema,
             errors=errors,
-            description_placeholders={"api_key_status": "gesetzt ✓" if has_api_key else "nicht gesetzt"},
+            description_placeholders={
+                **placeholders,
+                "api_key_status": "gesetzt ✓" if has_api_key else "nicht gesetzt",
+            },
         )

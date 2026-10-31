@@ -496,3 +496,77 @@ async def test_forecast_not_fetched_in_local_mode(hass, aioclient_mock):
     assert coord.last_update_success
     assert coord.forecast is None
     assert not any("forecast" in str(call[1]) for call in aioclient_mock.mock_calls)
+
+
+# -------------------- Generatorleistung --------------------
+
+GATEWAY_URL = f"{CLOUD_BASE}/v1/info/gateway/{SM_ID}"
+
+
+def _gateway_calls(aioclient_mock) -> int:
+    return sum(1 for call in aioclient_mock.mock_calls if str(call[1]) == GATEWAY_URL)
+
+
+async def test_generator_kwp_loaded_from_gateway_info_with_ttl(hass, aioclient_mock):
+    entry = _cloud_entry(hass)
+    _mock_cloud(aioclient_mock, FORECAST_RESPONSE)
+    aioclient_mock.get(GATEWAY_URL, json={"settings": {"kWp": 10}})
+
+    with freeze_time("2026-08-01 10:05:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+        assert coord.generator_kwp == 10.0
+        assert coord.generator_kwp_source == "solar_manager"
+        assert coord.generator_share_w(60) == pytest.approx(6000)
+
+        frozen.tick(delta=timedelta(hours=1))
+        await coord.async_refresh()
+        assert _gateway_calls(aioclient_mock) == 1
+
+
+@pytest.mark.parametrize("payload", [{"settings": {"kWp": 0}}, {"settings": {}}, {}, []])
+async def test_generator_kwp_ignores_missing_or_zero(hass, aioclient_mock, payload):
+    entry = _cloud_entry(hass)
+    _mock_cloud(aioclient_mock, FORECAST_RESPONSE)
+    aioclient_mock.get(GATEWAY_URL, json=payload)
+
+    coord = SolarmanagerCoordinator(hass, entry)
+    await coord.async_refresh()
+
+    assert coord.last_update_success
+    assert coord.generator_kwp is None
+    assert coord.generator_kwp_source is None
+    assert coord.generator_share_w(60) is None
+
+
+async def test_generator_kwp_option_overrides_solar_manager(hass, aioclient_mock):
+    from custom_components.solarmanager.const import CONF_GENERATOR_KWP
+
+    entry = _cloud_entry(hass)
+    hass.config_entries.async_update_entry(entry, options={CONF_GENERATOR_KWP: 11.2})
+    _mock_cloud(aioclient_mock, FORECAST_RESPONSE)
+    aioclient_mock.get(GATEWAY_URL, json={"settings": {"kWp": 10}})
+
+    coord = SolarmanagerCoordinator(hass, entry)
+    await coord.async_refresh()
+
+    assert coord.api_kwp == 10.0
+    assert coord.generator_kwp == 11.2
+    assert coord.generator_kwp_source == "option"
+
+
+async def test_generator_kwp_local_mode_only_from_option(hass, aioclient_mock):
+    from custom_components.solarmanager.const import CONF_GENERATOR_KWP
+
+    entry = _local_entry(hass)
+    aioclient_mock.get(DEVICES_URL, json=[])
+    aioclient_mock.get(POINT_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10})
+
+    coord = SolarmanagerCoordinator(hass, entry)
+    await coord.async_refresh()
+    assert coord.generator_kwp is None
+    assert not any("gateway" in str(call[1]) for call in aioclient_mock.mock_calls)
+
+    hass.config_entries.async_update_entry(entry, options={CONF_GENERATOR_KWP: 8})
+    assert coord.generator_kwp == 8.0
+    assert coord.generator_kwp_source == "option"

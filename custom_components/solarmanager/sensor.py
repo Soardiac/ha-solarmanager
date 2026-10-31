@@ -24,7 +24,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .coordinator import DEVICE_DAILY_KEYS, SolarmanagerCoordinator, compute_surplus_w
-from .entity import child_device_info, find_device, site_device_info
+from .entity import child_device_info, find_device, local_day_bounds, site_device_info
 from .forecast import ForecastPoint, PvForecast
 
 PARALLEL_UPDATES = 1
@@ -97,6 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         SocSensor(coord),
         PvSurplusPowerSensor(coord),
         DevicesOverviewSensor(coord),
+        GeneratorKwpSensor(coord),
     ]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS_PERCENT]
@@ -304,16 +305,31 @@ class DevicesOverviewSensor(_Base, SensorEntity):
         }
 
 
+class GeneratorKwpSensor(_Base, SensorEntity):
+    """Generatorleistung (kWp), mit der die Abregelungs-Conditions rechnen.
+
+    Sichtbar gemacht, weil der Wert aus Solar Manager oft falsch erfasst ist
+    (z. B. AC-Leistung des Wechselrichters statt Modulleistung). Attribut
+    ``source`` zeigt, ob er aus den Optionen oder aus Solar Manager stammt.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_native_unit_of_measurement = "kWp"
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator: SolarmanagerCoordinator):
+        super().__init__(coordinator, "generator_kwp", "generator_kwp")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.generator_kwp
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"source": self.coordinator.generator_kwp_source}
+
+
 # ---------- PV-Prognose (nur Cloud) ----------
-
-def _day_bounds(now: datetime, offset_days: int = 0) -> tuple[datetime, datetime]:
-    """Lokaler Tag [Mitternacht, nächste Mitternacht) — korrekt auch bei Zeitumstellung."""
-    day = dt_util.as_local(now).date() + timedelta(days=offset_days)
-    return (
-        dt_util.start_of_local_day(day),
-        dt_util.start_of_local_day(day + timedelta(days=1)),
-    )
-
 
 def _rounded(value: float | None) -> float | None:
     return None if value is None else round(value)
@@ -416,8 +432,8 @@ class ForecastEnergySensor(_ForecastBase):
     def _bounds(self) -> tuple[datetime, datetime]:
         now = dt_util.utcnow()
         if self._window == "tomorrow":
-            return _day_bounds(now, 1)
-        start, end = _day_bounds(now)
+            return local_day_bounds(now, 1)
+        start, end = local_day_bounds(now)
         if self._window == "remaining_today":
             start = now
         return start, end
@@ -449,7 +465,7 @@ class _ForecastPeakBase(_ForecastBase):
         f = self._forecast
         if f is None:
             return None
-        peak = f.peak_between(*_day_bounds(dt_util.utcnow()))
+        peak = f.peak_between(*local_day_bounds(dt_util.utcnow()))
         # Ohne Produktion (Nacht, Schnee) gibt es keine sinnvolle Spitze
         return peak if peak is not None and peak.watts > 0 else None
 

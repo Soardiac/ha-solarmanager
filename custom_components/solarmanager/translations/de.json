@@ -126,14 +126,16 @@
     "step": {
       "init": {
         "title": "Optionen",
-        "description": "Cloud API Key: {api_key_status}",
+        "description": "Cloud API Key: {api_key_status}\n\nPV-Generatorleistung laut Solar Manager: {api_kwp}",
         "data": {
           "api_key": "Cloud API Key",
-          "scan_interval": "Abfrageintervall (Sekunden)"
+          "scan_interval": "Abfrageintervall (Sekunden)",
+          "generator_kwp": "PV-Generatorleistung (kWp)"
         },
         "data_description": {
           "api_key": "Leer lassen um bestehende Zugangsdaten zu behalten. Neuen Key eingeben um auf API-Key-Authentifizierung umzusteigen oder den bestehenden zu ersetzen.",
-          "scan_interval": "Wie oft die API abgefragt wird. Empfohlen: 10 Sekunden."
+          "scan_interval": "Wie oft die API abgefragt wird. Empfohlen: 10 Sekunden.",
+          "generator_kwp": "Summe der Modulleistung laut Anlagendokumentation — nicht die Leistung des Wechselrichters. Grundlage für die Conditions zum Einspeiselimit. Leer lassen, um den Wert aus Solar Manager („DC-Leistung“) zu verwenden."
         }
       }
     }
@@ -173,6 +175,37 @@
       "fields": {
         "threshold": { "name": "Überschuss-Schwellwert" },
         "for": { "name": "Für mindestens" }
+      }
+    },
+    "is_power_above_generator_share": {
+      "name": "Leistung über Anteil der Generatorleistung",
+      "description": "Prüft, ob Einspeisung oder PV-Produktion durchgehend seit einer festgelegten Dauer mindestens einen Anteil der PV-Generatorleistung (kWp) erreicht — z. B. um ein erreichtes Einspeiselimit zu erkennen. Mit „PV-Produktion“ bleibt die Bedingung wahr, nachdem ein Verbraucher eingeschaltet wurde: Die Einspeisung sinkt dann, die Produktion nicht.",
+      "fields": {
+        "source": { "name": "Leistung" },
+        "percent": { "name": "Anteil der Generatorleistung" },
+        "for": { "name": "Für mindestens" }
+      }
+    },
+    "is_curtailment_expected_today": {
+      "name": "Heute Abregelung zu erwarten",
+      "description": "Prüft, ob die PV-Prognose von jetzt bis Mitternacht einen Anteil der PV-Generatorleistung (kWp) erreicht. Verglichen wird nur die Produktionsprognose (ohne Hausverbrauch und Akkuladung) — das Ergebnis heisst also „Abregelung möglich“. Unbekannt ohne Prognose (lokaler Modus) oder ohne Generatorleistung.",
+      "fields": {
+        "percent": { "name": "Anteil der Generatorleistung" },
+        "band": { "name": "Prognosewert" }
+      }
+    }
+  },
+  "selector": {
+    "power_source": {
+      "options": {
+        "feed_in": "Netzeinspeisung",
+        "production": "PV-Produktion"
+      }
+    },
+    "forecast_band": {
+      "options": {
+        "expected": "Erwarteter Wert",
+        "max": "Obergrenze (max)"
       }
     }
   },
@@ -219,7 +252,8 @@
       "forecast_energy_remaining_today": { "name": "PV-Prognose Rest heute" },
       "forecast_energy_tomorrow": { "name": "PV-Prognose morgen" },
       "forecast_peak_power_today": { "name": "PV-Prognose Spitze heute" },
-      "forecast_peak_time_today": { "name": "PV-Prognose Spitze Zeitpunkt" }
+      "forecast_peak_time_today": { "name": "PV-Prognose Spitze Zeitpunkt" },
+      "generator_kwp": { "name": "PV-Generatorleistung" }
     },
     "binary_sensor": {
       "signal": { "name": "Verbindung" }

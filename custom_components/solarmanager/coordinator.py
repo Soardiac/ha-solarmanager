@@ -26,6 +26,7 @@ from .const import (
     CLOUD_BASE,
     CONF_API_KEY,
     CONF_EMAIL,
+    CONF_GENERATOR_KWP,
     CONF_HOST,
     CONF_MODE,
     CONF_PASSWORD,
@@ -52,6 +53,9 @@ STATS_TTL = 300  # Sekunden
 FORECAST_TTL = 1800  # Sekunden
 # Anzahl Rohdaten-Einträge der Prognose, die in der Diagnose landen
 FORECAST_SAMPLE_SIZE = 4
+
+# Gateway-Details (Cloud) für die Generatorleistung — ändert sich praktisch nie
+GATEWAY_INFO_TTL = 21600  # Sekunden (6 h)
 
 # Persistenz der Tageszähler (überleben Neustart/Reload)
 STORAGE_VERSION = 1
@@ -202,6 +206,10 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._forecast_last: float = 0.0
         self._forecast_fetched_at: str | None = None
         self._forecast_raw_sample: list[Any] = []
+
+        # Generatorleistung laut Solar Manager (settings.kWp, nur Cloud)
+        self._api_kwp: float | None = None
+        self._gateway_last: float = 0.0
 
         # Tages-Netzenergie (nur Cloud): Riemann-Integration von iW/eW.
         # Ersetzt die fehlerhafte REST-Ableitung consumption - selfConsumption
@@ -484,6 +492,57 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as e:
             _LOGGER.debug("Could not fetch gateway statistics: %s", e)
 
+    async def _load_gateway_info(self) -> None:
+        """Generatorleistung via GET /v1/info/gateway/{smId} → settings.kWp laden (alle 6 h)."""
+        if not isinstance(self.client, SolarmanagerCloud):
+            return
+        # Auch bei Fehlern erst nach GATEWAY_INFO_TTL erneut versuchen
+        self._gateway_last = time.time()
+        try:
+            info = await self.client.get_gateway_info()
+            settings = info.get("settings") if isinstance(info, dict) else None
+            kwp = (settings or {}).get("kWp") if isinstance(settings, dict) else None
+            try:
+                value = float(kwp) if kwp is not None else None
+            except (TypeError, ValueError):
+                value = None
+            # 0 ist der Default in Solar Manager, wenn nichts erfasst wurde
+            self._api_kwp = value if value is not None and value > 0 else None
+            _LOGGER.debug("Gateway info loaded: kWp=%s", kwp)
+        except Exception as e:
+            _LOGGER.debug("Could not fetch gateway info: %s", e)
+
+    def _option_kwp(self) -> float | None:
+        """Generatorleistung aus den Optionen; leer oder 0 heißt: nicht gesetzt."""
+        try:
+            value = float(self.entry.options.get(CONF_GENERATOR_KWP) or 0)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    @property
+    def api_kwp(self) -> float | None:
+        """Generatorleistung laut Solar Manager (settings.kWp), None wenn unbekannt."""
+        return self._api_kwp
+
+    @property
+    def generator_kwp(self) -> float | None:
+        """Generatorleistung (kWp): Option vor Solar-Manager-Wert, sonst None."""
+        option = self._option_kwp()
+        return option if option is not None else self._api_kwp
+
+    @property
+    def generator_kwp_source(self) -> str | None:
+        """Herkunft von generator_kwp: 'option', 'solar_manager' oder None."""
+        if self._option_kwp() is not None:
+            return "option"
+        return "solar_manager" if self._api_kwp is not None else None
+
+    def generator_share_w(self, percent: float) -> float | None:
+        """Leistung (W), die ``percent`` % der Generatorleistung entspricht."""
+        kwp = self.generator_kwp
+        return None if kwp is None else kwp * 1000 * percent / 100
+
     async def _load_forecast(self) -> None:
         """PV-Prognose via GET /v3/users/{smId}/data/forecast laden (alle 30 min)."""
         if not isinstance(self.client, SolarmanagerCloud):
@@ -659,6 +718,8 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 if time.time() - self._forecast_last > FORECAST_TTL:
                     await self._load_forecast()
+                if time.time() - self._gateway_last > GATEWAY_INFO_TTL:
+                    await self._load_gateway_info()
             else:
                 # Lokal: pW/cW/iW/eW (W) über die Zeit integrieren → Wh-Tageszähler
                 now_t = time.time()

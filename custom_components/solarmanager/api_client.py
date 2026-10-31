@@ -228,6 +228,10 @@ class SolarmanagerCloud:
         """
         return await self._authed_request("GET", f"/v3/users/{self.sm_id}/data/forecast")
 
+    async def get_gateway_info(self) -> dict[str, Any]:
+        """GET /v1/info/gateway/{smId} → Gateway-Details, u. a. settings.kWp."""
+        return await self._authed_request("GET", f"/v1/info/gateway/{self.sm_id}")
+
     async def list_devices(self) -> list[dict]:
         """GET /v1/info/sensors/{smId} → Liste der Geräte mit _id und (tag.name | name)."""
         return await self._authed_request("GET", f"/v1/info/sensors/{self.sm_id}")

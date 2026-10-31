@@ -126,14 +126,16 @@
     "step": {
       "init": {
         "title": "Options",
-        "description": "Cloud API key: {api_key_status}",
+        "description": "Cloud API key: {api_key_status}\n\nPV generator capacity from Solar Manager: {api_kwp}",
         "data": {
           "api_key": "Cloud API key",
-          "scan_interval": "Polling interval (seconds)"
+          "scan_interval": "Polling interval (seconds)",
+          "generator_kwp": "PV generator capacity (kWp)"
         },
         "data_description": {
           "api_key": "Leave empty to keep the existing credentials. Enter a new key to switch to API key authentication or to replace the existing key.",
-          "scan_interval": "How often the API is polled. Recommended: 10 seconds."
+          "scan_interval": "How often the API is polled. Recommended: 10 seconds.",
+          "generator_kwp": "Sum of the module power according to the system documentation — not the inverter power. Basis for the feed-in limit conditions. Leave empty to use the value from Solar Manager (\"DC power\")."
         }
       }
     }
@@ -160,6 +162,37 @@
       "fields": {
         "threshold": { "name": "Surplus threshold" },
         "for": { "name": "For at least" }
+      }
+    },
+    "is_power_above_generator_share": {
+      "name": "Power above share of generator capacity",
+      "description": "Tests whether feed-in or PV production has been continuously at or above a percentage of the PV generator capacity (kWp) for a set duration — e.g. to detect a reached feed-in limit. With \"PV production\" the condition stays true after a consumer is switched on: feed-in drops, production does not.",
+      "fields": {
+        "source": { "name": "Power" },
+        "percent": { "name": "Share of generator capacity" },
+        "for": { "name": "For at least" }
+      }
+    },
+    "is_curtailment_expected_today": {
+      "name": "Curtailment expected today",
+      "description": "Tests whether the PV forecast from now until midnight reaches a percentage of the PV generator capacity (kWp). Compares the production forecast only (without house consumption and battery charging), so it indicates possible curtailment. Unknown without forecast (local mode) or generator capacity.",
+      "fields": {
+        "percent": { "name": "Share of generator capacity" },
+        "band": { "name": "Forecast value" }
+      }
+    }
+  },
+  "selector": {
+    "power_source": {
+      "options": {
+        "feed_in": "Grid feed-in",
+        "production": "PV production"
+      }
+    },
+    "forecast_band": {
+      "options": {
+        "expected": "Expected value",
+        "max": "Upper bound (max)"
       }
     }
   },
@@ -206,7 +239,8 @@
       "forecast_energy_remaining_today": { "name": "PV forecast remaining today" },
       "forecast_energy_tomorrow": { "name": "PV forecast tomorrow" },
       "forecast_peak_power_today": { "name": "PV forecast peak today" },
-      "forecast_peak_time_today": { "name": "PV forecast peak time today" }
+      "forecast_peak_time_today": { "name": "PV forecast peak time today" },
+      "generator_kwp": { "name": "PV generator capacity" }
     },
     "binary_sensor": {
       "signal": { "name": "Connection" }

@@ -90,6 +90,11 @@ async def async_get_config_entry_diagnostics(
             "stats_data": async_redact_data(dict(coord._stats_data), TO_REDACT),
         },
         "forecast": forecast_info,
+        "generator": {
+            "generator_kwp": coord.generator_kwp,
+            "source": coord.generator_kwp_source,
+            "api_kwp": coord.api_kwp,
+        },
         "device_metadata": device_metadata,
         "client": client_info,
     }

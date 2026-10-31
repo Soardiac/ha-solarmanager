@@ -867,3 +867,39 @@ async def test_options_flow_api_key_only_still_reloads(hass):
     assert entry.data[CONF_API_KEY] == "new-key"
     assert entry.options[CONF_SCAN_INTERVAL] == 10
     assert mock_reload.call_count == 1
+
+
+async def test_options_flow_stores_and_clears_generator_kwp(hass):
+    """Generatorleistung: Wert speichern, leeres Feld entfernt den Schlüssel wieder."""
+    from custom_components.solarmanager.const import CONF_GENERATOR_KWP
+
+    entry = _options_entry(hass)
+
+    with patch.object(hass.config_entries, "async_schedule_reload"):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        assert result["description_placeholders"]["api_kwp"] == "nicht verfügbar"
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_SCAN_INTERVAL: 10, CONF_GENERATOR_KWP: 11.2}
+        )
+        await hass.async_block_till_done()
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert entry.options[CONF_GENERATOR_KWP] == 11.2
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_SCAN_INTERVAL: 10}
+        )
+        await hass.async_block_till_done()
+    assert CONF_GENERATOR_KWP not in entry.options
+
+
+async def test_options_flow_shows_kwp_from_solar_manager(hass):
+    """Der Wert aus Solar Manager erscheint als Orientierung in der Beschreibung."""
+    from types import SimpleNamespace
+
+    entry = _options_entry(hass)
+    entry.runtime_data = SimpleNamespace(api_kwp=10.0)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["description_placeholders"]["api_kwp"] == "10 kWp"

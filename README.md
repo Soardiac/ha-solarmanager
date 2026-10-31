@@ -159,6 +159,16 @@ Wer die Integration bisher mit E-Mail/Passwort betrieben hat, kann jederzeit auf
 Nach der Einrichtung: Konfigurieren → **Optionen** → Scan-Intervall in Sekunden (Standard: **10 s**).  
 Tagesstatistiken werden alle **5 Minuten** neu geladen. Geräte-Metadaten (Modi, Parameter) werden höchstens alle **60 Sekunden** aktualisiert — nach einem Schreibbefehl aus HA jedoch sofort.
 
+### PV-Generatorleistung (Optionen)
+
+Die Conditions zum Einspeiselimit (siehe [Beispiele](#einspeiselimit-und-abregelung-conditions)) rechnen mit der installierten PV-Generatorleistung in kWp, also der **Summe der Modulleistung laut Anlagendokumentation**. Die Leistung des Wechselrichters ist dafür nicht massgebend.
+
+- **Cloud-Modus:** Der Wert stammt aus Solar Manager (Konfiguration → „DC-Leistung“) und wird alle 6 Stunden geladen. Dort ist allerdings oft die Wechselrichter-Leistung eingetragen. Am besten korrigiert man den Wert direkt in Solar Manager, davon profitiert vermutlich auch die Solar-Manager-Prognose.
+- **Abweichender Wert:** Konfigurieren → **Optionen** → „PV-Generatorleistung (kWp)“. Ein Wert hier hat Vorrang. Ist das Feld leer, gilt wieder der Wert aus Solar Manager.
+- **Lokaler Modus:** Die lokale API kennt den Wert nicht, er muss in den Optionen eingetragen werden.
+
+Mit welchem Wert gerechnet wird, zeigt der Diagnose-Sensor **PV-Generatorleistung** (Attribut `source`: `option` oder `solar_manager`).
+
 ### Erneute Authentifizierung
 
 Wenn HA einen Auth-Fehler erkennt (abgelaufene Zugangsdaten oder Passwortänderung), erscheint automatisch eine Benachrichtigung. Über den Link darin können die Zugangsdaten aktualisiert werden — ohne die Integration zu löschen.
@@ -238,6 +248,7 @@ Die Energie-Prognosen haben bewusst keine `state_class`: Eine Prognose ist kein 
 |---|---|---|
 | Batterie-SOC | % | Aktueller Ladestand der Batterie |
 | Geräte (Stream-Übersicht) | – | Anzahl der vom Stream gemeldeten Geräte inkl. Rohdaten-Attributen. Diagnose-Sensor, **per Default deaktiviert** |
+| PV-Generatorleistung | kWp | Generatorleistung, mit der die Einspeiselimit-Conditions rechnen. Attribut `source` zeigt die Herkunft (`option` / `solar_manager`). Diagnose-Sensor, siehe [PV-Generatorleistung](#pv-generatorleistung-optionen) |
 
 ---
 
@@ -492,6 +503,63 @@ automation:
 
 Status: experimenteller Spike — Details siehe [Issues](https://github.com/Soardiac/ha-solarmanager/issues).
 
+### Einspeiselimit und Abregelung (Conditions)
+
+Für Anlagen mit Einspeiselimit (z. B. 60 % der Generatorleistung), Hintergrund in
+[Discussion #23](https://github.com/Soardiac/ha-solarmanager/discussions/23). Beide Conditions
+rechnen mit der [PV-Generatorleistung](#pv-generatorleistung-optionen) und sind „unbekannt“, solange
+diese fehlt.
+
+- **`solarmanager.is_power_above_generator_share`: „Leistung über Anteil der Generatorleistung“.**
+  Die Bedingung ist wahr, wenn die Netzeinspeisung (`source: feed_in`) oder die PV-Produktion
+  (`source: production`) seit `for` mindestens `percent` % der Generatorleistung beträgt.
+  Schaltet man bei erreichtem Limit einen Verbraucher ein, sinkt die Einspeisung und eine reine
+  Einspeise-Bedingung wäre sofort wieder falsch. Die Produktion sinkt dagegen nicht, sie steigt
+  sogar, weil weniger abgeregelt wird. Deshalb: mit `feed_in` einschalten, mit `production`
+  entscheiden, ob das Gerät weiterläuft.
+- **`solarmanager.is_curtailment_expected_today`: „Heute Abregelung zu erwarten“** (nur Cloud).
+  Die Bedingung ist wahr, wenn die [PV-Prognose](#pv-prognose-nur-cloud) von jetzt bis Mitternacht
+  `percent` % der Generatorleistung erreicht. Mit `band: max` zählt die Obergrenze der Prognose.
+  Verglichen wird nur die Produktionsprognose, ohne Hausverbrauch und Akkuladung. Die Bedingung
+  bedeutet also „Abregelung möglich“, z. B. um morgens den maximalen Ladestand der Hausbatterie
+  vorübergehend zu senken.
+
+```yaml
+automation:
+  alias: "Entfeuchter bei erreichtem Einspeiselimit"
+  trigger:
+    - trigger: time_pattern
+      minutes: "/5"
+  action:
+    - choose:
+        - conditions:
+            - condition: solarmanager.is_power_above_generator_share
+              target:
+                device_id: <device_id des Solar-Manager-Geräts>
+              options:
+                source: feed_in
+                percent: 60
+                for: "00:02:00"
+          sequence:
+            - action: switch.turn_on
+              target:
+                entity_id: switch.entfeuchter
+        - conditions:
+            - condition: not
+              conditions:
+                - condition: solarmanager.is_power_above_generator_share
+                  target:
+                    device_id: <device_id des Solar-Manager-Geräts>
+                  options:
+                    source: production
+                    percent: 60
+                    for: "00:00:00"  # Prüfung alle 5 min über den time_pattern-Trigger
+          sequence:
+            - action: switch.turn_off
+              target:
+                entity_id: switch.entfeuchter
+```
+
 ### Automation: Wallbox auf «Nur Solar» bei PV-Überschuss (klassisch mit `numeric_state`)
 
 ```yaml
@@ -499,7 +567,7 @@ automation:
   alias: "Wallbox Solar-Modus bei PV-Überschuss"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.solarmanager_netzleistung
+      entity_id: sensor.solar_manager_netzleistung_bezug_einspeisung
       below: -500        # > 500 W Einspeisung
       for: "00:02:00"
   action:
@@ -517,17 +585,17 @@ automation:
   alias: "Benachrichtigung: Batterie voll, PV-Überschuss"
   trigger:
     - platform: numeric_state
-      entity_id: sensor.solarmanager_batterie_soc
+      entity_id: sensor.solar_manager_batterie_soc
       above: 95
   condition:
     - condition: numeric_state
-      entity_id: sensor.solarmanager_netz_export
+      entity_id: sensor.solar_manager_netz_export
       above: 300
   action:
     - action: notify.mobile_app_mein_telefon
       data:
         title: "Solar Manager"
-        message: "Batterie voll – {{ states('sensor.solarmanager_netz_export') }} W Überschuss ins Netz."
+        message: "Batterie voll – {{ states('sensor.solar_manager_netz_export') }} W Überschuss ins Netz."
 ```
 ### Dashboard-Beispiel E-Auto und Batterie Lademodi
 <img width="1372" height="851" alt="image" src="https://github.com/user-attachments/assets/f296c939-d4c1-4a22-a829-55fd932954f6" />

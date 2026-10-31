@@ -90,3 +90,11 @@ def test_site_device_info_has_no_via_link(monkeypatch, supported):
     assert "via_device" not in info
     assert "via_device_id" not in info
     assert info["identifiers"] == {(DOMAIN, "site_SM-0001")}
+
+
+def test_site_device_named_solar_manager_with_id_as_serial():
+    """Gerätename ohne smId/Host: er wird Präfix der Entity-IDs (sensor.solar_manager_…)."""
+    info = site_device_info(_StubCoordinator())
+
+    assert info["name"] == "Solar Manager"
+    assert info["serial_number"] == "SM-0001"
