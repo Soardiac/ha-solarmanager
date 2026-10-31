@@ -1,4 +1,4 @@
-"""Tests für die Einspeiselimit-/Abregelungs-Conditions und den Generatorleistungs-Sensor (#23)."""
+"""Tests für Einspeiselimit-/Abregelungs-Trigger und -Conditions sowie den Generatorleistungs-Sensor (#23)."""
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -6,7 +6,12 @@ import voluptuous as vol
 from freezegun import freeze_time
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.condition import ConditionConfig
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.helpers.trigger import TriggerConfig
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.solarmanager.condition import (
     CurtailmentExpectedTodayCondition,
@@ -24,6 +29,7 @@ from custom_components.solarmanager.const import (
 from custom_components.solarmanager.coordinator import SolarmanagerCoordinator
 from custom_components.solarmanager.forecast import parse_forecast
 from custom_components.solarmanager.sensor import GeneratorKwpSensor
+from custom_components.solarmanager.trigger import GeneratorShareReachedTrigger
 
 UTC = timezone.utc
 FOR = timedelta(minutes=2)
@@ -224,3 +230,104 @@ async def test_generator_kwp_sensor_shows_value_and_source(hass):
     hass.config_entries.async_update_entry(coord.entry, options={})
     assert sensor.native_value is None
     assert sensor.extra_state_attributes == {"source": None}
+
+
+# -------------------- Trigger: Anteil der Generatorleistung erreicht --------------------
+
+def _trigger_config(device_id: str, source: str = "feed_in", percent: float = 60.0) -> TriggerConfig:
+    return TriggerConfig(
+        key="solarmanager.generator_share_reached",
+        target={"device_id": [device_id]},
+        options={"source": source, "percent": percent, "for": FOR},
+    )
+
+
+async def _attach(hass, trigger):
+    fired: list[dict] = []
+    unsub = await trigger.async_attach_runner(
+        lambda payload, description, context=None: fired.append(payload)
+    )
+    return fired, unsub
+
+
+async def _advance(hass, delta: timedelta) -> None:
+    async_fire_time_changed(hass, dt_util.utcnow() + delta)
+    await hass.async_block_till_done()
+
+
+async def test_trigger_fires_once_after_for_when_limit_reached(hass):
+    coord, device = await _setup(hass)  # 10 kWp → 6000 W
+    fired, unsub = await _attach(hass, GeneratorShareReachedTrigger(hass, _trigger_config(device.id)))
+    try:
+        coord.async_set_updated_data({"pW": 7000.0, "eW": 6000.0})
+        assert fired == []
+
+        await _advance(hass, FOR + timedelta(seconds=1))
+        assert fired == [
+            {"source": "feed_in", "power_w": 6000.0, "threshold_w": 6000.0, "percent": 60.0}
+        ]
+
+        # Dauerhaft über der Schwelle → kein erneutes Auslösen
+        coord.async_set_updated_data({"pW": 7100.0, "eW": 6100.0})
+        await _advance(hass, 2 * FOR)
+        assert len(fired) == 1
+    finally:
+        unsub()
+
+
+async def test_trigger_rearms_after_dropping_below(hass):
+    coord, device = await _setup(hass)
+    fired, unsub = await _attach(hass, GeneratorShareReachedTrigger(hass, _trigger_config(device.id)))
+    try:
+        coord.async_set_updated_data({"pW": 7000.0, "eW": 6500.0})
+        await _advance(hass, FOR + timedelta(seconds=1))
+        coord.async_set_updated_data({"pW": 7000.0, "eW": 3000.0})
+        coord.async_set_updated_data({"pW": 7000.0, "eW": 6500.0})
+        await _advance(hass, 2 * FOR + timedelta(seconds=2))
+        assert len(fired) == 2
+    finally:
+        unsub()
+
+
+async def test_trigger_cancelled_when_dropping_below_before_for(hass):
+    coord, device = await _setup(hass)
+    fired, unsub = await _attach(hass, GeneratorShareReachedTrigger(hass, _trigger_config(device.id)))
+    try:
+        coord.async_set_updated_data({"pW": 7000.0, "eW": 6500.0})
+        coord.async_set_updated_data({"pW": 7000.0, "eW": 5000.0})
+        await _advance(hass, FOR + timedelta(seconds=1))
+        assert fired == []
+    finally:
+        unsub()
+
+
+async def test_trigger_uses_production_when_selected(hass):
+    coord, device = await _setup(hass)
+    fired, unsub = await _attach(
+        hass, GeneratorShareReachedTrigger(hass, _trigger_config(device.id, source="production"))
+    )
+    try:
+        coord.async_set_updated_data({"pW": 6200.0, "eW": 1000.0})
+        await _advance(hass, FOR + timedelta(seconds=1))
+        assert len(fired) == 1
+        assert fired[0]["power_w"] == 6200.0
+    finally:
+        unsub()
+
+
+async def test_trigger_never_fires_without_generator_kwp(hass):
+    coord, device = await _setup(hass, kwp=None)
+    fired, unsub = await _attach(hass, GeneratorShareReachedTrigger(hass, _trigger_config(device.id)))
+    try:
+        coord.async_set_updated_data({"pW": 20000.0, "eW": 20000.0})
+        await _advance(hass, FOR + timedelta(seconds=1))
+        assert fired == []
+    finally:
+        unsub()
+
+
+async def test_trigger_validate_config_fills_defaults(hass):
+    validated = await GeneratorShareReachedTrigger.async_validate_config(
+        hass, {"target": {"device_id": ["dev"]}, "options": {}}
+    )
+    assert validated["options"] == {"source": "feed_in", "percent": 60.0, "for": FOR}

@@ -135,7 +135,7 @@
         "data_description": {
           "api_key": "Leave empty to keep the existing credentials. Enter a new key to switch to API key authentication or to replace the existing key.",
           "scan_interval": "How often the API is polled. Recommended: 10 seconds.",
-          "generator_kwp": "Sum of the module power according to the system documentation — not the inverter power. Basis for the feed-in limit conditions. Leave empty to use the value from Solar Manager (\"DC power\")."
+          "generator_kwp": "Sum of the module power according to the system documentation — not the inverter power. Basis for the feed-in limit triggers and conditions. Leave empty to use the value from Solar Manager (\"DC power\")."
         }
       }
     }
@@ -151,6 +151,15 @@
       "description": "Triggers once PV surplus (PV power minus consumption minus battery power) stays above a threshold for a set duration.",
       "fields": {
         "threshold": { "name": "Surplus threshold" },
+        "for": { "name": "For at least" }
+      }
+    },
+    "generator_share_reached": {
+      "name": "Generator capacity share reached",
+      "description": "Triggers once feed-in or PV production stays at or above a percentage of the PV generator capacity (kWp) for a set duration — e.g. when the feed-in limit is reached. Never triggers without a generator capacity.",
+      "fields": {
+        "source": { "name": "Power" },
+        "percent": { "name": "Share of generator capacity" },
         "for": { "name": "For at least" }
       }
     }

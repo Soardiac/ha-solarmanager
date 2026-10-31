@@ -161,7 +161,7 @@ Tagesstatistiken werden alle **5 Minuten** neu geladen. Geräte-Metadaten (Modi,
 
 ### PV-Generatorleistung (Optionen)
 
-Die Conditions zum Einspeiselimit (siehe [Beispiele](#einspeiselimit-und-abregelung-conditions)) rechnen mit der installierten PV-Generatorleistung in kWp, also der **Summe der Modulleistung laut Anlagendokumentation**. Die Leistung des Wechselrichters ist dafür nicht massgebend.
+Trigger und Conditions zum Einspeiselimit (siehe [Beispiele](#einspeiselimit-und-abregelung-trigger-und-conditions)) rechnen mit der installierten PV-Generatorleistung in kWp, also der **Summe der Modulleistung laut Anlagendokumentation**. Die Leistung des Wechselrichters ist dafür nicht massgebend.
 
 - **Cloud-Modus:** Der Wert stammt aus Solar Manager (Konfiguration → „DC-Leistung“) und wird alle 6 Stunden geladen. Dort ist allerdings oft die Wechselrichter-Leistung eingetragen. Am besten korrigiert man den Wert direkt in Solar Manager, davon profitiert vermutlich auch die Solar-Manager-Prognose.
 - **Abweichender Wert:** Konfigurieren → **Optionen** → „PV-Generatorleistung (kWp)“. Ein Wert hier hat Vorrang. Ist das Feld leer, gilt wieder der Wert aus Solar Manager.
@@ -248,7 +248,7 @@ Die Energie-Prognosen haben bewusst keine `state_class`: Eine Prognose ist kein 
 |---|---|---|
 | Batterie-SOC | % | Aktueller Ladestand der Batterie |
 | Geräte (Stream-Übersicht) | – | Anzahl der vom Stream gemeldeten Geräte inkl. Rohdaten-Attributen. Diagnose-Sensor, **per Default deaktiviert** |
-| PV-Generatorleistung | kWp | Generatorleistung, mit der die Einspeiselimit-Conditions rechnen. Attribut `source` zeigt die Herkunft (`option` / `solar_manager`). Diagnose-Sensor, siehe [PV-Generatorleistung](#pv-generatorleistung-optionen) |
+| PV-Generatorleistung | kWp | Generatorleistung, mit der Trigger und Conditions zum Einspeiselimit rechnen. Attribut `source` zeigt die Herkunft (`option` / `solar_manager`). Diagnose-Sensor, siehe [PV-Generatorleistung](#pv-generatorleistung-optionen) |
 
 ---
 
@@ -503,61 +503,69 @@ automation:
 
 Status: experimenteller Spike — Details siehe [Issues](https://github.com/Soardiac/ha-solarmanager/issues).
 
-### Einspeiselimit und Abregelung (Conditions)
+### Einspeiselimit und Abregelung (Trigger und Conditions)
 
 Für Anlagen mit Einspeiselimit (z. B. 60 % der Generatorleistung), Hintergrund in
-[Discussion #23](https://github.com/Soardiac/ha-solarmanager/discussions/23). Beide Conditions
-rechnen mit der [PV-Generatorleistung](#pv-generatorleistung-optionen) und sind „unbekannt“, solange
-diese fehlt.
+[Discussion #23](https://github.com/Soardiac/ha-solarmanager/discussions/23). Alle drei Bausteine
+rechnen mit der [PV-Generatorleistung](#pv-generatorleistung-optionen). Fehlt diese, löst der Trigger
+nie aus, und die Conditions sind „unbekannt“.
 
-- **`solarmanager.is_power_above_generator_share`: „Leistung über Anteil der Generatorleistung“.**
-  Die Bedingung ist wahr, wenn die Netzeinspeisung (`source: feed_in`) oder die PV-Produktion
-  (`source: production`) seit `for` mindestens `percent` % der Generatorleistung beträgt.
-  Schaltet man bei erreichtem Limit einen Verbraucher ein, sinkt die Einspeisung und eine reine
-  Einspeise-Bedingung wäre sofort wieder falsch. Die Produktion sinkt dagegen nicht, sie steigt
-  sogar, weil weniger abgeregelt wird. Deshalb: mit `feed_in` einschalten, mit `production`
-  entscheiden, ob das Gerät weiterläuft.
-- **`solarmanager.is_curtailment_expected_today`: „Heute Abregelung zu erwarten“** (nur Cloud).
+- **Trigger `solarmanager.generator_share_reached`: „Anteil der Generatorleistung erreicht“.**
+  Er löst einmal aus, sobald die Netzeinspeisung (`source: feed_in`) oder die PV-Produktion
+  (`source: production`) für `for` mindestens `percent` % der Generatorleistung erreicht. Erneut
+  auslösen kann er erst, nachdem der Wert wieder unter die Schwelle gefallen ist.
+- **Condition `solarmanager.is_power_above_generator_share`: „Leistung über Anteil der Generatorleistung“.**
+  Dieselbe Prüfung als Bedingung: wahr, solange der Wert seit `for` über der Schwelle liegt.
+  Schaltet man bei erreichtem Limit einen Verbraucher ein, sinkt die Einspeisung, und eine reine
+  Einspeise-Prüfung wäre sofort wieder falsch. Die Produktion sinkt dagegen nicht, sie steigt sogar,
+  weil weniger abgeregelt wird. Deshalb: mit `feed_in` einschalten, mit `production` entscheiden,
+  ob das Gerät weiterläuft.
+- **Condition `solarmanager.is_curtailment_expected_today`: „Heute Abregelung zu erwarten“** (nur Cloud).
   Die Bedingung ist wahr, wenn die [PV-Prognose](#pv-prognose-nur-cloud) von jetzt bis Mitternacht
   `percent` % der Generatorleistung erreicht. Mit `band: max` zählt die Obergrenze der Prognose.
   Verglichen wird nur die Produktionsprognose, ohne Hausverbrauch und Akkuladung. Die Bedingung
-  bedeutet also „Abregelung möglich“, z. B. um morgens den maximalen Ladestand der Hausbatterie
-  vorübergehend zu senken.
+  bedeutet also „Abregelung möglich“. Typisch ist ein Zeit-Trigger am Morgen, z. B. um den
+  maximalen Ladestand der Hausbatterie vorübergehend zu senken.
 
 ```yaml
+# Einschalten, sobald das Einspeiselimit erreicht ist
 automation:
-  alias: "Entfeuchter bei erreichtem Einspeiselimit"
-  trigger:
-    - trigger: time_pattern
-      minutes: "/5"
-  action:
-    - choose:
-        - conditions:
-            - condition: solarmanager.is_power_above_generator_share
-              target:
-                device_id: <device_id des Solar-Manager-Geräts>
-              options:
-                source: feed_in
-                percent: 60
-                for: "00:02:00"
-          sequence:
-            - action: switch.turn_on
-              target:
-                entity_id: switch.entfeuchter
-        - conditions:
-            - condition: not
-              conditions:
-                - condition: solarmanager.is_power_above_generator_share
-                  target:
-                    device_id: <device_id des Solar-Manager-Geräts>
-                  options:
-                    source: production
-                    percent: 60
-                    for: "00:00:00"  # Prüfung alle 5 min über den time_pattern-Trigger
-          sequence:
-            - action: switch.turn_off
-              target:
-                entity_id: switch.entfeuchter
+  - alias: "Entfeuchter an bei erreichtem Einspeiselimit"
+    trigger:
+      - trigger: solarmanager.generator_share_reached
+        target:
+          device_id: <device_id des Solar-Manager-Geräts>
+        options:
+          source: feed_in
+          percent: 60
+          for: "00:02:00"
+    action:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.entfeuchter
+
+  # Ausschalten, sobald die Produktion unter das Limit fällt (Prüfung alle 5 min)
+  - alias: "Entfeuchter aus, wenn keine Abregelung mehr droht"
+    trigger:
+      - trigger: time_pattern
+        minutes: "/5"
+    condition:
+      - condition: state
+        entity_id: switch.entfeuchter
+        state: "on"
+      - condition: not
+        conditions:
+          - condition: solarmanager.is_power_above_generator_share
+            target:
+              device_id: <device_id des Solar-Manager-Geräts>
+            options:
+              source: production
+              percent: 60
+              for: "00:00:00"
+    action:
+      - action: switch.turn_off
+        target:
+          entity_id: switch.entfeuchter
 ```
 
 ### Automation: Wallbox auf «Nur Solar» bei PV-Überschuss (klassisch mit `numeric_state`)

@@ -135,7 +135,7 @@
         "data_description": {
           "api_key": "Leer lassen um bestehende Zugangsdaten zu behalten. Neuen Key eingeben um auf API-Key-Authentifizierung umzusteigen oder den bestehenden zu ersetzen.",
           "scan_interval": "Wie oft die API abgefragt wird. Empfohlen: 10 Sekunden.",
-          "generator_kwp": "Summe der Modulleistung laut Anlagendokumentation — nicht die Leistung des Wechselrichters. Grundlage für die Conditions zum Einspeiselimit. Leer lassen, um den Wert aus Solar Manager („DC-Leistung“) zu verwenden."
+          "generator_kwp": "Summe der Modulleistung laut Anlagendokumentation — nicht die Leistung des Wechselrichters. Grundlage für Trigger und Conditions zum Einspeiselimit. Leer lassen, um den Wert aus Solar Manager („DC-Leistung“) zu verwenden."
         }
       }
     }
@@ -164,6 +164,15 @@
       "description": "Löst aus, sobald der PV-Überschuss (PV-Leistung minus Verbrauch minus Batterie-Leistung) für eine festgelegte Dauer über einem Schwellwert bleibt.",
       "fields": {
         "threshold": { "name": "Überschuss-Schwellwert" },
+        "for": { "name": "Für mindestens" }
+      }
+    },
+    "generator_share_reached": {
+      "name": "Anteil der Generatorleistung erreicht",
+      "description": "Löst aus, sobald Einspeisung oder PV-Produktion für eine festgelegte Dauer mindestens einen Anteil der PV-Generatorleistung (kWp) erreicht — z. B. wenn das Einspeiselimit erreicht ist. Löst ohne Generatorleistung nie aus.",
+      "fields": {
+        "source": { "name": "Leistung" },
+        "percent": { "name": "Anteil der Generatorleistung" },
         "for": { "name": "Für mindestens" }
       }
     }

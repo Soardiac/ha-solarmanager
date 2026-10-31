@@ -15,3 +15,31 @@ surplus_available:
       default: "00:02:00"
       selector:
         duration:
+generator_share_reached:
+  target:
+    device:
+      integration: solarmanager
+  fields:
+    source:
+      required: true
+      default: feed_in
+      selector:
+        select:
+          options:
+            - feed_in
+            - production
+          translation_key: power_source
+    percent:
+      required: true
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+          unit_of_measurement: "%"
+    for:
+      required: true
+      default: "00:02:00"
+      selector:
+        duration:

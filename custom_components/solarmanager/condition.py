@@ -25,7 +25,17 @@ from .coordinator import (
 )
 from .entity import local_day_bounds
 from .forecast import Band
-from .trigger import CONF_THRESHOLD, DEFAULT_FOR, SURPLUS_CONFIG_SCHEMA
+from .trigger import (
+    CONF_PERCENT,
+    CONF_SOURCE,
+    CONF_THRESHOLD,
+    DEFAULT_PERCENT,
+    GENERATOR_SHARE_CONFIG_SCHEMA,
+    PERCENT_VALIDATOR,
+    SURPLUS_CONFIG_SCHEMA,
+    generator_share_power,
+    target_device_id,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,55 +102,24 @@ class SurplusPresentCondition(Condition):
 
 # -------------------- Abregelung: Anteil der Generatorleistung --------------------
 
-CONF_SOURCE = "source"
-CONF_PERCENT = "percent"
 CONF_BAND = "band"
-SOURCE_FEED_IN = "feed_in"
-SOURCE_PRODUCTION = "production"
 BAND_EXPECTED = "expected"
 BAND_MAX = "max"
-DEFAULT_PERCENT = 60.0
 
-# Leistungsfeld im Stream je Quelle
-_SOURCE_KEYS = {SOURCE_FEED_IN: "eW", SOURCE_PRODUCTION: "pW"}
 # Prognose-Band je Auswahl (forecast.Band)
 _BAND_KEYS: dict[str, Band] = {BAND_EXPECTED: "mid", BAND_MAX: "max"}
-
-_PERCENT = vol.All(vol.Coerce(float), vol.Range(min=1, max=100))
-
-GENERATOR_SHARE_CONFIG_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_TARGET): cv.TARGET_FIELDS,
-        vol.Required(CONF_OPTIONS, default={}): vol.Schema(
-            {
-                vol.Required(CONF_SOURCE, default=SOURCE_FEED_IN): vol.In(list(_SOURCE_KEYS)),
-                vol.Required(CONF_PERCENT, default=DEFAULT_PERCENT): _PERCENT,
-                vol.Required(CONF_FOR, default=DEFAULT_FOR): cv.positive_time_period,
-            }
-        ),
-    }
-)
 
 CURTAILMENT_EXPECTED_CONFIG_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_TARGET): cv.TARGET_FIELDS,
         vol.Required(CONF_OPTIONS, default={}): vol.Schema(
             {
-                vol.Required(CONF_PERCENT, default=DEFAULT_PERCENT): _PERCENT,
+                vol.Required(CONF_PERCENT, default=DEFAULT_PERCENT): PERCENT_VALIDATOR,
                 vol.Required(CONF_BAND, default=BAND_EXPECTED): vol.In(list(_BAND_KEYS)),
             }
         ),
     }
 )
-
-
-def _target_device_id(config: ConditionConfig, name: str) -> str:
-    device_ids = (config.target or {}).get("device_id") or []
-    if not device_ids:
-        raise HomeAssistantError(
-            f"solarmanager.{name}: target muss ein Solarmanager-Gerät sein"
-        )
-    return device_ids[0]
 
 
 class GeneratorSharePowerCondition(Condition):
@@ -159,9 +138,9 @@ class GeneratorSharePowerCondition(Condition):
         self._since: datetime | None = None
         self._remove_listener: CALLBACK_TYPE | None = None
 
-        self._device_id = _target_device_id(config, "is_power_above_generator_share")
+        self._device_id = target_device_id(config, "is_power_above_generator_share")
         options = config.options or {}
-        self._value_key = _SOURCE_KEYS[options[CONF_SOURCE]]
+        self._source = options[CONF_SOURCE]
         self._percent = float(options[CONF_PERCENT])
         self._for: timedelta = options[CONF_FOR]
 
@@ -174,13 +153,12 @@ class GeneratorSharePowerCondition(Condition):
 
         @callback
         def _handle_update() -> None:
-            threshold = coord.generator_share_w(self._percent)
-            value = (coord.data or {}).get(self._value_key)
+            value, threshold = generator_share_power(coord, self._source, self._percent)
             if threshold is None or value is None:
                 self._last_value = None
                 self._since = None
                 return
-            self._last_value = float(value)
+            self._last_value = value
             if self._last_value >= threshold:
                 if self._since is None:
                     self._since = dt_util.utcnow()
@@ -215,7 +193,7 @@ class CurtailmentExpectedTodayCondition(Condition):
     def __init__(self, hass: HomeAssistant, config: ConditionConfig) -> None:
         super().__init__(hass, config)
         self._coord: SolarmanagerCoordinator | None = None
-        self._device_id = _target_device_id(config, "is_curtailment_expected_today")
+        self._device_id = target_device_id(config, "is_curtailment_expected_today")
         options = config.options or {}
         self._percent = float(options[CONF_PERCENT])
         self._band: Band = _BAND_KEYS[options[CONF_BAND]]
