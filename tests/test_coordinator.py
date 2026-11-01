@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import pytest
 from freezegun import freeze_time
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.solarmanager.const import (
@@ -570,3 +571,104 @@ async def test_generator_kwp_local_mode_only_from_option(hass, aioclient_mock):
     hass.config_entries.async_update_entry(entry, options={CONF_GENERATOR_KWP: 8})
     assert coord.generator_kwp == 8.0
     assert coord.generator_kwp_source == "option"
+
+
+# -------------------- Prognose-Korrekturfaktor --------------------
+
+def _flat_forecast(watts: float) -> dict:
+    """Prognose mit konstanter Leistung von 10:00 bis 13:00 UTC am 01.08."""
+    base = dt_util.parse_datetime("2026-08-01T10:15:00+00:00")
+    return {
+        "data": [
+            {"t": (base + timedelta(minutes=15 * i)).strftime("%Y-%m-%dT%H:%M:%SZ"), "pW": watts}
+            for i in range(12)
+        ]
+    }
+
+
+async def test_correction_slots_accumulate_measurement_and_forecast(hass, aioclient_mock):
+    from custom_components.solarmanager.forecast import parse_forecast
+
+    entry = _cloud_entry(hass)
+    coord = SolarmanagerCoordinator(hass, entry)
+    coord.forecast = parse_forecast(_flat_forecast(2000))
+
+    with freeze_time("2026-08-01 10:00:00+00:00") as frozen:
+        t0 = dt_util.utcnow().timestamp()
+        # 15 min lang alle 10 s 1000 W gemessen, dann eine Lücke von 5 min
+        for i in range(91):
+            coord._apply_correction_slots(1000.0, "2026-08-01", t0 + 10 * i, 30.0)
+        coord._apply_correction_slots(1000.0, "2026-08-01", t0 + 900 + 300, 30.0)
+        frozen.tick(timedelta(minutes=20))
+
+        slot = coord._corr_slots[dt_util.parse_datetime("2026-08-01T10:00:00+00:00")]
+        assert slot.actual_wh == pytest.approx(1000 * 890 / 3600)
+        assert slot.seconds == pytest.approx(890)
+        assert slot.forecast_wh == pytest.approx(500)  # 2000 W × 0.25 h
+        # Lücke > max_gap zählt nicht als Messzeit
+        assert sum(s.seconds for s in coord._corr_slots.values()) == pytest.approx(900)
+
+
+async def test_correction_factor_from_slots_and_day_reset(hass):
+    from custom_components.solarmanager.forecast import SlotMeasurement, parse_forecast
+
+    entry = _cloud_entry(hass)
+    coord = SolarmanagerCoordinator(hass, entry)
+    coord.forecast = parse_forecast(_flat_forecast(2000))
+    coord._corr_day = "2026-08-01"
+    coord._corr_slots = {
+        dt_util.parse_datetime(f"2026-08-01T10:{m:02d}:00+00:00"): SlotMeasurement(400, 500, 900)
+        for m in (0, 15, 30)
+    }
+
+    with freeze_time("2026-08-01 10:50:00+00:00"):
+        factor, slots = coord.forecast_correction
+        assert slots == 3
+        assert factor == pytest.approx(0.8)
+        assert coord.forecast_correction_day == (pytest.approx(0.8), 3)
+
+        coord._apply_correction_slots(1000.0, "2026-08-02", dt_util.utcnow().timestamp(), 30.0)
+    assert coord._corr_slots == {}
+
+
+async def test_correction_slots_survive_restart(hass):
+    from custom_components.solarmanager.forecast import SlotMeasurement
+
+    entry = _cloud_entry(hass)
+    with freeze_time("2026-08-01 10:50:00+00:00"):
+        coord = SolarmanagerCoordinator(hass, entry)
+        start = dt_util.parse_datetime("2026-08-01T10:00:00+00:00")
+        coord._corr_day = dt_util.now().strftime("%Y-%m-%d")
+        coord._corr_slots = {start: SlotMeasurement(400, 500, 900)}
+        await coord._store.async_save(coord._daily_state())
+
+        restored = SolarmanagerCoordinator(hass, entry)
+        await restored._async_restore_daily()
+
+    assert restored._corr_slots == {start: SlotMeasurement(400, 500, 900)}
+    assert restored._corr_t == 0.0
+
+
+async def test_correction_slots_filled_during_cloud_refresh_not_local(hass, aioclient_mock):
+    entry = _cloud_entry(hass)
+    aioclient_mock.post(LOGIN_URL, json=LOGIN_RESPONSE)
+    aioclient_mock.get(SENSORS_URL, json=[])
+    aioclient_mock.get(STREAM_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10, "pW": 1500})
+    aioclient_mock.get(STATS_URL, json={})
+    aioclient_mock.get(FORECAST_URL, json=_flat_forecast(2000))
+
+    with freeze_time("2026-08-01 10:05:00+00:00") as frozen:
+        coord = SolarmanagerCoordinator(hass, entry)
+        await coord.async_refresh()
+        frozen.tick(timedelta(seconds=10))
+        await coord.async_refresh()
+
+    assert sum(s.seconds for s in coord._corr_slots.values()) == pytest.approx(10)
+
+    local = _local_entry(hass)
+    aioclient_mock.get(DEVICES_URL, json=[])
+    aioclient_mock.get(POINT_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10, "pW": 1500})
+    local_coord = SolarmanagerCoordinator(hass, local)
+    await local_coord.async_refresh()
+    await local_coord.async_refresh()
+    assert local_coord._corr_slots == {}

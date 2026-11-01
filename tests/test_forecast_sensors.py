@@ -18,11 +18,13 @@ from custom_components.solarmanager.const import (
 )
 from custom_components.solarmanager.coordinator import SolarmanagerCoordinator
 from custom_components.solarmanager.energy import async_get_solar_forecast
-from custom_components.solarmanager.forecast import parse_forecast
+from custom_components.solarmanager.forecast import SlotMeasurement, parse_forecast
 from custom_components.solarmanager.sensor import (
+    ForecastCorrectionFactorSensor,
     ForecastEnergySensor,
     ForecastPeakPowerSensor,
     ForecastPeakTimeSensor,
+    ForecastPowerCorrectedSensor,
     ForecastPowerSensor,
 )
 
@@ -205,5 +207,63 @@ async def test_forecast_sensors_only_created_in_cloud_mode(hass, local, expected
         "forecast_energy_tomorrow",
         "forecast_peak_power_today",
         "forecast_peak_time_today",
+        "forecast_correction_factor",
+        "forecast_power_now_corrected",
     }
     assert forecast_keys <= keys if expected else not (forecast_keys & keys)
+
+
+
+# -------------------- Korrekturfaktor --------------------
+
+def _with_slots(coord: SolarmanagerCoordinator, actual_wh: float) -> SolarmanagerCoordinator:
+    """Drei abgeschlossene Viertelstunden 09:15–10:00 UTC mit je 500 Wh Prognose."""
+    coord._corr_day = "2026-08-01"
+    coord._corr_slots = {
+        datetime(2026, 8, 1, 9, m, tzinfo=UTC): SlotMeasurement(actual_wh, 500, 900)
+        for m in (15, 30, 45)
+    }
+    return coord
+
+
+async def test_correction_factor_sensor_with_attributes(hass, zurich):
+    coord = _with_slots(_with_forecast(_cloud_coord(hass)), actual_wh=650)
+    sensor = ForecastCorrectionFactorSensor(coord)
+
+    with freeze_time(NOW):
+        assert sensor.native_value == 1.3
+        assert sensor.extra_state_attributes == {
+            "day_factor": 1.3,
+            "slots_window": 3,
+            "slots_day": 3,
+            "actual_wh_window": 1950,
+            "forecast_wh_window": 1500,
+            "window_hours": 2.0,
+        }
+    assert sensor.entity_category == "diagnostic"
+
+
+async def test_corrected_power_is_raw_times_factor(hass, zurich):
+    coord = _with_slots(_with_forecast(_cloud_coord(hass)), actual_wh=650)
+    sensor = ForecastPowerCorrectedSensor(coord)
+
+    with freeze_time(NOW):
+        assert sensor.native_value == 1300  # 1000 W × 1.3
+        assert sensor.extra_state_attributes == {"factor": 1.3, "uncorrected": 1000}
+
+
+async def test_corrected_power_falls_back_to_raw_without_factor(hass, zurich):
+    coord = _with_forecast(_cloud_coord(hass))
+    sensor = ForecastPowerCorrectedSensor(coord)
+    factor_sensor = ForecastCorrectionFactorSensor(coord)
+
+    with freeze_time(NOW):
+        assert sensor.native_value == 1000
+        assert sensor.extra_state_attributes == {"factor": None, "uncorrected": 1000}
+        assert factor_sensor.native_value is None
+
+
+async def test_correction_sensors_unavailable_without_forecast(hass, zurich):
+    coord = _cloud_coord(hass)
+    assert not ForecastPowerCorrectedSensor(coord).available
+    assert not ForecastCorrectionFactorSensor(coord).available

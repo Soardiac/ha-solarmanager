@@ -7,7 +7,12 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from custom_components.solarmanager.forecast import parse_forecast
+from custom_components.solarmanager.forecast import (
+    SlotMeasurement,
+    correction_factor,
+    parse_forecast,
+    slot_start,
+)
 
 UTC = timezone.utc
 ZURICH = ZoneInfo("Europe/Zurich")
@@ -183,3 +188,56 @@ def test_gap_in_series_is_not_filled_with_last_value():
     assert f.energy_between(_utc(10), _utc(13)) == pytest.approx(250 + 500 + 500 + 125)
     assert f.covers(_utc(10), _utc(10, 45))
     assert not f.covers(_utc(10), _utc(12, 15))
+
+
+# -------------------- Korrekturfaktor --------------------
+
+_FACTOR_ARGS = dict(min_forecast_wh=100, min_seconds=720, min_slots=3, lo=0.1, hi=3.0)
+
+
+def _slots(*items: tuple[int, int, float, float, float]) -> dict:
+    """(Stunde, Minute, gemessen Wh, Prognose Wh, Messzeit s) → Slots am 01.07. UTC."""
+    return {_utc(h, m): SlotMeasurement(a, f, s) for h, m, a, f, s in items}
+
+
+def test_slot_start_rounds_down_to_quarter_hour_in_utc():
+    assert slot_start(datetime(2026, 7, 1, 12, 29, 59, tzinfo=ZURICH)) == _utc(10, 15)
+    assert slot_start(_utc(10, 30)) == _utc(10, 30)
+
+
+def test_correction_factor_is_ratio_over_valid_closed_slots():
+    slots = _slots(
+        (10, 0, 300, 500, 900),
+        (10, 15, 300, 500, 900),
+        (10, 30, 600, 1000, 900),
+        (10, 45, 9999, 500, 300),  # laufender Slot (endet nach `until`) → ignoriert
+    )
+    factor, count = correction_factor(slots, since=_utc(9), until=_utc(10, 50), **_FACTOR_ARGS)
+    assert count == 3
+    assert factor == pytest.approx(1200 / 2000)
+
+
+def test_correction_factor_skips_small_forecast_and_incomplete_slots():
+    slots = _slots(
+        (10, 0, 300, 500, 900),
+        (10, 15, 300, 500, 900),
+        (10, 30, 300, 500, 900),
+        (10, 45, 5, 50, 900),  # Prognose zu klein
+        (11, 0, 10, 500, 300),  # zu wenig Messzeit (Neustart)
+        (8, 0, 1000, 500, 900),  # vor `since`
+    )
+    factor, count = correction_factor(slots, since=_utc(9), until=_utc(12), **_FACTOR_ARGS)
+    assert count == 3
+    assert factor == pytest.approx(0.6)
+
+
+def test_correction_factor_none_with_too_few_slots():
+    slots = _slots((10, 0, 300, 500, 900), (10, 15, 300, 500, 900))
+    assert correction_factor(slots, since=_utc(9), until=_utc(12), **_FACTOR_ARGS) == (None, 2)
+
+
+@pytest.mark.parametrize(("actual", "expected"), [(1, 0.1), (100000, 3.0)])
+def test_correction_factor_is_clamped(actual, expected):
+    slots = _slots(*[(10, m, actual, 500, 900) for m in (0, 15, 30)])
+    factor, _ = correction_factor(slots, since=_utc(9), until=_utc(12), **_FACTOR_ARGS)
+    assert factor == expected

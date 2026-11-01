@@ -242,6 +242,15 @@ Die Energie-Prognosen haben bewusst keine `state_class`: Eine Prognose ist kein 
 
 **Energie-Dashboard:** Unter *Einstellungen → Dashboards → Energie → Solarmodule → Prognose* den Eintrag „Solar Manager“ auswählen. Das Dashboard zeigt dann die erwartete Erzeugung als gestrichelte Linie.
 
+**Korrekturfaktor (experimentell, Diagnose):** Die Prognose von Solar Manager reagiert nicht auf die gemessene Leistung. An trüben Tagen liegt sie oft den ganzen Tag zu hoch, bei viel Sonne eher zu tief. Zwei Diagnose-Sensoren zeigen, wie gross die Abweichung ist:
+
+| Entität | Einheit | Beschreibung |
+|---|---|---|
+| Prognose-Korrekturfaktor | – | Gemessene ÷ prognostizierte PV-Energie der letzten 2 Stunden. Gezählt werden nur Viertelstunden, in denen die Prognose mindestens 5 % der [Generatorleistung](#pv-generatorleistung-optionen) beträgt (ohne Generatorleistung: 300 W) und die vollständig gemessen wurden. Unbekannt bei weniger als 3 solchen Viertelstunden. Begrenzt auf 0,1–3. Attribute: `day_factor` (seit Mitternacht), Anzahl Viertelstunden, Energie gemessen/prognostiziert |
+| PV-Prognose jetzt (korrigiert) | W | „PV-Prognose jetzt“ × Korrekturfaktor. Ohne Faktor gleich der Originalprognose. Attribute `factor` und `uncorrected` |
+
+Die Sensoren dienen vorerst zum Vergleich der Kurven, z. B. „PV-Prognose jetzt“, „PV-Prognose jetzt (korrigiert)“ und „PV-Leistung“ in einem Verlaufsdiagramm. Alle anderen Prognose-Sensoren, das Energie-Dashboard und die Conditions verwenden weiterhin die Originalprognose. Achtung: Bei einer Abregelung misst man weniger, als das Wetter hergäbe, dann ist auch der Faktor zu tief.
+
 #### Sonstige Anlage-Sensoren
 
 | Entität | Einheit | Beschreibung |

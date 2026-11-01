@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, NoReturn
 
 from homeassistant.config_entries import ConfigEntry
@@ -37,7 +37,14 @@ from .const import (
     DOMAIN,
     MODE_LOCAL,
 )
-from .forecast import PvForecast, parse_forecast
+from .forecast import (
+    SLOT,
+    PvForecast,
+    SlotMeasurement,
+    correction_factor,
+    parse_forecast,
+    slot_start,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +63,16 @@ FORECAST_SAMPLE_SIZE = 4
 
 # Gateway-Details (Cloud) für die Generatorleistung — ändert sich praktisch nie
 GATEWAY_INFO_TTL = 21600  # Sekunden (6 h)
+
+# Prognose-Korrekturfaktor (gemessen ÷ prognostiziert, Stufe 1: nur beobachten).
+# Startwerte, die sich im Echtbetrieb bewähren müssen.
+CORRECTION_WINDOW = timedelta(hours=2)
+CORRECTION_MIN_SLOTS = 3
+CORRECTION_MIN_SECONDS = 720  # 80 % einer Viertelstunde gemessen
+CORRECTION_MIN_SHARE = 0.05  # Prognose ≥ 5 % der Generatorleistung …
+CORRECTION_MIN_POWER_W = 300.0  # … bzw. ≥ 300 W ohne bekannte Generatorleistung
+CORRECTION_MIN_FACTOR = 0.1
+CORRECTION_MAX_FACTOR = 3.0
 
 # Persistenz der Tageszähler (überleben Neustart/Reload)
 STORAGE_VERSION = 1
@@ -211,6 +228,11 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._api_kwp: float | None = None
         self._gateway_last: float = 0.0
 
+        # Prognose-Korrekturfaktor (nur Cloud): Messung je Viertelstunde des Tages
+        self._corr_slots: dict[datetime, SlotMeasurement] = {}
+        self._corr_day: str = ""
+        self._corr_t: float = 0.0
+
         # Tages-Netzenergie (nur Cloud): Riemann-Integration von iW/eW.
         # Ersetzt die fehlerhafte REST-Ableitung consumption - selfConsumption
         # bei Batterie-Nachtentladung (#25). Lokaler Modus ist nicht betroffen,
@@ -327,6 +349,18 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._dev_t = float(stored.get("dev_t") or 0.0)
             except (TypeError, ValueError):
                 self._dev_t = 0.0
+        if stored.get("corr_day") == today:
+            self._corr_day = today
+            slots: dict[datetime, SlotMeasurement] = {}
+            for key, value in (stored.get("corr_slots") or {}).items():
+                try:
+                    start = datetime.fromisoformat(key)
+                    actual, forecast, seconds = (float(v) for v in value)
+                except (TypeError, ValueError):
+                    continue
+                slots[start] = SlotMeasurement(actual, forecast, seconds)
+            self._corr_slots = slots
+            # _corr_t bleibt 0 → die Lücke seit dem Neustart zählt nicht als Messzeit
 
     def _daily_state(self) -> dict[str, Any]:
         return {
@@ -345,7 +379,74 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "dev_day": self._dev_day,
             "dev_daily": self._dev_daily,
             "dev_t": self._dev_t,
+            "corr_day": self._corr_day,
+            "corr_slots": {
+                start.isoformat(): [s.actual_wh, s.forecast_wh, s.seconds]
+                for start, s in self._corr_slots.items()
+            },
         }
+
+    # -------------------- Prognose-Korrekturfaktor --------------------
+
+    def _apply_correction_slots(
+        self, p_w: float | None, today: str, now_t: float, max_gap_s: float
+    ) -> None:
+        """PV-Leistung je Viertelstunde integrieren und die Prognose-Energie dazu merken.
+
+        Grundlage für den Korrekturfaktor (gemessen ÷ prognostiziert). Ohne
+        Prognose oder pW wird nur die Zeit weitergeschoben; eine Lücke über
+        max_gap_s (Neustart, Ausfall) zählt nicht als Messzeit.
+        """
+        if today != self._corr_day:
+            self._corr_slots = {}
+            self._corr_day = today
+            self._corr_t = 0.0
+        last_t, self._corr_t = self._corr_t, now_t
+        if self.forecast is None or p_w is None or last_t <= 0:
+            return
+        dt_s = now_t - last_t
+        if not 0 < dt_s <= max_gap_s:
+            return
+        start = slot_start(dt_util.utc_from_timestamp(now_t))
+        slot = self._corr_slots.setdefault(start, SlotMeasurement())
+        slot.actual_wh += p_w * dt_s / 3600
+        slot.seconds += dt_s
+        slot.forecast_wh = self.forecast.energy_between(start, start + SLOT)
+
+    def _correction(self, since: datetime) -> tuple[float | None, int]:
+        now = dt_util.utcnow()
+        min_power_w = self.generator_share_w(CORRECTION_MIN_SHARE * 100) or CORRECTION_MIN_POWER_W
+        return correction_factor(
+            self._corr_slots,
+            since=since,
+            until=now,
+            min_forecast_wh=min_power_w * SLOT.total_seconds() / 3600,
+            min_seconds=CORRECTION_MIN_SECONDS,
+            min_slots=CORRECTION_MIN_SLOTS,
+            lo=CORRECTION_MIN_FACTOR,
+            hi=CORRECTION_MAX_FACTOR,
+        )
+
+    @property
+    def forecast_correction(self) -> tuple[float | None, int]:
+        """(Faktor, Anzahl Slots) über die letzten CORRECTION_WINDOW."""
+        return self._correction(dt_util.utcnow() - CORRECTION_WINDOW)
+
+    @property
+    def forecast_correction_day(self) -> tuple[float | None, int]:
+        """(Faktor, Anzahl Slots) seit Mitternacht (lokal)."""
+        return self._correction(dt_util.start_of_local_day())
+
+    def correction_window_energy(self) -> tuple[float, float]:
+        """(gemessen, prognostiziert) in Wh über alle Slots im Fenster — für Attribute."""
+        since = dt_util.utcnow() - CORRECTION_WINDOW
+        until = dt_util.utcnow()
+        actual = forecast = 0.0
+        for start, slot in self._corr_slots.items():
+            if since <= start and start + SLOT <= until:
+                actual += slot.actual_wh
+                forecast += slot.forecast_wh
+        return actual, forecast
 
     # -------------------- Geräte-Tageszähler --------------------
 
@@ -694,6 +795,10 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             "Skipping cloud grid energy integration over %.0f s gap", dt_s
                         )
                 self._cloud_grid_t = now_t
+
+                # Messung je Viertelstunde für den Prognose-Korrekturfaktor —
+                # ebenfalls vor den awaits, aus demselben Grund wie oben
+                self._apply_correction_slots(data.get("pW"), today, now_t, max_gap_s)
 
                 if self._stats_date != today:
                     # Tageswechsel: Vortageswerte nicht weiterzeigen, bis der

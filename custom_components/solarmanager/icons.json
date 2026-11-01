@@ -14,7 +14,9 @@
       "forecast_energy_remaining_today": { "default": "mdi:weather-sunset-down" },
       "forecast_energy_tomorrow": { "default": "mdi:weather-partly-cloudy" },
       "forecast_peak_power_today": { "default": "mdi:chart-bell-curve" },
-      "forecast_peak_time_today": { "default": "mdi:clock-star-four-points-outline" }
+      "forecast_peak_time_today": { "default": "mdi:clock-star-four-points-outline" },
+      "forecast_correction_factor": { "default": "mdi:tune-variant" },
+      "forecast_power_now_corrected": { "default": "mdi:solar-power-variant-outline" }
     },
     "select": {
       "battery_mode": { "default": "mdi:battery-sync" },

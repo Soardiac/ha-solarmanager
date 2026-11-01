@@ -262,7 +262,9 @@
       "forecast_energy_tomorrow": { "name": "PV-Prognose morgen" },
       "forecast_peak_power_today": { "name": "PV-Prognose Spitze heute" },
       "forecast_peak_time_today": { "name": "PV-Prognose Spitze Zeitpunkt" },
-      "generator_kwp": { "name": "PV-Generatorleistung" }
+      "generator_kwp": { "name": "PV-Generatorleistung" },
+      "forecast_correction_factor": { "name": "Prognose-Korrekturfaktor" },
+      "forecast_power_now_corrected": { "name": "PV-Prognose jetzt (korrigiert)" }
     },
     "binary_sensor": {
       "signal": { "name": "Verbindung" }

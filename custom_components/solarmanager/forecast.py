@@ -221,3 +221,56 @@ def parse_forecast(payload: Any) -> PvForecast | None:
         watts, watts_min, watts_max = raw[end]
         points.append(ForecastPoint(start, end, watts, watts_min, watts_max))
     return PvForecast(points)
+
+
+# -------------------- Korrekturfaktor (gemessen ÷ prognostiziert) --------------------
+
+SLOT = timedelta(minutes=15)
+
+
+@dataclass(slots=True)
+class SlotMeasurement:
+    """Gemessene und prognostizierte Energie einer Viertelstunde [start, start + SLOT)."""
+
+    actual_wh: float = 0.0
+    forecast_wh: float = 0.0
+    seconds: float = 0.0  # davon tatsächlich gemessene Zeit
+
+
+def slot_start(when: datetime) -> datetime:
+    """Beginn der Viertelstunde, die ``when`` enthält (UTC)."""
+    utc = when.astimezone(timezone.utc)
+    return utc.replace(minute=utc.minute - utc.minute % 15, second=0, microsecond=0)
+
+
+def correction_factor(
+    slots: dict[datetime, SlotMeasurement],
+    *,
+    since: datetime,
+    until: datetime,
+    min_forecast_wh: float,
+    min_seconds: float,
+    min_slots: int,
+    lo: float,
+    hi: float,
+) -> tuple[float | None, int]:
+    """Verhältnis gemessen ÷ prognostiziert über die abgeschlossenen Slots in [since, until].
+
+    Gezählt werden nur Slots mit nennenswerter Prognose (nahe null ergäben
+    kleine Abweichungen Riesenfaktoren) und ausreichend Messzeit (Lücken durch
+    Neustart/Ausfall würden die Messung zu tief machen). Rückgabe: (Faktor
+    begrenzt auf [lo, hi], Anzahl gültiger Slots); Faktor None bei zu wenigen Slots.
+    """
+    actual = forecast = 0.0
+    count = 0
+    for start, slot in slots.items():
+        if start < since or start + SLOT > until:
+            continue
+        if slot.forecast_wh < min_forecast_wh or slot.seconds < min_seconds:
+            continue
+        actual += slot.actual_wh
+        forecast += slot.forecast_wh
+        count += 1
+    if count < min_slots or forecast <= 0:
+        return None, count
+    return min(max(actual / forecast, lo), hi), count

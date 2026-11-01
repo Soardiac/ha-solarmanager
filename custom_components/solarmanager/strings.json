@@ -249,7 +249,9 @@
       "forecast_energy_tomorrow": { "name": "PV forecast tomorrow" },
       "forecast_peak_power_today": { "name": "PV forecast peak today" },
       "forecast_peak_time_today": { "name": "PV forecast peak time today" },
-      "generator_kwp": { "name": "PV generator capacity" }
+      "generator_kwp": { "name": "PV generator capacity" },
+      "forecast_correction_factor": { "name": "Forecast correction factor" },
+      "forecast_power_now_corrected": { "name": "PV forecast now (corrected)" }
     },
     "binary_sensor": {
       "signal": { "name": "Connection" }

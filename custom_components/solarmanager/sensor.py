@@ -23,7 +23,12 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .coordinator import DEVICE_DAILY_KEYS, SolarmanagerCoordinator, compute_surplus_w
+from .coordinator import (
+    CORRECTION_WINDOW,
+    DEVICE_DAILY_KEYS,
+    SolarmanagerCoordinator,
+    compute_surplus_w,
+)
 from .entity import child_device_info, find_device, local_day_bounds, site_device_info
 from .forecast import ForecastPoint, PvForecast
 
@@ -112,6 +117,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             *(ForecastEnergySensor(coord, key, tkey, window) for key, tkey, window in FORECAST_ENERGY_SENSORS),
             ForecastPeakPowerSensor(coord),
             ForecastPeakTimeSensor(coord),
+            ForecastCorrectionFactorSensor(coord),
+            ForecastPowerCorrectedSensor(coord),
         ]
     async_add_entities(site_entities, True)
 
@@ -492,6 +499,77 @@ class ForecastPeakPowerSensor(_ForecastPeakBase):
             "time": dt_util.as_local(peak.start).isoformat(),
             "min": _rounded(peak.watts_min),
             "max": _rounded(peak.watts_max),
+        }
+
+
+class ForecastCorrectionFactorSensor(_ForecastBase):
+    """Verhältnis gemessene ÷ prognostizierte PV-Energie der letzten Stunden.
+
+    Diagnose, Stufe 1: zum Beobachten, ob ein Korrekturfaktor die Prognose
+    realistischer macht. Unbekannt, solange zu wenige aussagekräftige
+    Viertelstunden vorliegen (z. B. morgens oder nachts).
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarmanagerCoordinator) -> None:
+        super().__init__(coordinator, "forecast_correction_factor", "forecast_correction_factor")
+
+    @property
+    def native_value(self) -> float | None:
+        factor, _ = self.coordinator.forecast_correction
+        return None if factor is None else round(factor, 3)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        _, slots = self.coordinator.forecast_correction
+        day_factor, day_slots = self.coordinator.forecast_correction_day
+        actual_wh, forecast_wh = self.coordinator.correction_window_energy()
+        return {
+            "day_factor": None if day_factor is None else round(day_factor, 3),
+            "slots_window": slots,
+            "slots_day": day_slots,
+            "actual_wh_window": round(actual_wh),
+            "forecast_wh_window": round(forecast_wh),
+            "window_hours": CORRECTION_WINDOW.total_seconds() / 3600,
+        }
+
+
+class ForecastPowerCorrectedSensor(_ForecastBase):
+    """„PV-Prognose jetzt“ × Korrekturfaktor — Diagnose zum Kurvenvergleich.
+
+    Ohne Faktor gilt 1, damit die Kurve lückenlos neben der Originalprognose liegt.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator: SolarmanagerCoordinator) -> None:
+        super().__init__(coordinator, "forecast_power_now_corrected", "forecast_power_now_corrected")
+
+    def _uncorrected(self) -> float | None:
+        f = self._forecast
+        return f.power_at(dt_util.utcnow()) if f else None
+
+    @property
+    def native_value(self) -> float | None:
+        raw = self._uncorrected()
+        if raw is None:
+            return None
+        factor, _ = self.coordinator.forecast_correction
+        return _rounded(raw * (factor if factor is not None else 1.0))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        factor, _ = self.coordinator.forecast_correction
+        return {
+            "factor": None if factor is None else round(factor, 3),
+            "uncorrected": _rounded(self._uncorrected()),
         }
 
 

@@ -90,6 +90,15 @@ async def async_get_config_entry_diagnostics(
             "stats_data": async_redact_data(dict(coord._stats_data), TO_REDACT),
         },
         "forecast": forecast_info,
+        "forecast_correction": {
+            "window": coord.forecast_correction,
+            "day": coord.forecast_correction_day,
+            # Die letzten Viertelstunden: [Beginn, gemessen Wh, Prognose Wh, Messzeit s]
+            "recent_slots": [
+                [start.isoformat(), round(s.actual_wh, 1), round(s.forecast_wh, 1), round(s.seconds)]
+                for start, s in sorted(coord._corr_slots.items())[-8:]
+            ],
+        },
         "generator": {
             "generator_kwp": coord.generator_kwp,
             "source": coord.generator_kwp_source,
