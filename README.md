@@ -12,7 +12,24 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 - [**HA Quality Scale**](https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/) (Selbsteinschätzung): Bronze ✓ · Silver 95 % (volle Testabdeckung in Arbeit) · Gold: alle anwendbaren Regeln umgesetzt (Repair-Issue für die E-Mail/Passwort-Migration; Discovery nicht anwendbar)
 
 ---
+## Inhalt
 
+- [Voraussetzungen](#voraussetzungen)
+- [Installation](#installation)
+- [Unterstützte Geräte](#unterstützte-geräte)
+- [Einrichtung](#einrichtung)
+  - [Cloud API Key erstellen](#cloud-api-key-erstellen)
+  - [Neu konfigurieren](#neu-konfigurieren)
+  - [Migration für bestehende Nutzer](#migration-für-bestehende-nutzer)
+- [Entitäten](#entitäten)
+  - [Anlage](#anlage-site-level) · [Geräte](#geräte-per-device-dynamisch) · [Betriebsmodi](#steuerelemente--betriebsmodi-select) · [Parameter](#parameter-number)
+- [Hinweise](#hinweise)
+- [Anwendungsfälle](#anwendungsfälle)
+- [Beispiele](#beispiele)
+- [Fehlerbehebung](#fehlerbehebung)
+- [Deinstallation](#deinstallation)
+- [Issues & Beiträge](#issues--beiträge)
+---
 ## Voraussetzungen
 
 - Home Assistant ≥ 2025.8
@@ -151,8 +168,6 @@ Wer die Integration bisher mit E-Mail/Passwort betrieben hat, kann jederzeit auf
 2. In HA: Einstellungen → Geräte & Dienste → **Solar Manager** → **Neu authentifizieren**
 3. API Key eintragen — E-Mail/Passwort-Felder können leer bleiben
 4. Bestätigen — die Integration lädt neu und nutzt ab sofort den API Key
-
----
 
 ### Update-Intervall (Optionen)
 
@@ -662,6 +677,6 @@ Fehler und Feature-Requests bitte im [Issue Tracker](https://github.com/Soardiac
 
 ---
 
-## Hinweis
+## Hinweis zur KI-Verwendung
 
 Ich habe diese Integration für mich geschrieben, weil keine der anderen passend für mich war. Die Arbeit ist besser investiert, wenn auch andere davon profitieren, darum ist das hier verfügbar und wird gepflegt. Ich verwende Claude Code (oder andere Tools) zur Unterstützung, anders ist es nicht zu machen. KI-Code ist von mir gechecked.
