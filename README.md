@@ -48,10 +48,13 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 
 ## Installation
 
-### HACS (empfohlen)
+### Marketplace (empfohlen)
 
-Diese Integration ist nun standardmässig in HACS enthalten. Man muss also nicht mehr das Repo als "Benutzerdedfniertes Repositoty" hinzufügen.
-Einfach in HACS nach „Solar Manager" suchen → installieren → Home Assistant neu starten
+Ab Home Assistant 2026.11 ist HACS fest eingebaut und heisst **Marketplace**. Die Integration ist dort direkt verfügbar, ein benutzerdefiniertes Repository ist nicht mehr nötig.
+
+**Einstellungen → Marketplace** → nach „Solar Manager" suchen → installieren. Bestehende HACS-Installationen werden beim ersten Start von Home Assistant 2026.11 automatisch übernommen.
+
+**Home Assistant vor 2026.11:** In HACS nach „Solar Manager" suchen → installieren → Home Assistant neu starten.
 
 ### Manuell
 
@@ -667,7 +670,7 @@ automation:
 
 1. Einstellungen → Geräte & Dienste → **Solar Manager** → `⋮` → **Löschen**
 2. Home Assistant neu starten
-3. Den Ordner `custom_components/solarmanager` aus `<config>/custom_components/` entfernen (bei manueller Installation) oder die Integration in HACS deinstallieren
+3. Den Ordner `custom_components/solarmanager` aus `<config>/custom_components/` entfernen (bei manueller Installation) oder die Integration im Marketplace (vor Home Assistant 2026.11: in HACS) deinstallieren
 
 ---
 

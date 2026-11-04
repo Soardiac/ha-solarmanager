@@ -23,9 +23,20 @@ SITE_DEVICE_NAME = "Solar Manager"
 # wurden (siehe Issue #30). Deshalb darf `via_device` auf neuem HA nicht mehr
 # gesetzt werden — auch nicht als Fallback.
 #
-# `__optional_keys__` statt `__annotations__`: gleiches Ergebnis, wertet unter
-# Python 3.14 (PEP 649) aber keine Annotationen aus. DeviceInfo ist total=False.
-_SUPPORTS_VIA_DEVICE_ID = "via_device_id" in getattr(DeviceInfo, "__optional_keys__", ())
+# Ab 2026.11 ist DeviceInfo eine Dataclass, davor ein TypedDict (total=False).
+# `__optional_keys__` liefert die Dataclass nur noch über eine Kompatibilitätsschicht,
+# die entfernt werden soll. Fiele die Erkennung dann auf False, setzte der else-Zweig
+# unten das verbotene `via_device` — deshalb beide Varianten prüfen.
+# `__dataclass_fields__` und `__optional_keys__` statt `__annotations__`: gleiches
+# Ergebnis, wertet unter Python 3.14 (PEP 649) aber keine Annotationen aus.
+def _supports_via_device_id(device_info_cls: type) -> bool:
+    """Prüfen, ob die DeviceInfo-Klasse das Feld `via_device_id` kennt."""
+    return "via_device_id" in getattr(
+        device_info_cls, "__dataclass_fields__", ()
+    ) or "via_device_id" in getattr(device_info_cls, "__optional_keys__", ())
+
+
+_SUPPORTS_VIA_DEVICE_ID = _supports_via_device_id(DeviceInfo)
 
 
 def find_device(data: dict[str, Any] | None, dev_id: str) -> dict[str, Any] | None:

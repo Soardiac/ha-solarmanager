@@ -6,6 +6,9 @@ sobald HA im Stack keinen Frame der Integration findet — im Sensor-Pfad
 passierte genau das, wodurch sämtliche Kind-Geräte-Sensoren nicht mehr angelegt
 wurden (Issue #30). Die Tests sichern beide Pfade ab.
 """
+from dataclasses import dataclass
+from typing import TypedDict
+
 import pytest
 
 from custom_components.solarmanager import entity as entity_mod
@@ -35,6 +38,43 @@ def new_ha(monkeypatch):
 def old_ha(monkeypatch):
     """HA bis 2026.7 — DeviceInfo kennt nur via_device."""
     monkeypatch.setattr(entity_mod, "_SUPPORTS_VIA_DEVICE_ID", False)
+
+
+@dataclass
+class _DataclassWithViaDeviceId:
+    """HA ab 2026.11, nachdem die Kompatibilitätsschicht entfernt wurde."""
+
+    via_device_id: str | None = None
+
+
+class _TypedDictWithViaDeviceId(TypedDict, total=False):
+    """HA 2026.8 bis 2026.10."""
+
+    via_device_id: str
+
+
+class _TypedDictWithViaDevice(TypedDict, total=False):
+    """HA bis 2026.7."""
+
+    via_device: tuple[str, str]
+
+
+@pytest.mark.parametrize(
+    ("device_info_cls", "expected"),
+    [
+        (_DataclassWithViaDeviceId, True),
+        (_TypedDictWithViaDeviceId, True),
+        (_TypedDictWithViaDevice, False),
+    ],
+)
+def test_supports_via_device_id_detection(device_info_cls, expected):
+    """Die Erkennung darf nicht an `__optional_keys__` der Dataclass hängen."""
+    assert entity_mod._supports_via_device_id(device_info_cls) is expected
+
+
+def test_installed_ha_supports_via_device_id():
+    """Auf der Test-HA muss die Erkennung via_device_id finden (Issue #30)."""
+    assert entity_mod._SUPPORTS_VIA_DEVICE_ID is True
 
 
 def test_child_uses_via_device_id_on_new_ha(new_ha):
