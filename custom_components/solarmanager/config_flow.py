@@ -38,6 +38,7 @@ from .const import (
     CONF_SM_ID,
     DEFAULT_SCAN,
     DOMAIN,
+    ENTRY_TITLE,
     MODE_CLOUD,
     MODE_LOCAL,
     PASSWORD_AUTH_DEADLINE,
@@ -171,6 +172,9 @@ async def _local_errors(hass, *, host: str, scheme: str, api_key: str | None) ->
 
 class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+    # 1.2: Site-Gerät mit stabilem Identifier site_{entry_id}
+    # 1.3: Entry-Titel stabil „Solar Manager“ statt smId/Host
+    MINOR_VERSION = 3
 
     async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Mode selector: Cloud or Local."""
@@ -205,7 +209,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
 
                 return self.async_create_entry(
-                    title=f"Solarmanager {user_input[CONF_SM_ID]}",
+                    title=ENTRY_TITLE,
                     data=_cloud_entry_data(user_input),
                 )
 
@@ -228,7 +232,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(f"local_{host}")
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"Solarmanager Local ({host})",
+                    title=ENTRY_TITLE,
                     data={
                         CONF_MODE: MODE_LOCAL,
                         CONF_HOST: host,
@@ -375,7 +379,6 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(
                     entry,
                     unique_id=new_uid,
-                    title=f"Solarmanager {user_input[CONF_SM_ID]}",
                     data=_cloud_entry_data(user_input),
                 )
 
@@ -405,7 +408,6 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(
                     entry,
                     unique_id=new_uid,
-                    title=f"Solarmanager Local ({host})",
                     data={
                         CONF_MODE: MODE_LOCAL,
                         CONF_HOST: host,
@@ -446,7 +448,6 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(
                     entry,
                     unique_id=new_uid,
-                    title=f"Solarmanager {sm_id}",
                     data_updates={
                         CONF_EMAIL: email,
                         CONF_PASSWORD: password,
@@ -484,7 +485,6 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(
                     entry,
                     unique_id=new_uid,
-                    title=f"Solarmanager Local ({host})",
                     data_updates={
                         CONF_HOST: host,
                         CONF_SCHEME: scheme,

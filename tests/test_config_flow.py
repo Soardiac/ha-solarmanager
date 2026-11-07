@@ -87,7 +87,7 @@ async def test_cloud_flow_success(hass):
         )
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Solarmanager SM-0001"
+    assert result["title"] == "Solar Manager"
     assert result["data"][CONF_EMAIL] == "test@example.com"
     assert result["data"][CONF_SM_ID] == "SM-0001"
     assert result["data"][CONF_MODE] == MODE_CLOUD
@@ -225,7 +225,7 @@ async def test_local_flow_success(hass):
         )
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Solarmanager Local (192.168.1.100)"
+    assert result["title"] == "Solar Manager"
     assert result["data"][CONF_MODE] == MODE_LOCAL
     assert result["data"][CONF_HOST] == "192.168.1.100"
     assert result["data"][CONF_SCHEME] == "http"
@@ -683,7 +683,8 @@ async def test_reconfigure_same_mode_routes_to_existing_step(hass):
 
 
 async def test_switch_cloud_to_local_success(hass):
-    """Moduswechsel Cloud -> Lokal: Daten komplett ersetzt, unique_id/Titel folgen."""
+    """Moduswechsel Cloud -> Lokal: Daten komplett ersetzt, unique_id folgt,
+    der (vom Nutzer vergebene) Titel bleibt."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -694,6 +695,7 @@ async def test_switch_cloud_to_local_success(hass):
             CONF_API_KEY: None,
         },
         unique_id=f"{DOMAIN}_SM-0001",
+        title="Mein PV",
     )
     entry.add_to_hass(hass)
 
@@ -719,15 +721,17 @@ async def test_switch_cloud_to_local_success(hass):
     assert entry.data[CONF_HOST] == "192.168.1.100"
     assert CONF_EMAIL not in entry.data
     assert entry.unique_id == "local_192.168.1.100"
-    assert entry.title == "Solarmanager Local (192.168.1.100)"
+    assert entry.title == "Mein PV"
 
 
 async def test_switch_local_to_cloud_success(hass):
-    """Moduswechsel Lokal -> Cloud: Daten komplett ersetzt, unique_id/Titel folgen."""
+    """Moduswechsel Lokal -> Cloud: Daten komplett ersetzt, unique_id folgt,
+    der (vom Nutzer vergebene) Titel bleibt."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http"},
         unique_id="local_192.168.1.100",
+        title="Mein PV",
     )
     entry.add_to_hass(hass)
 
@@ -754,7 +758,7 @@ async def test_switch_local_to_cloud_success(hass):
     assert entry.data[CONF_SM_ID] == "SM-0001"
     assert CONF_HOST not in entry.data
     assert entry.unique_id == f"{DOMAIN}_SM-0001"
-    assert entry.title == "Solarmanager SM-0001"
+    assert entry.title == "Mein PV"
 
 
 async def test_switch_duplicate_unique_id_aborts(hass):

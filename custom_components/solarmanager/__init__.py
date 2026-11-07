@@ -12,18 +12,23 @@ from homeassistant.helpers import (
     device_registry as dr,
 )
 from homeassistant.helpers import (
+    entity_registry as er,
+)
+from homeassistant.helpers import (
     issue_registry as ir,
 )
 
 from .const import (
     CONF_API_KEY,
+    CONF_HOST,
     CONF_SM_ID,
     DOMAIN,
+    ENTRY_TITLE,
     PASSWORD_AUTH_DEADLINE,
     PLATFORMS,
 )
-from .coordinator import SolarmanagerCoordinator, daily_store
-from .entity import site_device_info
+from .coordinator import SolarmanagerCoordinator, daily_store, site_id_from_data
+from .entity import site_device_info, site_identifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,6 +71,105 @@ def _review_password_auth_issue(
         )
     else:
         ir.async_delete_issue(hass, DOMAIN, issue_id)
+
+
+def _is_site_device(device: dr.DeviceEntry) -> bool:
+    return any(
+        domain == DOMAIN and ident.startswith("site_")
+        for domain, ident in device.identifiers
+    )
+
+
+def _migrate_site_device(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Site-Gerät auf den stabilen Identifier site_{entry_id} umstellen.
+
+    Bisher hing der Identifier an Host (lokal) bzw. smId (Cloud). Jeder
+    Moduswechsel und jede neue Gateway-IP legte deshalb ein weiteres
+    Site-Gerät an. Der neue Identifier wird dem bestehenden Geräteeintrag
+    zugewiesen statt ein neues Gerät anzulegen: device_id, Nutzername, Bereich
+    sowie Geräte-Trigger/-Aktionen in Automationen bleiben erhalten.
+
+    Ausgewählt wird das Site-Gerät des aktuellen Modus, sonst das mit den
+    meisten Entitäten. Übrige Site-Geräte ohne Entitäten sind Karteileichen
+    früherer Wechsel und werden entfernt.
+    """
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    target = (DOMAIN, site_identifier(entry.entry_id))
+
+    candidates = [
+        device
+        for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id)
+        if _is_site_device(device)
+    ]
+    if not candidates or any(target in d.identifiers for d in candidates):
+        return
+
+    def entity_count(device: dr.DeviceEntry) -> int:
+        return len(
+            er.async_entries_for_device(
+                ent_reg, device.id, include_disabled_entities=True
+            )
+        )
+
+    current = (DOMAIN, f"site_{site_id_from_data(entry.data)}")
+    keep = max(
+        candidates,
+        key=lambda d: (current in d.identifiers, entity_count(d), d.modified_at),
+    )
+    dev_reg.async_update_device(keep.id, new_identifiers={target})
+    _LOGGER.debug(
+        "Site-Gerät %s auf Identifier %s umgestellt", keep.id, target[1]
+    )
+
+    for device in candidates:
+        if device.id == keep.id:
+            continue
+        if entity_count(device):
+            _LOGGER.warning(
+                "Veraltetes Site-Gerät %s hat noch Entitäten und bleibt bestehen; "
+                "es kann unter Einstellungen → Geräte gelöscht werden",
+                device.id,
+            )
+            continue
+        dev_reg.async_remove_device(device.id)
+        _LOGGER.debug("Veraltetes Site-Gerät %s entfernt", device.id)
+
+
+def _generated_titles(entry: ConfigEntry) -> set[str]:
+    """Titel, die Config-Flow und Reconfigure bis 1.2 automatisch vergeben haben.
+
+    Exakt gegen die Entry-Daten verglichen statt per Muster: ein eigener Titel
+    wie „Solarmanager Garage“ bleibt so unangetastet.
+    """
+    titles = set()
+    if sm_id := entry.data.get(CONF_SM_ID):
+        titles.add(f"Solarmanager {sm_id}")
+    if host := entry.data.get(CONF_HOST):
+        titles.add(f"Solarmanager Local ({host})")
+    return titles
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Config-Entry migrieren.
+
+    1.1 -> 1.2: Site-Gerät auf stabilen Identifier umstellen (Discussion #26).
+    1.2 -> 1.3: Automatisch erzeugten Titel durch „Solar Manager“ ersetzen.
+    """
+    if entry.version > 1:
+        # Downgrade von einer künftigen Hauptversion: nicht unterstützt
+        return False
+
+    if entry.minor_version < 2:
+        _migrate_site_device(hass, entry)
+        hass.config_entries.async_update_entry(entry, minor_version=2)
+
+    if entry.minor_version < 3:
+        if entry.title in _generated_titles(entry):
+            hass.config_entries.async_update_entry(entry, title=ENTRY_TITLE)
+        hass.config_entries.async_update_entry(entry, minor_version=3)
+
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -122,13 +226,9 @@ async def async_remove_config_entry_device(
         if domain != DOMAIN:
             continue
         if identifier.startswith("site_"):
-            # Das aktuelle Site-Gerät gehört fest zum Config-Entry. Nach einem
-            # Moduswechsel (Cloud <-> Lokal) ändert sich site_id jedoch, und
-            # das alte Site-Gerät bleibt als Karteileiche zurück -- die darf
-            # entfernt werden.
-            if coord is None:
-                return False
-            return identifier != f"site_{coord.site_id}"
+            # Das Site-Gerät gehört fest zum Config-Entry. Andere Site-Geräte
+            # sind Überbleibsel, die die Migration nicht entfernen konnte.
+            return identifier != site_identifier(config_entry.entry_id)
         if identifier.startswith("device_"):
             if coord is None:
                 # Entry nicht geladen (z. B. Setup-Fehler) — keine Metadaten,

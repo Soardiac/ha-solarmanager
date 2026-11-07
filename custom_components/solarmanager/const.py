@@ -42,5 +42,7 @@ MODE_LOCAL = "local"
 
 # Branding (für device_info)
 MANUFACTURER = "Solarmanager"
+# Titel des Config-Entries und Name des Site-Geräts -- unabhängig vom Modus
+ENTRY_TITLE = "Solar Manager"
 MODEL = "Cloud v3 stream"
 MODEL_LOCAL = "Local API v2"

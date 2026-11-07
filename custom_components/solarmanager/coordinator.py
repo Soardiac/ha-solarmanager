@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from typing import Any, NoReturn
 
@@ -158,6 +159,17 @@ def compute_surplus_w(data: dict[str, Any] | None) -> float | None:
     return p_w - c_w - (d.get("batW") or 0.0)
 
 
+def site_id_from_data(data: Mapping[str, Any]) -> str:
+    """Kennung der Anlage je Modus: Host (lokal) bzw. smId (Cloud).
+
+    Nur noch Anzeige (Seriennummer des Site-Geräts) und Migration -- der
+    Geräte-Identifier hängt seit Config-Entry-Version 1.2 an der entry_id.
+    """
+    if data.get(CONF_MODE) == MODE_LOCAL:
+        return data[CONF_HOST]
+    return data.get(CONF_SM_ID, "unknown")
+
+
 def resolve_coordinator_for_device(hass: HomeAssistant, device_id: str) -> "SolarmanagerCoordinator":
     """Zur Device-ID eines Trigger/Condition-Targets den geladenen Coordinator auflösen.
 
@@ -170,15 +182,10 @@ def resolve_coordinator_for_device(hass: HomeAssistant, device_id: str) -> "Sola
         raise HomeAssistantError(f"Solarmanager: unknown device_id {device_id}")
 
     # Ab HA 2026.8 gibt es DeviceEntry.config_entry_id (Singular); das alte
-    # config_entries-Set ist dort nur noch ein deprecated Shim (Removal 2027.8).
-    # Mindestversion dieser Integration ist 2025.8, wo es config_entry_id noch
-    # nicht gibt -- deshalb zur Laufzeit erkennen statt fest zu binden.
-    single_entry_id = getattr(device, "config_entry_id", None)
-    entry_ids = (single_entry_id,) if single_entry_id else device.config_entries
-    for entry_id in entry_ids:
-        entry = hass.config_entries.async_get_entry(entry_id)
-        if entry is None or entry.domain != DOMAIN:
-            continue
+    # config_entries-Set ist nur noch ein deprecated Shim (Removal 2027.8).
+    # Mindestversion dieser Integration ist 2026.9.
+    entry = hass.config_entries.async_get_entry(device.config_entry_id or "")
+    if entry is not None and entry.domain == DOMAIN:
         coord = getattr(entry, "runtime_data", None)
         if isinstance(coord, SolarmanagerCoordinator):
             return coord
@@ -269,9 +276,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @property
     def site_id(self) -> str:
-        if self.is_local:
-            return self.entry.data[CONF_HOST]
-        return self.entry.data.get(CONF_SM_ID, "unknown")
+        return site_id_from_data(self.entry.data)
 
     async def _async_setup(self) -> None:
         if self.client:
