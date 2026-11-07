@@ -1,5 +1,8 @@
 > [!WARNING]
-> **Für HA Core 2026.9 und neuer braucht ihr zwingend v1.12.0 oder höher!**
+> **Ab v1.14.3 setzt die Integration Home Assistant 2026.9 oder neuer voraus.** Umgekehrt braucht HA Core 2026.9 und neuer zwingend v1.12.0 oder höher.
+
+> [!NOTE]
+> **v1.14.3 benennt um:** Der Integrationseintrag heißt danach „Solar Manager“ statt „Solarmanager &lt;smId&gt;“ bzw. „Solarmanager Local (&lt;IP&gt;)“, und doppelte Gateway-Geräte aus früheren Moduswechseln verschwinden. Entity-IDs, Historie und Automationen bleiben unverändert. Details unter [Update auf v1.14.3](#update-auf-v1143-ein-gateway-gerät-fester-name).
 
 # Solar Manager – Home Assistant (Custom Integration)
 
@@ -21,6 +24,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
   - [Cloud API Key erstellen](#cloud-api-key-erstellen)
   - [Neu konfigurieren](#neu-konfigurieren)
   - [Migration für bestehende Nutzer](#migration-für-bestehende-nutzer)
+  - [Update auf v1.14.3](#update-auf-v1143-ein-gateway-gerät-fester-name)
 - [Entitäten](#entitäten)
   - [Anlage](#anlage-site-level) · [Geräte](#geräte-per-device-dynamisch) · [Betriebsmodi](#steuerelemente--betriebsmodi-select) · [Parameter](#parameter-number)
 - [Hinweise](#hinweise)
@@ -32,7 +36,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 ---
 ## Voraussetzungen
 
-- Home Assistant ≥ 2025.8
+- Home Assistant ≥ 2026.9
 - Solar Manager Gateway
 
 **Cloud-Modus** (voller Funktionsumfang):
@@ -159,6 +163,8 @@ Einstellungen → Geräte & Dienste → **Solar Manager** → `⋮` → **Neu ko
 - **Lokal**: IP-Adresse/Hostname, Protokoll und API Key ändern (z. B. nach einem IP-Wechsel des Gateways).
 - **Wechsel Cloud ↔ Lokal**: Im ersten Schritt von „Neu konfigurieren" den anderen Modus auswählen und die Zugangsdaten für den neuen Modus eingeben. Sensoren und Geräte behalten ihre bestehenden Entity-IDs (Historie bleibt erhalten).
 
+Das Gateway-Gerät „Solar Manager“ bleibt bei allen Änderungen dasselbe, auch beim Moduswechsel und bei einer neuen IP. Name, Bereich und Geräte-Trigger in Automationen bleiben also erhalten. Auch der Name des Integrationseintrags ändert sich nicht. Die aktuelle `smId` bzw. IP steht als Seriennummer auf der Geräteseite.
+
   > **Achtung beim Wechsel auf Lokal:** Betriebsmodi, Parameter und Ladeziel-Termine (Select/Number/Datetime-Entitäten) gibt es nur im Cloud-Modus. Nach dem Wechsel werden sie nicht mehr aktualisiert und sind nicht verfügbar — **Skripte, Automationen und Dashboards, die diese Steuerelemente verwenden, funktionieren dann nicht mehr.** Beim Zurückwechseln zu Cloud werden dieselben Entity-IDs wiederverwendet, alles läuft dann wieder ohne Anpassung.
 
 Die neuen Werte werden vor dem Speichern gegen die API validiert; danach lädt die Integration automatisch neu.
@@ -171,6 +177,20 @@ Wer die Integration bisher mit E-Mail/Passwort betrieben hat, kann jederzeit auf
 2. In HA: Einstellungen → Geräte & Dienste → **Solar Manager** → **Neu authentifizieren**
 3. API Key eintragen — E-Mail/Passwort-Felder können leer bleiben
 4. Bestätigen — die Integration lädt neu und nutzt ab sofort den API Key
+
+### Update auf v1.14.3: ein Gateway-Gerät, fester Name
+
+**Voraussetzung:** Home Assistant 2026.9 oder neuer. Auf älteren Versionen bitte bei v1.14.2 bleiben.
+
+Beim ersten Start nach dem Update stellt die Integration einmalig um. Dafür ist nichts zu tun:
+
+- **Ein Gateway-Gerät:** Bisher legte jeder Wechsel Cloud ↔ Lokal und jede neue Gateway-IP ein zusätzliches Gerät „Solar Manager“ an; das alte blieb leer zurück. Ab v1.14.3 hängt das Gerät fest am Integrationseintrag. Das aktive Gerät behält seine Geräte-ID, seinen Namen, seinen Bereich und die Automationen, die es verwenden. Leere Überbleibsel früherer Wechsel werden entfernt.
+- **Fester Name des Eintrags:** Unter Einstellungen → Geräte & Dienste heißt der Eintrag jetzt **„Solar Manager“**, unabhängig vom Modus. Bisher hieß er „Solarmanager &lt;smId&gt;“ bzw. „Solarmanager Local (&lt;IP&gt;)“ und wechselte bei jedem Moduswechsel. Wer den Eintrag selbst umbenannt hat, behält seinen Namen; „Neu konfigurieren“ überschreibt ihn nicht mehr.
+- **Unverändert:** Entity-IDs, Historie, Langzeitstatistiken, Energie-Dashboard und Automationen, die auf Entitäten verweisen.
+
+Wer zwei Gateways eingebunden hat, sieht bei neu eingerichteten Einträgen zweimal „Solar Manager“ und kann sie über `⋮` → **Umbenennen** unterscheiden.
+
+> **Zurück auf eine ältere Version:** Ein Downgrade auf v1.14.2 oder älter legt das Gateway-Gerät erneut an. Wer zurück will, sollte ein vor dem Update erstelltes Backup wiederherstellen.
 
 ### Update-Intervall (Optionen)
 
@@ -483,7 +503,7 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 - **Zweisprachig**: Entitätsnamen folgen der HA-Sprache (Deutsch und Englisch enthalten). Die **Optionen** der Modus-Selects (z. B. „Nur Solar") sind bewusst feste Werte, damit Automationen sprachunabhängig stabil bleiben.
 - **Batterie-Schreibschutz**: Batterie-Einstellungen werden immer als vollständiges Settings-Objekt geschrieben (read-modify-write). Direkt nach dem Start — bevor die Geräte-Metadaten geladen sind — wird ein Schreibversuch mit einer Fehlermeldung abgelehnt, statt fremde Felder auf Werks-Defaults zurückzusetzen. Ein paar Sekunden warten und erneut versuchen.
 - **Cloud-Abhängigkeit (Cloud-Modus)**: Bei Cloud-Ausfall sind alle Werte nicht verfügbar. Der Lokale Modus ist davon nicht betroffen. Ein transient abgelaufener Token wird automatisch erneuert, ohne dass eine Reauth-Aufforderung erscheint.
-- **Modus-Wechsel Cloud ↔ Lokal**: Jederzeit über **Neu konfigurieren** möglich, ohne die Integration zu löschen — Entity-IDs und Historie bleiben erhalten (siehe [Neu konfigurieren](#neu-konfigurieren)).
+- **Modus-Wechsel Cloud ↔ Lokal**: Jederzeit über **Neu konfigurieren** möglich, ohne die Integration zu löschen — Entity-IDs, Historie und das Gateway-Gerät bleiben erhalten (siehe [Neu konfigurieren](#neu-konfigurieren)).
 - **API-Doku**: [Swagger](https://external-web.solar-manager.ch/swagger)
 
 ---
@@ -653,6 +673,11 @@ automation:
 
 **Symptom:** Gerät ist im Solar Manager Portal sichtbar, aber keine HA-Entity vorhanden.  
 **Lösung:** Neue Geräte werden automatisch erkannt, sobald sie im Datenstream bzw. in den Geräte-Metadaten auftauchen (spätestens nach ~60 Sekunden). Erscheint das Gerät dennoch nicht, die Integration neu laden (Einstellungen → Geräte & Dienste → Solar Manager → `⋮` → **Neu laden**) und prüfen, ob das Gerät im Portal korrekt dem Gateway zugeordnet ist.
+
+### Zweites Gerät „Solar Manager“ ohne Entitäten
+
+**Symptom:** Unter dem Integrationseintrag gibt es ein weiteres, leeres Gerät „Solar Manager“, typischerweise nach einem früheren Wechsel Cloud ↔ Lokal oder einer neuen Gateway-IP.
+**Lösung:** Ab v1.14.3 räumt die Integration solche Geräte beim Update selbst auf. Bleibt trotzdem eines übrig, lässt es sich auf seiner Geräteseite über `⋮` → **Löschen** entfernen. Das aktive Gateway-Gerät ist davor geschützt.
 
 ### Werte aktualisieren sich zu selten
 
