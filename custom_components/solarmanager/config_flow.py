@@ -34,6 +34,7 @@ from .const import (
     CONF_EMAIL,
     CONF_GENERATOR_KWP,
     CONF_HOST,
+    CONF_LOCAL_API_KEY,
     CONF_MODE,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -87,6 +88,27 @@ def _cloud_entry_data(user_input: Mapping[str, Any]) -> dict[str, Any]:
         CONF_EMAIL: user_input.get(CONF_EMAIL, ""),
         CONF_PASSWORD: user_input.get(CONF_PASSWORD, ""),
         CONF_API_KEY: user_input.get(CONF_API_KEY) or None,
+    }
+
+
+def _remembered_local(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Lokale Verbindungsdaten — im Cloud-Modus die beim Wechsel gemerkten."""
+    is_local = data.get(CONF_MODE) == MODE_LOCAL
+    return {
+        CONF_HOST: data.get(CONF_HOST, ""),
+        CONF_SCHEME: data.get(CONF_SCHEME, "http"),
+        CONF_API_KEY: data.get(CONF_API_KEY if is_local else CONF_LOCAL_API_KEY),
+    }
+
+
+def _remembered_cloud(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Cloud-Zugangsdaten — im lokalen Modus die der Cloud-Ergänzung bzw. gemerkten."""
+    is_local = data.get(CONF_MODE) == MODE_LOCAL
+    return {
+        CONF_SM_ID: data.get(CONF_SM_ID, ""),
+        CONF_API_KEY: data.get(CONF_CLOUD_API_KEY if is_local else CONF_API_KEY),
+        CONF_EMAIL: data.get(CONF_EMAIL, ""),
+        CONF_PASSWORD: data.get(CONF_PASSWORD, ""),
     }
 
 
@@ -200,8 +222,10 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     # 1.3: Entry-Titel stabil „Solar Manager“ statt smId/Host
     MINOR_VERSION = 3
 
-    # Lokale Daten zwischen den Schritten „local“ und „local_cloud“
+    # Lokale Daten zwischen den Schritten „local“/„switch_to_local“ und dem
+    # jeweiligen Folgeschritt für die Cloud-Ergänzung
     _local_data: dict[str, Any] | None = None
+    _switch_uid: str | None = None
 
     async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Mode selector: Cloud or Local."""
@@ -405,8 +429,15 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_switch_to_cloud(self, user_input=None) -> ConfigFlowResult:
-        """Moduswechsel Lokal -> Cloud: neue Zugangsdaten, kompletter Datenersatz."""
+        """Moduswechsel Lokal -> Cloud.
+
+        Gemerkte Cloud-Zugangsdaten (Cloud-Ergänzung oder früherer Cloud-Modus)
+        sind vorbelegt; leere Key-/Passwort-Felder übernehmen sie. Die lokalen
+        Verbindungsdaten bleiben im Hintergrund gespeichert, damit ein
+        Rückwechsel ohne Neueingabe geht.
+        """
         entry = self._get_reconfigure_entry()
+        remembered = _remembered_cloud(entry.data)
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -414,9 +445,11 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._other_entry_has_unique_id(entry, new_uid):
                 return self.async_abort(reason="already_configured")
 
-            # Lokal mit Cloud-Ergänzung: deren API-Key gilt, wenn das Feld leer bleibt
-            if not user_input.get(CONF_API_KEY) and entry.data.get(CONF_CLOUD_API_KEY):
-                user_input = {**user_input, CONF_API_KEY: entry.data[CONF_CLOUD_API_KEY]}
+            user_input = {
+                **user_input,
+                CONF_API_KEY: user_input.get(CONF_API_KEY) or remembered[CONF_API_KEY],
+                CONF_PASSWORD: user_input.get(CONF_PASSWORD) or remembered[CONF_PASSWORD],
+            }
             errors = _cloud_auth_error(user_input)
             if not errors:
                 errors = await _cloud_errors(
@@ -428,28 +461,41 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     check_stream=True,
                 )
             if not errors:
+                local = _remembered_local(entry.data)
                 return self.async_update_reload_and_abort(
                     entry,
                     unique_id=new_uid,
-                    data=_cloud_entry_data(user_input),
+                    data={
+                        **_cloud_entry_data(user_input),
+                        CONF_HOST: local[CONF_HOST],
+                        CONF_SCHEME: local[CONF_SCHEME],
+                        CONF_LOCAL_API_KEY: local[CONF_API_KEY],
+                    },
                 )
 
         return self.async_show_form(
             step_id="switch_to_cloud",
-            data_schema=_schema_cloud(user_input or {CONF_SM_ID: entry.data.get(CONF_SM_ID, "")}),
+            data_schema=_schema_cloud(user_input or remembered),
             errors=errors,
             description_placeholders={"deadline": PASSWORD_AUTH_DEADLINE},
         )
 
     async def async_step_switch_to_local(self, user_input=None) -> ConfigFlowResult:
-        """Moduswechsel Cloud -> Lokal: neue Zugangsdaten, kompletter Datenersatz."""
+        """Moduswechsel Cloud -> Lokal, auf Wunsch gleich mit Cloud-Ergänzung.
+
+        Gemerkte lokale Daten sind vorbelegt; ein leeres Key-Feld übernimmt den
+        gemerkten lokalen Key. Die Cloud-Zugangsdaten bleiben gespeichert: Mit
+        API-Key reicht dieser eine Schritt für die Cloud-Ergänzung, sonst folgt
+        die Eingabe des Keys.
+        """
         entry = self._get_reconfigure_entry()
+        remembered = _remembered_local(entry.data)
         errors: dict[str, str] = {}
 
         if user_input is not None:
             host = normalize_local_host(user_input[CONF_HOST])
             scheme = user_input[CONF_SCHEME]
-            api_key = user_input.get(CONF_API_KEY) or None
+            api_key = user_input.get(CONF_API_KEY) or remembered[CONF_API_KEY] or None
 
             new_uid = f"local_{host}"
             if self._other_entry_has_unique_id(entry, new_uid):
@@ -457,20 +503,70 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             errors = await _local_errors(self.hass, host=host, scheme=scheme, api_key=api_key)
             if not errors:
-                return self.async_update_reload_and_abort(
-                    entry,
-                    unique_id=new_uid,
-                    data={
-                        CONF_MODE: MODE_LOCAL,
-                        CONF_HOST: host,
-                        CONF_SCHEME: scheme,
-                        CONF_API_KEY: api_key,
-                    },
-                )
+                cloud = _remembered_cloud(entry.data)
+                data = {
+                    CONF_MODE: MODE_LOCAL,
+                    CONF_HOST: host,
+                    CONF_SCHEME: scheme,
+                    CONF_API_KEY: api_key,
+                    # Cloud-Zugangsdaten gemerkt (Cloud-Ergänzung, Rückwechsel)
+                    CONF_SM_ID: cloud[CONF_SM_ID],
+                    CONF_CLOUD_API_KEY: cloud[CONF_API_KEY],
+                    CONF_EMAIL: cloud[CONF_EMAIL],
+                    CONF_PASSWORD: cloud[CONF_PASSWORD],
+                }
+                options = {
+                    k: v for k, v in entry.options.items() if k != CONF_CLOUD_EXTENSION
+                }
+                if not user_input.get(CONF_CLOUD_EXTENSION):
+                    return self.async_update_reload_and_abort(
+                        entry, unique_id=new_uid, data=data, options=options
+                    )
+                if cloud[CONF_SM_ID] and cloud[CONF_API_KEY]:
+                    # Der Key lief eben noch im Cloud-Modus — keine erneute Prüfung
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        unique_id=new_uid,
+                        data=data,
+                        options={**options, CONF_CLOUD_EXTENSION: True},
+                    )
+                # Cloud-Modus lief mit E-Mail/Passwort: API-Key nachfragen
+                self._local_data = data
+                self._switch_uid = new_uid
+                return await self.async_step_switch_to_local_cloud()
 
         return self.async_show_form(
             step_id="switch_to_local",
-            data_schema=_schema_local(),
+            data_schema=_schema_local(
+                {**remembered, CONF_CLOUD_EXTENSION: True}, with_extension=True
+            ),
+            errors=errors,
+        )
+
+    async def async_step_switch_to_local_cloud(self, user_input=None) -> ConfigFlowResult:
+        """Moduswechsel auf Lokal mit Cloud-Ergänzung, aber ohne gemerkten API-Key."""
+        entry = self._get_reconfigure_entry()
+        data = self._local_data or {}
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            sm_id = user_input[CONF_SM_ID].strip()
+            api_key = (user_input.get(CONF_CLOUD_API_KEY) or "").strip() or None
+            errors = await _cloud_extension_errors(self.hass, sm_id=sm_id, api_key=api_key)
+            if not errors:
+                options = {
+                    k: v for k, v in entry.options.items() if k != CONF_CLOUD_EXTENSION
+                }
+                return self.async_update_reload_and_abort(
+                    entry,
+                    unique_id=self._switch_uid,
+                    data={**data, CONF_SM_ID: sm_id, CONF_CLOUD_API_KEY: api_key},
+                    options={**options, CONF_CLOUD_EXTENSION: True},
+                )
+
+        return self.async_show_form(
+            step_id="switch_to_local_cloud",
+            data_schema=_schema_cloud_extension(user_input or data),
             errors=errors,
         )
 
@@ -595,15 +691,10 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlowWithReload):
                         # Zugangsdaten im nächsten Schritt bestätigen bzw. erfassen
                         self._pending_options = new_options
                         return await self.async_step_cloud()
-                    # Aus heisst aus: Schalter und Cloud-Zugangsdaten entfernen
+                    # Ausschalten: keine Cloud-Aufrufe mehr. Die Zugangsdaten
+                    # bleiben gemerkt, damit das Wiedereinschalten ohne
+                    # Neueingabe geht (sie werden ohne den Schalter nie benutzt).
                     new_options.pop(CONF_CLOUD_EXTENSION, None)
-                    current = self.config_entry.data
-                    if CONF_SM_ID in current or CONF_CLOUD_API_KEY in current:
-                        new_data = {
-                            k: v
-                            for k, v in current.items()
-                            if k not in (CONF_SM_ID, CONF_CLOUD_API_KEY)
-                        }
                 if new_data is not None:
                     data_changed = self.hass.config_entries.async_update_entry(
                         self.config_entry, data=new_data

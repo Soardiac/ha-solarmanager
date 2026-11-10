@@ -14,6 +14,7 @@ TO_REDACT: set[str] = {
     "password",
     "api_key",
     "cloud_api_key",
+    "local_api_key",
     "email",
     "sm_id",
     "accessToken",

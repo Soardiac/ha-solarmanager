@@ -97,7 +97,7 @@
       },
       "switch_to_cloud": {
         "title": "Switch to Cloud mode",
-        "description": "Either one is enough: enter the **Cloud API key** **or** email and password. Email/password sign-in still works until {deadline}.",
+        "description": "Remembered credentials are prefilled; empty password/API key fields keep remembered values. Either the **cloud API key** **or** e-mail and password is enough. E-mail/password login works until {deadline}.",
         "data": {
           "email": "Email",
           "password": "Password",
@@ -111,16 +111,30 @@
       },
       "switch_to_local": {
         "title": "Switch to local mode",
-        "description": "Note: Operating modes, parameters and charging target dates (Select/Number/Datetime) as well as the PV forecast need the cloud. In local mode they are available via the optional cloud extension (options). Without it they become unavailable — scripts, automations and dashboards using them stop working. The same entity IDs are reused when the cloud is enabled again.",
+        "description": "Readings then come directly from the gateway. Operating modes, parameters, charging target dates and the PV forecast need the cloud — keep the **cloud extension** enabled to keep them (the cloud credentials of this entry are reused). Without it they become unavailable and scripts, automations and dashboards using them stop working.\n\nLeave the API key empty to keep a remembered local key.",
         "data": {
           "host": "IP address / hostname",
           "scheme": "Protocol",
-          "api_key": "API key (optional)"
+          "api_key": "API key (optional)",
+          "cloud_extension": "Cloud extension (optional)"
         },
         "data_description": {
           "host": "IP address or hostname of the Solar Manager gateway (e.g. 192.168.1.100).",
           "scheme": "HTTP for unencrypted, HTTPS for encrypted (self-signed certificates are accepted).",
-          "api_key": "Optional API key to secure the local connection. Leave empty if no key is configured."
+          "api_key": "Optional API key securing the local connection. Leave empty to keep a remembered key or if no key is configured.",
+          "cloud_extension": "Keeps control (operating modes, parameters), PV forecast and generator capacity via the Solar Manager cloud. Readings come from the local gateway."
+        }
+      },
+      "switch_to_local_cloud": {
+        "title": "Cloud extension",
+        "description": "This entry has used the cloud with e-mail and password so far. The cloud extension needs a cloud API key.",
+        "data": {
+          "sm_id": "System ID (smId)",
+          "cloud_api_key": "Cloud API key"
+        },
+        "data_description": {
+          "sm_id": "The smId of your Solar Manager system from the cloud web interface.",
+          "cloud_api_key": "Found in the profile settings under “Cloud API Keys”. Create a token without end date, enable all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable “allow renewal”. The token is only visible right after creation — copy it immediately!"
         }
       }
     },

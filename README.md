@@ -159,7 +159,7 @@ Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) u
 
 #### Cloud-Ergänzung (optional)
 
-Der lokale Modus lässt sich um die Solar-Manager-Cloud ergänzen: beim Einrichten über die Checkbox **„Cloud-Ergänzung“**, später jederzeit unter Konfigurieren → **Optionen**. Standardmässig ist sie aus. Danach fragt die Integration `smId` und **Cloud API Key** ab (E-Mail/Passwort wird hier nicht unterstützt) und prüft die Zugangsdaten.
+Der lokale Modus lässt sich um die Solar-Manager-Cloud ergänzen: beim Einrichten über die Checkbox **„Cloud-Ergänzung“**, beim Wechsel von Cloud auf Lokal direkt im selben Schritt (siehe [Neu konfigurieren](#neu-konfigurieren)) oder später jederzeit unter Konfigurieren → **Optionen**. Standardmässig ist sie aus. Danach fragt die Integration `smId` und **Cloud API Key** ab (E-Mail/Passwort wird hier nicht unterstützt) und prüft die Zugangsdaten.
 
 - **Lokal bleibt alles, was lokal geht:** Leistungswerte, Gerätesensoren und Tageszähler kommen weiterhin direkt vom Gateway, im eingestellten Intervall.
 - **Über die Cloud laufen:**
@@ -167,7 +167,7 @@ Der lokale Modus lässt sich um die Solar-Manager-Cloud ergänzen: beim Einricht
   - die Daten, die es nur in der Cloud gibt: die aktuellen Geräte-Einstellungen (Istwerte der Steuerelemente, jede Minute), die [PV-Prognose](#pv-prognose-cloud-modus-oder-cloud-ergänzung) (alle 30 Minuten) und die [Generatorleistung](#pv-generatorleistung-optionen) (alle 6 Stunden)
 - **Ist die Option aus, gibt es keinerlei Cloud-Verkehr.**
 - **Fällt die Cloud aus**, laufen alle lokalen Werte weiter. Cloud-Werte bleiben auf dem letzten Stand, Steuerbefehle melden einen Fehler. Lehnt die Cloud den API Key ab, erscheint eine Reparatur-Meldung; den neuen Key trägt man in den Optionen ein (leeres Key-Feld behält den gespeicherten Key).
-- **Ausschalten** entfernt `smId` und API Key wieder aus der Konfiguration. Steuer- und Prognose-Entitäten sind danach nicht mehr verfügbar; beim erneuten Einschalten werden dieselben Entity-IDs wiederverwendet.
+- **Ausschalten** stoppt jeden Cloud-Verkehr. `smId` und API Key bleiben gespeichert, damit beim erneuten Einschalten nur noch bestätigt werden muss (leeres Key-Feld = gespeicherten Key verwenden). Steuer- und Prognose-Entitäten sind ausgeschaltet nicht verfügbar; beim erneuten Einschalten werden dieselben Entity-IDs wiederverwendet.
 
 > **Hinweis:** Zugangsdaten, `smId`, Host, Protokoll — und auch der Verbindungsmodus selbst (Cloud ↔ Lokal) — lassen sich jederzeit ohne Neueinrichtung ändern (siehe [Neu konfigurieren](#neu-konfigurieren)).
 
@@ -177,11 +177,13 @@ Einstellungen → Geräte & Dienste → **Solar Manager** → `⋮` → **Neu ko
 
 - **Cloud**: E-Mail, Passwort, `smId` und API Key ändern — leere Felder behalten die gespeicherten Werte. Beim Wechsel der `smId` bleiben die Entitäten erhalten.
 - **Lokal**: IP-Adresse/Hostname, Protokoll und API Key ändern (z. B. nach einem IP-Wechsel des Gateways). Eine eingeschaltete Cloud-Ergänzung bleibt dabei erhalten.
-- **Wechsel Cloud ↔ Lokal**: Im ersten Schritt von „Neu konfigurieren" den anderen Modus auswählen und die Zugangsdaten für den neuen Modus eingeben. Sensoren und Geräte behalten ihre bestehenden Entity-IDs (Historie bleibt erhalten).
+- **Wechsel Cloud ↔ Lokal**: Im ersten Schritt von „Neu konfigurieren" den anderen Modus auswählen. Die Zugangsdaten des bisherigen Modus bleiben im Hintergrund gespeichert, beim Zurückwechseln sind sie vorbelegt (leere Key- und Passwort-Felder übernehmen die gespeicherten Werte). Sensoren und Geräte behalten ihre bestehenden Entity-IDs (Historie bleibt erhalten).
+  - **Cloud → Lokal:** Im selben Formular lässt sich die [Cloud-Ergänzung](#cloud-ergänzung-optional) gleich mit einschalten (vorausgewählt). Lief der Cloud-Modus mit API Key, wird er übernommen und der Wechsel ist mit einem Schritt erledigt; lief er mit E-Mail/Passwort, fragt die Integration noch nach einem API Key.
+  - **Lokal → Cloud:** `smId` und API Key einer Cloud-Ergänzung sind vorbelegt.
 
 Das Gateway-Gerät „Solar Manager“ bleibt bei allen Änderungen dasselbe, auch beim Moduswechsel und bei einer neuen IP. Name, Bereich und Geräte-Trigger in Automationen bleiben also erhalten. Auch der Name des Integrationseintrags ändert sich nicht. Die aktuelle `smId` bzw. IP steht als Seriennummer auf der Geräteseite.
 
-  > **Achtung beim Wechsel auf Lokal:** Betriebsmodi, Parameter und Ladeziel-Termine (Select/Number/Datetime-Entitäten) sowie die PV-Prognose brauchen die Cloud. Im lokalen Modus gibt es sie nur mit eingeschalteter [Cloud-Ergänzung](#cloud-ergänzung-optional) (Optionen). Ohne sie sind sie nicht verfügbar — **Skripte, Automationen und Dashboards, die diese Steuerelemente verwenden, funktionieren dann nicht mehr.** Mit der Cloud-Ergänzung oder beim Zurückwechseln zu Cloud werden dieselben Entity-IDs wiederverwendet. Beim Wechsel zu Cloud werden `smId` und API Key einer Cloud-Ergänzung übernommen.
+  > **Achtung beim Wechsel auf Lokal:** Betriebsmodi, Parameter und Ladeziel-Termine (Select/Number/Datetime-Entitäten) sowie die PV-Prognose brauchen die Cloud. Im lokalen Modus gibt es sie nur mit eingeschalteter [Cloud-Ergänzung](#cloud-ergänzung-optional) (Optionen). Ohne sie sind sie nicht verfügbar — **Skripte, Automationen und Dashboards, die diese Steuerelemente verwenden, funktionieren dann nicht mehr.** Mit der Cloud-Ergänzung oder beim Zurückwechseln zu Cloud werden dieselben Entity-IDs wiederverwendet.
 
 Die neuen Werte werden vor dem Speichern gegen die API validiert; danach lädt die Integration automatisch neu.
 

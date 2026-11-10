@@ -45,6 +45,8 @@ MODE_LOCAL = "local"
 # Schalter in den Options, Zugangsdaten in data — getrennt vom lokalen API-Key.
 CONF_CLOUD_EXTENSION = "cloud_extension"
 CONF_CLOUD_API_KEY = "cloud_api_key"
+# Lokaler API-Key, im Cloud-Modus nur gemerkt — für den Rückwechsel auf Lokal
+CONF_LOCAL_API_KEY = "local_api_key"
 
 # Branding (für device_info)
 MANUFACTURER = "Solarmanager"
