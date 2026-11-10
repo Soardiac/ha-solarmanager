@@ -13,12 +13,27 @@ from .coordinator import SolarmanagerCoordinator
 TO_REDACT: set[str] = {
     "password",
     "api_key",
+    "cloud_api_key",
     "email",
     "sm_id",
     "accessToken",
     "refreshToken",
     "Authorization",
 }
+
+
+def _cloud_client_info(client: SolarmanagerCloud) -> dict[str, Any]:
+    remaining: float | None = None
+    if client._exp_ts:
+        remaining = round(client._exp_ts - time.time(), 1)
+    return {
+        "sm_id": "**REDACTED**",
+        "token_type": client._token_type,
+        "access_token": "**REDACTED**" if client._access else None,
+        "refresh_token": "**REDACTED**" if client._refresh else None,
+        "token_remaining_seconds": remaining,
+        "uses_api_key": bool(client.api_key),
+    }
 
 
 async def async_get_config_entry_diagnostics(
@@ -31,22 +46,15 @@ async def async_get_config_entry_diagnostics(
     if client is None:
         client_info: dict[str, Any] = {"status": "not_initialized"}
     elif isinstance(client, SolarmanagerCloud):
-        remaining: float | None = None
-        if client._exp_ts:
-            remaining = round(client._exp_ts - time.time(), 1)
-        client_info = {
-            "sm_id": "**REDACTED**",
-            "token_type": client._token_type,
-            "access_token": "**REDACTED**" if client._access else None,
-            "refresh_token": "**REDACTED**" if client._refresh else None,
-            "token_remaining_seconds": remaining,
-            "uses_api_key": bool(client.api_key),
-        }
+        client_info = _cloud_client_info(client)
     else:  # SolarmanagerLocal
         client_info = {
             "mode": "local",
             "uses_api_key": bool(client._api_key),
+            "cloud_extension": coord.is_cloud_extension,
         }
+        if coord.cloud is not None:
+            client_info["cloud"] = _cloud_client_info(coord.cloud)
 
     device_metadata: dict[str, Any] = {
         dev_id: {

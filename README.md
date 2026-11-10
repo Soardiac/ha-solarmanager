@@ -22,6 +22,7 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 - [Unterstützte Geräte](#unterstützte-geräte)
 - [Einrichtung](#einrichtung)
   - [Cloud API Key erstellen](#cloud-api-key-erstellen)
+  - [Cloud-Ergänzung im lokalen Modus](#cloud-ergänzung-optional)
   - [Neu konfigurieren](#neu-konfigurieren)
   - [Migration für bestehende Nutzer](#migration-für-bestehende-nutzer)
   - [Update auf v1.14.3](#update-auf-v1143-ein-gateway-gerät-fester-name)
@@ -44,9 +45,10 @@ Bindet das [Solar Manager](https://www.solar-manager.ch/) Gateway in Home Assist
 - Solar Manager ID (`smId`), im [Solar Manager Portal](https://web.solar-manager.ch/my-devices/) → Endkunden Information oder in der App unter Profil
 - Cloud API Key (Profil → Cloud-API-Schlüssel) — empfohlen; alternativ E-Mail + Passwort
 
-**Lokaler Modus** (nur Sensoren):
+**Lokaler Modus** (Sensoren direkt vom Gateway):
 - IP-Adresse des Gateways im lokalen Netzwerk
 - Kein Account, kein Internet nötig
+- Optional mit [Cloud-Ergänzung](#cloud-ergänzung-optional) für Steuerung, PV-Prognose und Generatorleistung: dann zusätzlich `smId` und Cloud API Key
 
 ---
 
@@ -70,21 +72,23 @@ Ordner `custom_components/solarmanager` in `<config>/custom_components/` kopiere
 
 Die Integration kommuniziert über das **Solar Manager Gateway** als zentrale Einheit. Je nach Modus stehen unterschiedliche Entitäten zur Verfügung.
 
-| Entitätstyp | Cloud | Lokal |
-|---|:---:|:---:|
-| Echtzeit-Leistungssensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ ¹ |
-| Energie-Intervallwerte (Wh, per Default deaktiviert) | ✓ | ✓ |
-| Batterie-SOC, Geräteübersicht | ✓ | ✓ |
-| Gerätesensoren (Leistung, SOC, Temperatur, …) | ✓ | ✓ |
-| Verbindungsstatus pro Gerät | ✓ | ✓ |
-| Tages-Energiesensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ ² |
-| Tagesstatistiken (Autarkiegrad, Eigenverbrauchsquote) | ✓ | ✓ ² |
-| Betriebsmodi-Select (Wallbox, Batterie, …) | ✓ | – |
-| Parameter-Number (SOC-Grenzen, Konstantstrom, …) | ✓ | – |
-| Datetime-Entitäten (Ladeziel-Termin) | ✓ | – |
+| Entitätstyp | Cloud | Lokal | Lokal + Cloud-Ergänzung |
+|---|:---:|:---:|:---:|
+| Echtzeit-Leistungssensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ ¹ | ✓ ¹ |
+| Energie-Intervallwerte (Wh, per Default deaktiviert) | ✓ | ✓ | ✓ |
+| Batterie-SOC, Geräteübersicht | ✓ | ✓ | ✓ |
+| Gerätesensoren (Leistung, SOC, Temperatur, …) | ✓ | ✓ | ✓ |
+| Verbindungsstatus pro Gerät | ✓ | ✓ | ✓ |
+| Tages-Energiesensoren (PV, Verbrauch, Netz, Batterie) | ✓ | ✓ ² | ✓ ² |
+| Tagesstatistiken (Autarkiegrad, Eigenverbrauchsquote) | ✓ | ✓ ² | ✓ ² |
+| Betriebsmodi-Select (Wallbox, Batterie, …) | ✓ | – | ✓ ³ |
+| Parameter-Number (SOC-Grenzen, Konstantstrom, …) | ✓ | – | ✓ ³ |
+| Datetime-Entitäten (Ladeziel-Termin) | ✓ | – | ✓ ³ |
+| PV-Prognose, Korrekturfaktor, Generatorleistung aus Solar Manager | ✓ | – | ✓ ³ |
 
 > ¹ Netz Import/Export (W) liefert die lokale API nicht direkt — die Werte werden aus der Energiebilanz berechnet (cW + bcW − pW − bdW).
 > ² Im lokalen Modus werden die Tages-Energiewerte durch Integration der Leistungswerte über die Zeit berechnet. Die Tageszähler überleben Neustarts und Reloads (Persistenz auf Disk).
+> ³ Über die Solar-Manager-Cloud, gemessen wird weiterhin lokal. Siehe [Cloud-Ergänzung](#cloud-ergänzung-optional).
 
 ### Unterstützte Gerätetypen
 
@@ -153,6 +157,18 @@ Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) u
 >
 > **Rebrands (z. B. Helion ONE):** Kunden von Partner-Marken haben oft keinen Zugang zum Solar Manager Portal und finden die Option in der App des Anbieters nicht. Am besten zuerst beim Support des Anbieters nachfragen, ob er die lokale API freischaltet. Ein Community-Nutzer hat einen inoffiziellen Weg über die Solar-Manager-API beschrieben, siehe [Discussion #34](https://github.com/Soardiac/ha-solarmanager/discussions/34). Dieser Weg wird von dieser Integration nicht unterstützt (muss also manuell vorgenommen werden) und erfolgt auf eigenes Risiko; er kann jederzeit nicht mehr funktionieren.
 
+#### Cloud-Ergänzung (optional)
+
+Der lokale Modus lässt sich um die Solar-Manager-Cloud ergänzen: beim Einrichten über die Checkbox **„Cloud-Ergänzung“**, später jederzeit unter Konfigurieren → **Optionen**. Standardmässig ist sie aus. Danach fragt die Integration `smId` und **Cloud API Key** ab (E-Mail/Passwort wird hier nicht unterstützt) und prüft die Zugangsdaten.
+
+- **Lokal bleibt alles, was lokal geht:** Leistungswerte, Gerätesensoren und Tageszähler kommen weiterhin direkt vom Gateway, im eingestellten Intervall.
+- **Über die Cloud laufen:**
+  - alle Steuerbefehle (Betriebsmodi, Parameter, Ladeziel-Termine)
+  - die Daten, die es nur in der Cloud gibt: die aktuellen Geräte-Einstellungen (Istwerte der Steuerelemente, jede Minute), die [PV-Prognose](#pv-prognose-cloud-modus-oder-cloud-ergänzung) (alle 30 Minuten) und die [Generatorleistung](#pv-generatorleistung-optionen) (alle 6 Stunden)
+- **Ist die Option aus, gibt es keinerlei Cloud-Verkehr.**
+- **Fällt die Cloud aus**, laufen alle lokalen Werte weiter. Cloud-Werte bleiben auf dem letzten Stand, Steuerbefehle melden einen Fehler. Lehnt die Cloud den API Key ab, erscheint eine Reparatur-Meldung; den neuen Key trägt man in den Optionen ein (leeres Key-Feld behält den gespeicherten Key).
+- **Ausschalten** entfernt `smId` und API Key wieder aus der Konfiguration. Steuer- und Prognose-Entitäten sind danach nicht mehr verfügbar; beim erneuten Einschalten werden dieselben Entity-IDs wiederverwendet.
+
 > **Hinweis:** Zugangsdaten, `smId`, Host, Protokoll — und auch der Verbindungsmodus selbst (Cloud ↔ Lokal) — lassen sich jederzeit ohne Neueinrichtung ändern (siehe [Neu konfigurieren](#neu-konfigurieren)).
 
 ### Neu konfigurieren
@@ -160,12 +176,12 @@ Die Integration testet beim Einrichten direkt die Verbindung (`GET /v2/point`) u
 Einstellungen → Geräte & Dienste → **Solar Manager** → `⋮` → **Neu konfigurieren**
 
 - **Cloud**: E-Mail, Passwort, `smId` und API Key ändern — leere Felder behalten die gespeicherten Werte. Beim Wechsel der `smId` bleiben die Entitäten erhalten.
-- **Lokal**: IP-Adresse/Hostname, Protokoll und API Key ändern (z. B. nach einem IP-Wechsel des Gateways).
+- **Lokal**: IP-Adresse/Hostname, Protokoll und API Key ändern (z. B. nach einem IP-Wechsel des Gateways). Eine eingeschaltete Cloud-Ergänzung bleibt dabei erhalten.
 - **Wechsel Cloud ↔ Lokal**: Im ersten Schritt von „Neu konfigurieren" den anderen Modus auswählen und die Zugangsdaten für den neuen Modus eingeben. Sensoren und Geräte behalten ihre bestehenden Entity-IDs (Historie bleibt erhalten).
 
 Das Gateway-Gerät „Solar Manager“ bleibt bei allen Änderungen dasselbe, auch beim Moduswechsel und bei einer neuen IP. Name, Bereich und Geräte-Trigger in Automationen bleiben also erhalten. Auch der Name des Integrationseintrags ändert sich nicht. Die aktuelle `smId` bzw. IP steht als Seriennummer auf der Geräteseite.
 
-  > **Achtung beim Wechsel auf Lokal:** Betriebsmodi, Parameter und Ladeziel-Termine (Select/Number/Datetime-Entitäten) gibt es nur im Cloud-Modus. Nach dem Wechsel werden sie nicht mehr aktualisiert und sind nicht verfügbar — **Skripte, Automationen und Dashboards, die diese Steuerelemente verwenden, funktionieren dann nicht mehr.** Beim Zurückwechseln zu Cloud werden dieselben Entity-IDs wiederverwendet, alles läuft dann wieder ohne Anpassung.
+  > **Achtung beim Wechsel auf Lokal:** Betriebsmodi, Parameter und Ladeziel-Termine (Select/Number/Datetime-Entitäten) sowie die PV-Prognose brauchen die Cloud. Im lokalen Modus gibt es sie nur mit eingeschalteter [Cloud-Ergänzung](#cloud-ergänzung-optional) (Optionen). Ohne sie sind sie nicht verfügbar — **Skripte, Automationen und Dashboards, die diese Steuerelemente verwenden, funktionieren dann nicht mehr.** Mit der Cloud-Ergänzung oder beim Zurückwechseln zu Cloud werden dieselben Entity-IDs wiederverwendet. Beim Wechsel zu Cloud werden `smId` und API Key einer Cloud-Ergänzung übernommen.
 
 Die neuen Werte werden vor dem Speichern gegen die API validiert; danach lädt die Integration automatisch neu.
 
@@ -203,7 +219,7 @@ Trigger und Conditions zum Einspeiselimit (siehe [Beispiele](#einspeiselimit-und
 
 - **Cloud-Modus:** Der Wert stammt aus Solar Manager (Konfiguration → „DC-Leistung“) und wird alle 6 Stunden geladen. Dort ist allerdings oft die Wechselrichter-Leistung eingetragen. Am besten korrigiert man den Wert direkt in Solar Manager, davon profitiert vermutlich auch die Solar-Manager-Prognose.
 - **Abweichender Wert:** Konfigurieren → **Optionen** → „PV-Generatorleistung (kWp)“. Ein Wert hier hat Vorrang. Ist das Feld leer, gilt wieder der Wert aus Solar Manager.
-- **Lokaler Modus:** Die lokale API kennt den Wert nicht, er muss in den Optionen eingetragen werden.
+- **Lokaler Modus:** Mit [Cloud-Ergänzung](#cloud-ergänzung-optional) wie im Cloud-Modus aus Solar Manager. Ohne sie kennt die lokale API den Wert nicht, er muss in den Optionen eingetragen werden.
 
 Mit welchem Wert gerechnet wird, zeigt der Diagnose-Sensor **PV-Generatorleistung** (Attribut `source`: `option` oder `solar_manager`).
 
@@ -260,9 +276,9 @@ Klasse `total_increasing` — direkt im Energie-Dashboard verwendbar. Quelle im 
 | Eigenverbrauchsquote | % | ✓ | – | Anteil PV-Strom, der selbst verbraucht wurde |
 | Autarkiegrad | % | ✓ | – | Anteil des Verbrauchs, der aus PV/Batterie gedeckt wurde |
 
-#### PV-Prognose (nur Cloud)
+#### PV-Prognose (Cloud-Modus oder Cloud-Ergänzung)
 
-Die Prognose von Solar Manager (`/v3/users/{smId}/data/forecast`, 15-Minuten-Raster für die nächsten 3 Tage) wird alle 30 Minuten geladen. Neben dem erwarteten Wert liefert Solar Manager ein Unsicherheitsband. Jeder Prognose-Sensor hat deshalb die Attribute `min` und `max`. Die lokale API kennt keine Prognose, im lokalen Modus fehlen diese Sensoren.
+Die Prognose von Solar Manager (`/v3/users/{smId}/data/forecast`, 15-Minuten-Raster für die nächsten 3 Tage) wird alle 30 Minuten geladen. Neben dem erwarteten Wert liefert Solar Manager ein Unsicherheitsband. Jeder Prognose-Sensor hat deshalb die Attribute `min` und `max`. Die lokale API kennt keine Prognose; im lokalen Modus gibt es diese Sensoren nur mit [Cloud-Ergänzung](#cloud-ergänzung-optional).
 
 Ein Prognosepunkt der API beschreibt die 15 Minuten *vor* seinem Zeitstempel, so wie die Energie-Intervallwerte im Stream. In den Attributen (`forecast[].t`, `time`) steht dagegen der Beginn des Intervalls, so wie Diagramme es erwarten. Diese Zeiten liegen also 15 Minuten vor den Zeitstempeln der API.
 
@@ -502,7 +518,7 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 - **Gerätetypen**: Werden automatisch aus der API erkannt. Unbekannte Typen bekommen keine Steuerentitäten, aber alle verfügbaren Sensoren.
 - **Zweisprachig**: Entitätsnamen folgen der HA-Sprache (Deutsch und Englisch enthalten). Die **Optionen** der Modus-Selects (z. B. „Nur Solar") sind bewusst feste Werte, damit Automationen sprachunabhängig stabil bleiben.
 - **Batterie-Schreibschutz**: Batterie-Einstellungen werden immer als vollständiges Settings-Objekt geschrieben (read-modify-write). Direkt nach dem Start — bevor die Geräte-Metadaten geladen sind — wird ein Schreibversuch mit einer Fehlermeldung abgelehnt, statt fremde Felder auf Werks-Defaults zurückzusetzen. Ein paar Sekunden warten und erneut versuchen.
-- **Cloud-Abhängigkeit (Cloud-Modus)**: Bei Cloud-Ausfall sind alle Werte nicht verfügbar. Der Lokale Modus ist davon nicht betroffen. Ein transient abgelaufener Token wird automatisch erneuert, ohne dass eine Reauth-Aufforderung erscheint.
+- **Cloud-Abhängigkeit (Cloud-Modus)**: Bei Cloud-Ausfall sind alle Werte nicht verfügbar. Der Lokale Modus ist davon nicht betroffen; mit Cloud-Ergänzung fallen dort nur Steuerung und Cloud-Daten aus. Ein transient abgelaufener Token wird automatisch erneuert, ohne dass eine Reauth-Aufforderung erscheint.
 - **Modus-Wechsel Cloud ↔ Lokal**: Jederzeit über **Neu konfigurieren** möglich, ohne die Integration zu löschen — Entity-IDs, Historie und das Gateway-Gerät bleiben erhalten (siehe [Neu konfigurieren](#neu-konfigurieren)).
 - **API-Doku**: [Swagger](https://external-web.solar-manager.ch/swagger)
 
@@ -567,8 +583,8 @@ nie aus, und die Conditions sind „unbekannt“.
   Einspeise-Prüfung wäre sofort wieder falsch. Die Produktion sinkt dagegen nicht, sie steigt sogar,
   weil weniger abgeregelt wird. Deshalb: mit `feed_in` einschalten, mit `production` entscheiden,
   ob das Gerät weiterläuft.
-- **Condition `solarmanager.is_curtailment_expected_today`: „Heute Abregelung zu erwarten“** (nur Cloud).
-  Die Bedingung ist wahr, wenn die [PV-Prognose](#pv-prognose-nur-cloud) von jetzt bis Mitternacht
+- **Condition `solarmanager.is_curtailment_expected_today`: „Heute Abregelung zu erwarten“** (Cloud-Modus oder Cloud-Ergänzung).
+  Die Bedingung ist wahr, wenn die [PV-Prognose](#pv-prognose-cloud-modus-oder-cloud-ergänzung) von jetzt bis Mitternacht
   `percent` % der Generatorleistung erreicht. Mit `band: max` zählt die Obergrenze der Prognose.
   Verglichen wird nur die Produktionsprognose, ohne Hausverbrauch und Akkuladung. Die Bedingung
   bedeutet also „Abregelung möglich“. Typisch ist ein Zeit-Trigger am Morgen, z. B. um den

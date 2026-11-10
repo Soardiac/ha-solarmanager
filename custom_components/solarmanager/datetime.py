@@ -48,7 +48,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coord: SolarmanagerCoordinator = entry.runtime_data
-    if coord.is_local:
+    # Schreiben geht nur über die Cloud (Cloud-Modus oder lokal mit Cloud-Ergänzung)
+    if not coord.can_write:
         return
 
     created: set[str] = set()
@@ -115,6 +116,4 @@ class DeviceDateTimeEntity(CoordinatorEntity[SolarmanagerCoordinator], DateTimeE
             for field in self._carry_fields:
                 if field in raw_data:
                     payload[field] = raw_data[field]
-        put_fn = getattr(self.coordinator.client, self._put_method)
-        await put_fn(self._dev_id, payload)
-        await self.coordinator.async_refresh_device_meta()
+        await self.coordinator.async_cloud_put(self._put_method, self._dev_id, payload)

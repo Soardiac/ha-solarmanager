@@ -10,6 +10,7 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -28,6 +29,8 @@ from .api_client import (
 from .const import (
     CLOUD_BASE,
     CONF_API_KEY,
+    CONF_CLOUD_API_KEY,
+    CONF_CLOUD_EXTENSION,
     CONF_EMAIL,
     CONF_GENERATOR_KWP,
     CONF_HOST,
@@ -87,13 +90,34 @@ def _cloud_entry_data(user_input: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _schema_local(defaults: dict | None = None) -> vol.Schema:
+def _schema_local(defaults: dict | None = None, *, with_extension: bool = False) -> vol.Schema:
     defaults = defaults or {}
-    return vol.Schema({
+    fields = {
         vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
         vol.Required(CONF_SCHEME, default=defaults.get(CONF_SCHEME, "http")): vol.In(["http", "https"]),
         vol.Optional(CONF_API_KEY, default=""): PASSWORD_SELECTOR,
+    }
+    if with_extension:
+        fields[
+            vol.Optional(CONF_CLOUD_EXTENSION, default=defaults.get(CONF_CLOUD_EXTENSION, False))
+        ] = BooleanSelector()
+    return vol.Schema(fields)
+
+
+def _schema_cloud_extension(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
+    """Zugangsdaten der Cloud-Ergänzung: nur smId + API-Key (kein E-Mail/Passwort)."""
+    defaults = defaults or {}
+    return vol.Schema({
+        vol.Required(CONF_SM_ID, default=defaults.get(CONF_SM_ID, "")): str,
+        vol.Optional(CONF_CLOUD_API_KEY, default=""): PASSWORD_SELECTOR,
     })
+
+
+async def _cloud_extension_errors(hass, *, sm_id: str, api_key: str | None) -> dict[str, str]:
+    """Zugangsdaten der Cloud-Ergänzung prüfen — derselbe Weg wie im Cloud-Modus."""
+    if not api_key:
+        return {"base": "cloud_api_key_required"}
+    return await _cloud_errors(hass, email="", password="", sm_id=sm_id, api_key=api_key)
 
 
 async def _validate_cloud(
@@ -176,6 +200,9 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     # 1.3: Entry-Titel stabil „Solar Manager“ statt smId/Host
     MINOR_VERSION = 3
 
+    # Lokale Daten zwischen den Schritten „local“ und „local_cloud“
+    _local_data: dict[str, Any] | None = None
+
     async def async_step_user(self, user_input=None) -> ConfigFlowResult:
         """Mode selector: Cloud or Local."""
         if user_input is not None:
@@ -231,19 +258,41 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not errors:
                 await self.async_set_unique_id(f"local_{host}")
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=ENTRY_TITLE,
-                    data={
-                        CONF_MODE: MODE_LOCAL,
-                        CONF_HOST: host,
-                        CONF_SCHEME: scheme,
-                        CONF_API_KEY: api_key,
-                    },
-                )
+                data = {
+                    CONF_MODE: MODE_LOCAL,
+                    CONF_HOST: host,
+                    CONF_SCHEME: scheme,
+                    CONF_API_KEY: api_key,
+                }
+                if user_input.get(CONF_CLOUD_EXTENSION):
+                    self._local_data = data
+                    return await self.async_step_local_cloud()
+                return self.async_create_entry(title=ENTRY_TITLE, data=data)
 
         return self.async_show_form(
             step_id="local",
-            data_schema=_schema_local(user_input),
+            data_schema=_schema_local(user_input, with_extension=True),
+            errors=errors,
+        )
+
+    async def async_step_local_cloud(self, user_input=None) -> ConfigFlowResult:
+        """Zugangsdaten der Cloud-Ergänzung (nach erfolgreicher lokaler Prüfung)."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            sm_id = user_input[CONF_SM_ID].strip()
+            api_key = (user_input.get(CONF_CLOUD_API_KEY) or "").strip() or None
+            errors = await _cloud_extension_errors(self.hass, sm_id=sm_id, api_key=api_key)
+            if not errors:
+                return self.async_create_entry(
+                    title=ENTRY_TITLE,
+                    data={**(self._local_data or {}), CONF_SM_ID: sm_id, CONF_CLOUD_API_KEY: api_key},
+                    options={CONF_CLOUD_EXTENSION: True},
+                )
+
+        return self.async_show_form(
+            step_id="local_cloud",
+            data_schema=_schema_cloud_extension(user_input),
             errors=errors,
         )
 
@@ -365,6 +414,9 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._other_entry_has_unique_id(entry, new_uid):
                 return self.async_abort(reason="already_configured")
 
+            # Lokal mit Cloud-Ergänzung: deren API-Key gilt, wenn das Feld leer bleibt
+            if not user_input.get(CONF_API_KEY) and entry.data.get(CONF_CLOUD_API_KEY):
+                user_input = {**user_input, CONF_API_KEY: entry.data[CONF_CLOUD_API_KEY]}
             errors = _cloud_auth_error(user_input)
             if not errors:
                 errors = await _cloud_errors(
@@ -384,7 +436,7 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="switch_to_cloud",
-            data_schema=_schema_cloud(user_input),
+            data_schema=_schema_cloud(user_input or {CONF_SM_ID: entry.data.get(CONF_SM_ID, "")}),
             errors=errors,
             description_placeholders={"deadline": PASSWORD_AUTH_DEADLINE},
         )
@@ -504,6 +556,9 @@ class SolarmanagerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class SolarmanagerOptionsFlow(config_entries.OptionsFlowWithReload):
+    # Optionen aus „init“, solange der Schritt „cloud“ (Cloud-Ergänzung) noch aussteht
+    _pending_options: dict[str, Any] | None = None
+
     async def async_step_init(self, user_input=None) -> ConfigFlowResult:
         is_local = self.config_entry.data.get(CONF_MODE) == MODE_LOCAL
         errors: dict[str, str] = {}
@@ -535,6 +590,20 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlowWithReload):
                     new_options[CONF_GENERATOR_KWP] = float(kwp)
                 else:
                     new_options.pop(CONF_GENERATOR_KWP, None)
+                if is_local:
+                    if user_input.get(CONF_CLOUD_EXTENSION):
+                        # Zugangsdaten im nächsten Schritt bestätigen bzw. erfassen
+                        self._pending_options = new_options
+                        return await self.async_step_cloud()
+                    # Aus heisst aus: Schalter und Cloud-Zugangsdaten entfernen
+                    new_options.pop(CONF_CLOUD_EXTENSION, None)
+                    current = self.config_entry.data
+                    if CONF_SM_ID in current or CONF_CLOUD_API_KEY in current:
+                        new_data = {
+                            k: v
+                            for k, v in current.items()
+                            if k not in (CONF_SM_ID, CONF_CLOUD_API_KEY)
+                        }
                 if new_data is not None:
                     data_changed = self.hass.config_entries.async_update_entry(
                         self.config_entry, data=new_data
@@ -567,9 +636,16 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlowWithReload):
         }
 
         if is_local:
+            schema = vol.Schema({
+                **common,
+                vol.Optional(
+                    CONF_CLOUD_EXTENSION,
+                    default=bool(self.config_entry.options.get(CONF_CLOUD_EXTENSION)),
+                ): BooleanSelector(),
+            })
             return self.async_show_form(
                 step_id="init",
-                data_schema=vol.Schema(common),
+                data_schema=schema,
                 errors=errors,
                 description_placeholders={**placeholders, "api_key_status": "–"},
             )
@@ -586,5 +662,48 @@ class SolarmanagerOptionsFlow(config_entries.OptionsFlowWithReload):
             description_placeholders={
                 **placeholders,
                 "api_key_status": "gesetzt ✓" if has_api_key else "nicht gesetzt",
+            },
+        )
+
+    async def async_step_cloud(self, user_input=None) -> ConfigFlowResult:
+        """Cloud-Ergänzung (lokaler Modus): smId und API-Key erfassen bzw. bestätigen.
+
+        Ein leeres Key-Feld behält den gespeicherten Key. Geprüft wird nur, wenn
+        sich smId oder Key geändert haben — so kostet das reine Bestätigen beim
+        Ändern anderer Optionen keinen Cloud-Aufruf.
+        """
+        current = self.config_entry.data
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            sm_id = user_input[CONF_SM_ID].strip()
+            api_key = (user_input.get(CONF_CLOUD_API_KEY) or "").strip() or current.get(
+                CONF_CLOUD_API_KEY
+            )
+            unchanged = sm_id == current.get(CONF_SM_ID) and api_key == current.get(
+                CONF_CLOUD_API_KEY
+            )
+            if not unchanged:
+                errors = await _cloud_extension_errors(self.hass, sm_id=sm_id, api_key=api_key)
+            if not errors:
+                new_options = {
+                    **(self._pending_options or dict(self.config_entry.options)),
+                    CONF_CLOUD_EXTENSION: True,
+                }
+                data_changed = self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    data={**current, CONF_SM_ID: sm_id, CONF_CLOUD_API_KEY: api_key},
+                )
+                if data_changed and new_options == dict(self.config_entry.options):
+                    # Nur Zugangsdaten geändert — OptionsFlowWithReload lädt dann nicht neu
+                    self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
+                return self.async_create_entry(title="", data=new_options)
+
+        return self.async_show_form(
+            step_id="cloud",
+            data_schema=_schema_cloud_extension(user_input or current),
+            errors=errors,
+            description_placeholders={
+                "key_status": "gespeichert ✓" if current.get(CONF_CLOUD_API_KEY) else "nicht gesetzt",
             },
         )

@@ -7,7 +7,7 @@
           "mode": "Mode"
         },
         "data_description": {
-          "mode": "Cloud: full functionality with account. Local: sensors only, no internet required."
+          "mode": "Cloud: full feature set with an account. Local: reads directly from the gateway; control, forecast and generator capacity can be added via the optional cloud extension."
         }
       },
       "cloud": {
@@ -29,12 +29,26 @@
         "data": {
           "host": "IP address / hostname",
           "scheme": "Protocol",
-          "api_key": "API key (optional)"
+          "api_key": "API key (optional)",
+          "cloud_extension": "Cloud extension (optional)"
         },
         "data_description": {
           "host": "IP address or hostname of the Solar Manager gateway (e.g. 192.168.1.100).",
           "scheme": "HTTP for unencrypted, HTTPS for encrypted (self-signed certificates are accepted).",
-          "api_key": "Optional API key to secure the local connection. Leave empty if no key is configured."
+          "api_key": "Optional API key to secure the local connection. Leave empty if no key is configured.",
+          "cloud_extension": "Adds control (operating modes, parameters), PV forecast and generator capacity via the Solar Manager cloud. Readings still come from the local gateway. Requires a cloud API key and the smId. While enabled, the cloud is queried regularly (device settings every minute, forecast every 30 minutes)."
+        }
+      },
+      "local_cloud": {
+        "title": "Cloud extension",
+        "description": "The local connection works. Now enter the Solar Manager cloud credentials for the extension. Only control commands and cloud-only data (device settings, forecast, generator capacity) go through the cloud — readings stay local.",
+        "data": {
+          "sm_id": "System ID (smId)",
+          "cloud_api_key": "Cloud API key"
+        },
+        "data_description": {
+          "sm_id": "The smId of your Solar Manager system from the cloud web interface.",
+          "cloud_api_key": "Found in the profile settings under “Cloud API Keys”. Create a token without end date, enable all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable “allow renewal”. The token is only visible right after creation — copy it immediately!"
         }
       },
       "reauth_confirm": {
@@ -97,7 +111,7 @@
       },
       "switch_to_local": {
         "title": "Switch to local mode",
-        "description": "Warning: operating modes, parameters and charging-target datetimes (select/number/datetime) only exist in Cloud mode. After switching they become unavailable — scripts, automations and dashboards using these controls will stop working. Switching back to Cloud reuses the same entity IDs.",
+        "description": "Note: Operating modes, parameters and charging target dates (Select/Number/Datetime) as well as the PV forecast need the cloud. In local mode they are available via the optional cloud extension (options). Without it they become unavailable — scripts, automations and dashboards using them stop working. The same entity IDs are reused when the cloud is enabled again.",
         "data": {
           "host": "IP address / hostname",
           "scheme": "Protocol",
@@ -114,7 +128,8 @@
       "auth": "Invalid credentials or API key. Please check and try again.",
       "cannot_connect": "Connection failed. Is the gateway reachable?",
       "auth_method_required": "Enter either a Cloud API key or both email and password.",
-      "unknown": "Unknown error. Please check the logs."
+      "unknown": "Unknown error. Please check the logs.",
+      "cloud_api_key_required": "Please enter a cloud API key."
     },
     "abort": {
       "already_configured": "This Solarmanager system is already configured.",
@@ -130,19 +145,62 @@
         "data": {
           "api_key": "Cloud API key",
           "scan_interval": "Polling interval (seconds)",
-          "generator_kwp": "PV generator capacity (kWp)"
+          "generator_kwp": "PV generator capacity (kWp)",
+          "cloud_extension": "Cloud extension (optional)"
         },
         "data_description": {
           "api_key": "Leave empty to keep the existing credentials. Enter a new key to switch to API key authentication or to replace the existing key.",
           "scan_interval": "How often the API is polled. Recommended: 10 seconds.",
-          "generator_kwp": "Sum of the module power according to the system documentation — not the inverter power. Basis for the feed-in limit triggers and conditions. Leave empty to use the value from Solar Manager (\"DC power\")."
+          "generator_kwp": "Sum of the module power according to the system documentation — not the inverter power. Basis for the feed-in limit triggers and conditions. Leave empty to use the value from Solar Manager (\"DC power\").",
+          "cloud_extension": "Adds control (operating modes, parameters), PV forecast and generator capacity via the Solar Manager cloud. Readings still come from the local gateway. Requires a cloud API key and the smId. While enabled, the cloud is queried regularly (device settings every minute, forecast every 30 minutes)."
+        }
+      },
+      "cloud": {
+        "title": "Cloud extension",
+        "description": "Cloud API key: {key_status}\n\nLeave the key empty to keep the stored key.",
+        "data": {
+          "sm_id": "System ID (smId)",
+          "cloud_api_key": "Cloud API key"
+        },
+        "data_description": {
+          "sm_id": "The smId of your Solar Manager system from the cloud web interface.",
+          "cloud_api_key": "Found in the profile settings under “Cloud API Keys”. Create a token without end date, enable all four scopes (read, write, externalOverride:read, externalOverride:write), do NOT enable “allow renewal”. The token is only visible right after creation — copy it immediately!"
         }
       }
+    },
+    "error": {
+      "auth": "Invalid credentials or API key. Please check and try again.",
+      "cannot_connect": "Connection failed. Is the cloud reachable?",
+      "unknown": "Unknown error. Please check the logs.",
+      "cloud_api_key_required": "Please enter a cloud API key."
     }
   },
   "exceptions": {
     "battery_settings_not_loaded": {
       "message": "Battery settings are not loaded yet — write aborted to avoid resetting other fields to their defaults. Please try again in a few seconds."
+    },
+    "cloud_not_enabled": {
+      "message": "Control is only possible via the Solar Manager cloud. Enable the cloud extension in the options of the integration."
+    },
+    "cloud_write_failed": {
+      "message": "The Solar Manager cloud rejected the command: {error}"
+    }
+  },
+  "issues": {
+    "deprecated_password_auth": {
+      "title": "Switch Solarmanager {sm_id} to an API key",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Switch to API key authentication",
+            "description": "Solar Manager is discontinuing email/password login. System **{sm_id}** still uses it and will stop working after {deadline}.\n\nCreate a Cloud API key in the Solar Manager portal (Profile → «Cloud API Keys»), then select **Submit** below — the re-authentication dialog opens so you can enter the key. Email/password fields can stay empty."
+          }
+        }
+      }
+    },
+    "cloud_extension_auth": {
+      "title": "Solar Manager cloud extension: access denied",
+      "description": "The Solar Manager cloud rejects the API key of the cloud extension. Local readings keep working, but control, forecast and generator capacity are not updated.\n\nCreate a new cloud API key in the Solar Manager portal and enter it in the options of the integration (Cloud extension). This message disappears as soon as the cloud accepts the key again."
     }
   },
   "triggers": {

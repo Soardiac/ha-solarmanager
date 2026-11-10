@@ -24,6 +24,7 @@ class _StubCoordinator:
         self.entry = SimpleNamespace(entry_id="ENTRY01")
         self.site_device_id = site_device_id
         self.is_local = False
+        self.is_cloud_extension = False
 
     def get_device_name(self, dev_id: str) -> str | None:
         return "Wattpilot"

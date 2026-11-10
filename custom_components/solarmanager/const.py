@@ -40,6 +40,12 @@ CONF_MODE = "mode"
 MODE_CLOUD = "cloud"
 MODE_LOCAL = "local"
 
+# Lokaler Modus mit Cloud-Ergänzung: Lesen bleibt lokal, Schreiben und reine
+# Cloud-Daten (Geräte-Einstellungen, Prognose, kWp) laufen über die Cloud.
+# Schalter in den Options, Zugangsdaten in data — getrennt vom lokalen API-Key.
+CONF_CLOUD_EXTENSION = "cloud_extension"
+CONF_CLOUD_API_KEY = "cloud_api_key"
+
 # Branding (für device_info)
 MANUFACTURER = "Solarmanager"
 # Titel des Config-Entries und Name des Site-Geräts -- unabhängig vom Modus
