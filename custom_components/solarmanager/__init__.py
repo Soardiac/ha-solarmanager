@@ -27,7 +27,12 @@ from .const import (
     PASSWORD_AUTH_DEADLINE,
     PLATFORMS,
 )
-from .coordinator import SolarmanagerCoordinator, daily_store, site_id_from_data
+from .coordinator import (
+    SolarmanagerCoordinator,
+    cloud_extension_issue_id,
+    daily_store,
+    site_id_from_data,
+)
 from .entity import site_device_info, site_identifier
 
 _LOGGER = logging.getLogger(__name__)
@@ -179,6 +184,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Migrationswarnung vor dem ersten Refresh setzen: Sie soll auch dann
     # erscheinen, wenn der v1-Login bereits scheitert und der Entry nicht lädt.
     _review_password_auth_issue(hass, entry, coord)
+    # Eine alte Meldung der Cloud-Ergänzung gehört weg, wenn sie ausgeschaltet
+    # wurde; bei aktiver Ergänzung setzt der erste Cloud-Aufruf sie neu.
+    ir.async_delete_issue(hass, DOMAIN, cloud_extension_issue_id(entry))
 
     await coord.async_config_entry_first_refresh()
 
@@ -212,6 +220,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Persistierte Tageszähler löschen, wenn der Eintrag entfernt wird."""
     ir.async_delete_issue(hass, DOMAIN, _password_auth_issue_id(entry))
+    ir.async_delete_issue(hass, DOMAIN, cloud_extension_issue_id(entry))
     await daily_store(hass, entry.entry_id).async_remove()
 
 

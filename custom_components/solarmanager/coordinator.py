@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -26,6 +27,8 @@ from .api_client import (
 from .const import (
     CLOUD_BASE,
     CONF_API_KEY,
+    CONF_CLOUD_API_KEY,
+    CONF_CLOUD_EXTENSION,
     CONF_EMAIL,
     CONF_GENERATOR_KWP,
     CONF_HOST,
@@ -170,6 +173,42 @@ def site_id_from_data(data: Mapping[str, Any]) -> str:
     return data.get(CONF_SM_ID, "unknown")
 
 
+def cloud_extension_enabled(entry: ConfigEntry) -> bool:
+    """Lokaler Eintrag mit eingeschalteter Cloud-Ergänzung und vollständigen Zugangsdaten."""
+    return (
+        entry.data.get(CONF_MODE) == MODE_LOCAL
+        and bool(entry.options.get(CONF_CLOUD_EXTENSION))
+        and bool(entry.data.get(CONF_SM_ID))
+        and bool(entry.data.get(CONF_CLOUD_API_KEY))
+    )
+
+
+def cloud_extension_issue_id(entry: ConfigEntry) -> str:
+    return f"cloud_extension_auth_{entry.entry_id}"
+
+
+def _parse_device_items(raw: Any) -> dict[str, dict]:
+    """Geräteliste (Cloud /v1/info/sensors oder normalisiert lokal /v2/devices) → Meta je _id."""
+    items = raw.get("items", raw) if isinstance(raw, dict) else raw
+    meta: dict[str, dict] = {}
+    for d in items or []:
+        dev_id = str(d.get("_id") or "")
+        if not dev_id:
+            continue
+        # Name-Prio: expliziter "name" (falls vorhanden) sonst tag.name, sonst Typen-Fallback
+        tag = d.get("tag") or {}
+        friendly = d.get("name") or tag.get("name") or None
+        typ = d.get("type") or d.get("device_type") or None
+        if not friendly:
+            dg = d.get("device_group") or ""
+            if typ and dg:
+                friendly = f"{typ} ({dg})"
+            elif typ:
+                friendly = typ
+        meta[dev_id] = {"name": friendly, "type": typ, "raw": d}
+    return meta
+
+
 def resolve_coordinator_for_device(hass: HomeAssistant, device_id: str) -> "SolarmanagerCoordinator":
     """Zur Device-ID eines Trigger/Condition-Targets den geladenen Coordinator auflösen.
 
@@ -207,7 +246,16 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.entry = entry
         self.is_local: bool = entry.data.get(CONF_MODE) == MODE_LOCAL
+        # Lese-Client: Stream (Cloud) bzw. /v2/point (lokal)
         self.client: SolarmanagerCloud | SolarmanagerLocal | None = None
+        # Cloud-Client für Schreibbefehle und reine Cloud-Daten (Geräte-
+        # Einstellungen, Prognose, kWp). Im Cloud-Modus dasselbe Objekt wie
+        # self.client, lokal nur mit Cloud-Ergänzung, sonst None.
+        self.cloud: SolarmanagerCloud | None = None
+        self.is_cloud_extension: bool = cloud_extension_enabled(entry)
+        # Letzte Geräteliste aus der Cloud (Hybrid): bleibt bei Cloud-Fehlern stehen
+        self._cloud_meta: dict[str, dict] = {}
+        self._cloud_auth_issue = False
 
         # Registry-ID des Site-Geräts; von async_setup_entry gesetzt, bevor die
         # Plattformen geladen werden. child_device_info() verknüpft die Kind-Geräte
@@ -278,6 +326,20 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def site_id(self) -> str:
         return site_id_from_data(self.entry.data)
 
+    @property
+    def has_cloud(self) -> bool:
+        """Cloud verfügbar: Cloud-Modus oder lokal mit Cloud-Ergänzung.
+
+        Steht schon vor dem ersten Refresh fest — die Plattformen entscheiden
+        damit beim Setup, ob sie Steuer- und Prognose-Entitäten anlegen.
+        """
+        return not self.is_local or self.is_cloud_extension
+
+    @property
+    def can_write(self) -> bool:
+        """Schreibbefehle möglich — sie laufen immer über die Cloud."""
+        return self.has_cloud
+
     async def _async_setup(self) -> None:
         if self.client:
             return
@@ -289,6 +351,17 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 scheme=self.entry.data.get(CONF_SCHEME, "http"),
                 api_key=self.entry.data.get(CONF_API_KEY),
             )
+            if self.is_cloud_extension:
+                # Kein expliziter Login: _authed_request tauscht den API-Key beim
+                # ersten Bedarf. So bremst eine gestörte Cloud den lokalen Start nicht.
+                self.cloud = SolarmanagerCloud(
+                    session,
+                    base=CLOUD_BASE,
+                    email="",
+                    password="",
+                    sm_id=self.entry.data[CONF_SM_ID],
+                    api_key=self.entry.data[CONF_CLOUD_API_KEY],
+                )
         else:
             self.client = SolarmanagerCloud(
                 session,
@@ -298,6 +371,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 sm_id=self.entry.data[CONF_SM_ID],
                 api_key=self.entry.data.get(CONF_API_KEY),
             )
+            self.cloud = self.client
             # _async_setup wird vom Coordinator-Framework außerhalb von
             # _async_update_data aufgerufen — dessen Exception-Mapping greift
             # hier nicht. Ohne Mapping landet ein Auth-Fehler beim Login im
@@ -520,35 +594,84 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # -------------------- Geräte-Metadaten --------------------
 
     async def _load_device_meta(self) -> None:
-        """Geräte-Metadaten aus /v1/info/sensors/{smId} (Cloud) oder /v2/devices (Lokal) laden."""
+        """Geräte-Metadaten aus /v1/info/sensors/{smId} (Cloud) oder /v2/devices (Lokal) laden.
+
+        Lokal mit Cloud-Ergänzung: Die lokale Liste bestimmt, welche Geräte es
+        gibt, samt Name und Typ (keine Umbenennungen gegenüber dem rein lokalen
+        Modus). Aus der Cloud kommt je Gerät das raw-Objekt mit `data` — die
+        Istwerte der Steuer-Entitäten. Fällt die Cloud aus, bleibt deren
+        letzter Stand stehen.
+        """
         if not self.client:
             return
         # Auch bei Fehlern erst nach META_TTL erneut versuchen — sonst feuert
         # bei API-Störung jeder Poll einen zusätzlichen fehlschlagenden Request.
         self._meta_last = time.time()
         try:
-            raw = await self.client.list_devices()
-            items = raw.get("items", raw) if isinstance(raw, dict) else raw
-            meta: dict[str, dict] = {}
-            for d in items or []:
-                dev_id = str(d.get("_id") or "")
-                if not dev_id:
-                    continue
-                # Name-Prio: expliziter "name" (falls vorhanden) sonst tag.name, sonst Typen-Fallback
-                tag = d.get("tag") or {}
-                friendly = d.get("name") or tag.get("name") or None
-                typ = d.get("type") or d.get("device_type") or None
-                if not friendly:
-                    dg = d.get("device_group") or ""
-                    if typ and dg:
-                        friendly = f"{typ} ({dg})"
-                    elif typ:
-                        friendly = typ
-                meta[dev_id] = {"name": friendly, "type": typ, "raw": d}
-            self.device_meta = meta
-            _LOGGER.debug("Loaded %d device metadata entries (info/devices)", len(self.device_meta))
+            meta = _parse_device_items(await self.client.list_devices())
         except Exception as e:
             _LOGGER.debug("Could not fetch device metadata from info/devices: %s", e)
+            return
+        if self.is_cloud_extension and self.cloud is not None:
+            try:
+                self._cloud_meta = _parse_device_items(
+                    await self._cloud_call(self.cloud.list_devices())
+                )
+            except Exception as e:
+                _LOGGER.debug("Could not fetch device settings from cloud: %s", e)
+            for dev_id, entry in meta.items():
+                cloud_entry = self._cloud_meta.get(dev_id)
+                if cloud_entry is not None:
+                    entry["raw"] = cloud_entry["raw"]
+        self.device_meta = meta
+        _LOGGER.debug("Loaded %d device metadata entries (info/devices)", len(self.device_meta))
+
+    async def _cloud_call(self, awaitable: Any) -> Any:
+        """Cloud-Aufruf ausführen; im Hybrid ein ungültiger API-Key → Reparatur-Meldung.
+
+        Im lokalen Modus darf ein Cloud-Fehler nie den Eintrag stoppen (kein
+        ConfigEntryAuthFailed) — die lokalen Werte laufen weiter. Die Meldung
+        verschwindet beim nächsten erfolgreichen Cloud-Aufruf.
+        """
+        try:
+            result = await awaitable
+        except SolarmanagerAuthError:
+            if self.is_cloud_extension and not self._cloud_auth_issue:
+                self._cloud_auth_issue = True
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    cloud_extension_issue_id(self.entry),
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="cloud_extension_auth",
+                )
+            raise
+        if self._cloud_auth_issue:
+            self._cloud_auth_issue = False
+            ir.async_delete_issue(self.hass, DOMAIN, cloud_extension_issue_id(self.entry))
+        return result
+
+    async def async_cloud_put(self, method: str, dev_id: str, payload: dict[str, Any]) -> None:
+        """Schreibbefehl über die Cloud senden und die Geräte-Einstellungen neu laden.
+
+        Einziger Schreibweg für Select, Number, Datetime und die Batterie —
+        im Cloud-Modus wie lokal mit Cloud-Ergänzung.
+        """
+        if self.cloud is None:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_not_enabled",
+            )
+        try:
+            await self._cloud_call(getattr(self.cloud, method)(dev_id, payload))
+        except (SolarmanagerAuthError, SolarmanagerRateLimit, SolarmanagerApiError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="cloud_write_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        await self.async_refresh_device_meta()
 
     def get_device_name(self, dev_id: str) -> str | None:
         """Freundlichen Namen für ein Gerät liefern (exaktes Mapping via _id)."""
@@ -573,8 +696,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 translation_key="battery_settings_not_loaded",
             )
         payload.update(changes)
-        await self.client.put_battery_settings(dev_id, payload)
-        await self.async_refresh_device_meta()
+        await self.async_cloud_put("put_battery_settings", dev_id, payload)
 
     async def async_refresh_device_meta(self) -> None:
         """Meta sofort neu laden (z. B. nach einem PUT), dann Update anstoßen."""
@@ -600,12 +722,12 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _load_gateway_info(self) -> None:
         """Generatorleistung via GET /v1/info/gateway/{smId} → settings.kWp laden (alle 6 h)."""
-        if not isinstance(self.client, SolarmanagerCloud):
+        if self.cloud is None:
             return
         # Auch bei Fehlern erst nach GATEWAY_INFO_TTL erneut versuchen
         self._gateway_last = time.time()
         try:
-            info = await self.client.get_gateway_info()
+            info = await self._cloud_call(self.cloud.get_gateway_info())
             settings = info.get("settings") if isinstance(info, dict) else None
             kwp = (settings or {}).get("kWp") if isinstance(settings, dict) else None
             try:
@@ -651,12 +773,12 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _load_forecast(self) -> None:
         """PV-Prognose via GET /v3/users/{smId}/data/forecast laden (alle 30 min)."""
-        if not isinstance(self.client, SolarmanagerCloud):
+        if self.cloud is None:
             return
         # Auch bei Fehlern erst nach FORECAST_TTL erneut versuchen (Rate-Limit-Schonung)
         self._forecast_last = time.time()
         try:
-            payload = await self.client.get_forecast()
+            payload = await self._cloud_call(self.cloud.get_forecast())
             entries = payload.get("data") if isinstance(payload, dict) else payload
             if isinstance(entries, list):
                 self._forecast_raw_sample = entries[:FORECAST_SAMPLE_SIZE]
@@ -801,10 +923,6 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         )
                 self._cloud_grid_t = now_t
 
-                # Messung je Viertelstunde für den Prognose-Korrekturfaktor —
-                # ebenfalls vor den awaits, aus demselben Grund wie oben
-                self._apply_correction_slots(data.get("pW"), today, now_t, max_gap_s)
-
                 if self._stats_date != today:
                     # Tageswechsel: Vortageswerte nicht weiterzeigen, bis der
                     # erste Fetch des neuen Tages gelungen ist
@@ -826,10 +944,6 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data["stat_grid_import"] = self._cloud_grid_import_wh
                 data["stat_grid_export"] = self._cloud_grid_export_wh
 
-                if time.time() - self._forecast_last > FORECAST_TTL:
-                    await self._load_forecast()
-                if time.time() - self._gateway_last > GATEWAY_INFO_TTL:
-                    await self._load_gateway_info()
             else:
                 # Lokal: pW/cW/iW/eW (W) über die Zeit integrieren → Wh-Tageszähler
                 now_t = time.time()
@@ -877,6 +991,16 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     data["stat_autarchy_degree"] = min(
                         100.0, 100.0 * _self_consumption / self._local_consumption_wh
                     )
+
+            # Reine Cloud-Daten (Cloud-Modus oder lokal mit Cloud-Ergänzung).
+            # Die Messung je Viertelstunde nutzt das vor den awaits erfasste
+            # now_t, damit Netzwerk-Latenz nicht ins Zeitintervall einfließt.
+            if self.cloud is not None:
+                self._apply_correction_slots(data.get("pW"), today, now_t, max_gap_s)
+                if time.time() - self._forecast_last > FORECAST_TTL:
+                    await self._load_forecast()
+                if time.time() - self._gateway_last > GATEWAY_INFO_TTL:
+                    await self._load_gateway_info()
 
             # Tages-Batterieenergie (beide Modi): bcWh/bdWh-Intervalle aufsummieren.
             # Nur neue Stream-Punkte zählen — bei unverändertem Timestamp t würde

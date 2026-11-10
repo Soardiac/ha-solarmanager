@@ -39,6 +39,14 @@ def local_day_bounds(now: datetime, offset_days: int = 0) -> tuple[datetime, dat
     )
 
 
+def _site_model(coordinator: SolarmanagerCoordinator) -> str:
+    if not coordinator.is_local:
+        return MODEL
+    if coordinator.is_cloud_extension:
+        return f"{MODEL_LOCAL} + Cloud"
+    return MODEL_LOCAL
+
+
 def site_device_info(coordinator: SolarmanagerCoordinator) -> dict[str, Any]:
     """device_info für das Site-Gerät (Gateway)."""
     site_id = coordinator.site_id
@@ -50,7 +58,7 @@ def site_device_info(coordinator: SolarmanagerCoordinator) -> dict[str, Any]:
         "name": SITE_DEVICE_NAME,
         "serial_number": site_id,
         "manufacturer": MANUFACTURER,
-        "model": MODEL_LOCAL if coordinator.is_local else MODEL,
+        "model": _site_model(coordinator),
     }
 
 

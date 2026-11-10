@@ -108,8 +108,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in STATS_SENSORS_PERCENT]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in GRID_STATS_SENSORS]
     site_entities += [SolarmanagerStatsSensor(coord, *spec) for spec in BAT_STATS_SENSORS]
-    if not coord.is_local:
-        # PV-Prognose gibt es nur in der Cloud
+    if coord.has_cloud:
+        # PV-Prognose gibt es nur in der Cloud (Cloud-Modus oder lokal mit Cloud-Ergänzung)
         site_entities += [
             ForecastPowerSensor(coord, "forecast_power_now", "forecast_power_now", 0, with_series=True),
             ForecastPowerSensor(coord, "forecast_power_15m", "forecast_power_15m", 15),

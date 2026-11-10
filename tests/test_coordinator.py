@@ -185,20 +185,20 @@ async def test_put_battery_merged_refuses_without_cached_settings(hass):
     """Ohne gecachte Settings kein PUT — sonst reseten Backend-Defaults andere Felder."""
     entry = _cloud_entry(hass)
     coord = SolarmanagerCoordinator(hass, entry)
-    coord.client = AsyncMock()
+    coord.cloud = AsyncMock()
     coord.device_meta = {}
 
     with pytest.raises(HomeAssistantError):
         await coord.async_put_battery_merged("dev1", {"batteryMode": 1})
 
-    coord.client.put_battery_settings.assert_not_awaited()
+    coord.cloud.put_battery_settings.assert_not_awaited()
 
 
 async def test_put_battery_merged_sends_full_settings_object(hass):
     """Merged-PUT überlagert Änderungen über die gecachten Settings."""
     entry = _cloud_entry(hass)
     coord = SolarmanagerCoordinator(hass, entry)
-    coord.client = AsyncMock()
+    coord.cloud = AsyncMock()
     coord.async_refresh_device_meta = AsyncMock()
     coord.device_meta = {
         "dev1": {
@@ -215,8 +215,8 @@ async def test_put_battery_merged_sends_full_settings_object(hass):
 
     await coord.async_put_battery_merged("dev1", {"batteryMode": 3})
 
-    coord.client.put_battery_settings.assert_awaited_once()
-    _, payload = coord.client.put_battery_settings.await_args.args
+    coord.cloud.put_battery_settings.assert_awaited_once()
+    _, payload = coord.cloud.put_battery_settings.await_args.args
     assert payload["batteryMode"] == 3
     assert payload["upperSocLimit"] == 90
     assert payload["lowerSocLimit"] == 10

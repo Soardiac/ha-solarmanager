@@ -11,8 +11,11 @@ from custom_components.solarmanager.api_client import (
 )
 from custom_components.solarmanager.const import (
     CONF_API_KEY,
+    CONF_CLOUD_API_KEY,
+    CONF_CLOUD_EXTENSION,
     CONF_EMAIL,
     CONF_HOST,
+    CONF_LOCAL_API_KEY,
     CONF_MODE,
     CONF_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -683,8 +686,8 @@ async def test_reconfigure_same_mode_routes_to_existing_step(hass):
 
 
 async def test_switch_cloud_to_local_success(hass):
-    """Moduswechsel Cloud -> Lokal: Daten komplett ersetzt, unique_id folgt,
-    der (vom Nutzer vergebene) Titel bleibt."""
+    """Moduswechsel Cloud -> Lokal ohne Cloud-Ergänzung: unique_id folgt, der
+    (vom Nutzer vergebene) Titel bleibt, Cloud-Zugangsdaten bleiben gemerkt."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -712,21 +715,22 @@ async def test_switch_cloud_to_local_success(hass):
         mock_cls.return_value.get_point = AsyncMock(return_value={})
 
         result = await hass.config_entries.flow.async_configure(
-            result["flow_id"], _LOCAL_INPUT
+            result["flow_id"], {**_LOCAL_INPUT, CONF_CLOUD_EXTENSION: False}
         )
 
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data[CONF_MODE] == MODE_LOCAL
     assert entry.data[CONF_HOST] == "192.168.1.100"
-    assert CONF_EMAIL not in entry.data
+    assert entry.data[CONF_EMAIL] == "test@example.com"  # gemerkt für den Rückwechsel
+    assert CONF_CLOUD_EXTENSION not in entry.options
     assert entry.unique_id == "local_192.168.1.100"
     assert entry.title == "Mein PV"
 
 
 async def test_switch_local_to_cloud_success(hass):
-    """Moduswechsel Lokal -> Cloud: Daten komplett ersetzt, unique_id folgt,
-    der (vom Nutzer vergebene) Titel bleibt."""
+    """Moduswechsel Lokal -> Cloud: unique_id folgt, der (vom Nutzer vergebene)
+    Titel bleibt, die lokalen Verbindungsdaten bleiben gemerkt."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http"},
@@ -756,7 +760,7 @@ async def test_switch_local_to_cloud_success(hass):
     assert result["reason"] == "reconfigure_successful"
     assert entry.data[CONF_MODE] == MODE_CLOUD
     assert entry.data[CONF_SM_ID] == "SM-0001"
-    assert CONF_HOST not in entry.data
+    assert entry.data[CONF_HOST] == "192.168.1.100"  # gemerkt für den Rückwechsel
     assert entry.unique_id == f"{DOMAIN}_SM-0001"
     assert entry.title == "Mein PV"
 
@@ -907,3 +911,279 @@ async def test_options_flow_shows_kwp_from_solar_manager(hass):
     result = await hass.config_entries.options.async_init(entry.entry_id)
 
     assert result["description_placeholders"]["api_kwp"] == "10 kWp"
+
+
+# -------------------- Lokal mit Cloud-Ergänzung --------------------
+
+
+async def _local_with_extension(hass) -> dict:
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_MODE: MODE_LOCAL})
+    with patch(_PATCH_LOCAL) as mock_cls:
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+        return await hass.config_entries.flow.async_configure(
+            result["flow_id"], {**_LOCAL_INPUT, CONF_CLOUD_EXTENSION: True}
+        )
+
+
+async def test_local_flow_with_cloud_extension_creates_entry(hass):
+    result = await _local_with_extension(hass)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "local_cloud"
+
+    with patch(_PATCH_CLOUD) as mock_cls:
+        mock_cls.return_value.login = AsyncMock()
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_SM_ID: "SM-0001", CONF_CLOUD_API_KEY: "cloud-key"}
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_MODE] == MODE_LOCAL
+    assert result["data"][CONF_SM_ID] == "SM-0001"
+    assert result["data"][CONF_CLOUD_API_KEY] == "cloud-key"
+    assert result["options"] == {CONF_CLOUD_EXTENSION: True}
+    # Angemeldet wird ausschliesslich mit dem API-Key, nie mit E-Mail/Passwort
+    assert mock_cls.call_args.kwargs["api_key"] == "cloud-key"
+    assert mock_cls.call_args.kwargs["email"] == ""
+
+
+async def test_local_flow_cloud_extension_requires_valid_key(hass):
+    result = await _local_with_extension(hass)
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_SM_ID: "SM-0001", CONF_CLOUD_API_KEY: ""}
+    )
+    assert result["errors"] == {"base": "cloud_api_key_required"}
+
+    with patch(_PATCH_CLOUD) as mock_cls:
+        mock_cls.return_value.login = AsyncMock(side_effect=SolarmanagerAuthError("401"))
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_SM_ID: "SM-0001", CONF_CLOUD_API_KEY: "wrong"}
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "auth"}
+
+
+def _local_options_entry(hass, *, extension: bool = False) -> MockConfigEntry:
+    data = {CONF_MODE: MODE_LOCAL, CONF_HOST: "192.168.1.100", CONF_SCHEME: "http", CONF_API_KEY: None}
+    options = {CONF_SCAN_INTERVAL: 10}
+    if extension:
+        data |= {CONF_SM_ID: "SM-0001", CONF_CLOUD_API_KEY: "cloud-key"}
+        options[CONF_CLOUD_EXTENSION] = True
+    entry = MockConfigEntry(domain=DOMAIN, data=data, options=options, unique_id="local_192.168.1.100")
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def test_options_enable_cloud_extension(hass):
+    entry = _local_options_entry(hass)
+
+    with patch.object(hass.config_entries, "async_schedule_reload"):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_SCAN_INTERVAL: 10, CONF_CLOUD_EXTENSION: True}
+        )
+        assert result["step_id"] == "cloud"
+
+        with patch(_PATCH_CLOUD) as mock_cls:
+            mock_cls.return_value.login = AsyncMock()
+            result = await hass.config_entries.options.async_configure(
+                result["flow_id"], {CONF_SM_ID: "SM-0001", CONF_CLOUD_API_KEY: "cloud-key"}
+            )
+        await hass.async_block_till_done()
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_CLOUD_EXTENSION] is True
+    assert entry.data[CONF_SM_ID] == "SM-0001"
+    assert entry.data[CONF_CLOUD_API_KEY] == "cloud-key"
+
+
+async def test_options_confirm_without_changes_keeps_key_without_cloud_call(hass):
+    entry = _local_options_entry(hass, extension=True)
+
+    with patch.object(hass.config_entries, "async_schedule_reload"):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_SCAN_INTERVAL: 30, CONF_CLOUD_EXTENSION: True}
+        )
+        with patch(_PATCH_CLOUD) as mock_cls:
+            result = await hass.config_entries.options.async_configure(
+                result["flow_id"], {CONF_SM_ID: "SM-0001", CONF_CLOUD_API_KEY: ""}
+            )
+        await hass.async_block_till_done()
+
+    mock_cls.assert_not_called()
+    assert entry.options[CONF_SCAN_INTERVAL] == 30
+    assert entry.data[CONF_CLOUD_API_KEY] == "cloud-key"
+
+
+async def test_options_disable_cloud_extension_keeps_credentials(hass):
+    entry = _local_options_entry(hass, extension=True)
+
+    with patch.object(hass.config_entries, "async_schedule_reload"):
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_SCAN_INTERVAL: 10, CONF_CLOUD_EXTENSION: False}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert CONF_CLOUD_EXTENSION not in entry.options
+    # Gemerkt fürs Wiedereinschalten; ohne Schalter werden sie nie benutzt
+    assert entry.data[CONF_CLOUD_API_KEY] == "cloud-key"
+
+
+async def test_reconfigure_local_keeps_cloud_extension(hass):
+    """Host-Wechsel lokal: Cloud-Ergänzung (Schalter und Zugangsdaten) bleibt erhalten."""
+    entry = _local_options_entry(hass, extension=True)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    with patch(_PATCH_LOCAL) as mock_cls, patch.object(hass.config_entries, "async_schedule_reload"):
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_HOST: "192.168.1.50", CONF_SCHEME: "http", CONF_API_KEY: ""},
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert entry.data[CONF_HOST] == "192.168.1.50"
+    assert entry.data[CONF_SM_ID] == "SM-0001"
+    assert entry.data[CONF_CLOUD_API_KEY] == "cloud-key"
+    assert entry.options[CONF_CLOUD_EXTENSION] is True
+
+
+# -------------------- Moduswechsel mit gemerkten Daten --------------------
+
+def _cloud_api_key_entry(hass, **extra) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_CLOUD,
+            CONF_SM_ID: "SM-0001",
+            CONF_EMAIL: "",
+            CONF_PASSWORD: "",
+            CONF_API_KEY: "cloud-key",
+            **extra,
+        },
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def test_switch_cloud_to_local_with_extension_in_one_step(hass):
+    """Cloud mit API-Key -> Lokal + Cloud-Ergänzung: ein einziger Schritt."""
+    entry = _cloud_api_key_entry(hass)
+
+    flow_id = await _start_reconfigure_flow(hass, entry)
+    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_MODE: MODE_LOCAL})
+    with patch(_PATCH_LOCAL) as mock_cls, patch(_PATCH_CLOUD) as mock_cloud, patch.object(
+        hass.config_entries, "async_schedule_reload"
+    ):
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {**_LOCAL_INPUT, CONF_CLOUD_EXTENSION: True}
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    mock_cloud.assert_not_called()  # Key lief eben noch, keine erneute Prüfung
+    assert entry.data[CONF_MODE] == MODE_LOCAL
+    assert entry.data[CONF_SM_ID] == "SM-0001"
+    assert entry.data[CONF_CLOUD_API_KEY] == "cloud-key"
+    assert entry.options[CONF_CLOUD_EXTENSION] is True
+
+
+async def test_switch_cloud_with_password_to_local_extension_asks_for_key(hass):
+    """Cloud mit E-Mail/Passwort -> Lokal + Ergänzung: smId vorbelegt, Key nachfragen."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_MODE: MODE_CLOUD,
+            CONF_SM_ID: "SM-0001",
+            CONF_EMAIL: "test@example.com",
+            CONF_PASSWORD: "secret",
+            CONF_API_KEY: None,
+        },
+        unique_id=f"{DOMAIN}_SM-0001",
+    )
+    entry.add_to_hass(hass)
+
+    flow_id = await _start_reconfigure_flow(hass, entry)
+    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_MODE: MODE_LOCAL})
+    with patch(_PATCH_LOCAL) as mock_cls:
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {**_LOCAL_INPUT, CONF_CLOUD_EXTENSION: True}
+        )
+    assert result["step_id"] == "switch_to_local_cloud"
+    sm_key = next(k for k in result["data_schema"].schema if k == CONF_SM_ID)
+    assert sm_key.default() == "SM-0001"
+
+    with patch(_PATCH_CLOUD) as mock_cloud, patch.object(
+        hass.config_entries, "async_schedule_reload"
+    ):
+        mock_cloud.return_value.login = AsyncMock()
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_SM_ID: "SM-0001", CONF_CLOUD_API_KEY: "new-key"}
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert entry.data[CONF_MODE] == MODE_LOCAL
+    assert entry.data[CONF_CLOUD_API_KEY] == "new-key"
+    assert entry.options[CONF_CLOUD_EXTENSION] is True
+
+
+async def test_round_trip_prefills_remembered_values(hass):
+    """Cloud -> Lokal: Host vorbelegt, leeres Key-Feld übernimmt den gemerkten lokalen Key."""
+    entry = _cloud_api_key_entry(
+        hass, **{CONF_HOST: "192.168.1.77", CONF_SCHEME: "https", CONF_LOCAL_API_KEY: "local-key"}
+    )
+
+    flow_id = await _start_reconfigure_flow(hass, entry)
+    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_MODE: MODE_LOCAL})
+    host_key = next(k for k in result["data_schema"].schema if k == CONF_HOST)
+    assert host_key.default() == "192.168.1.77"
+
+    with patch(_PATCH_LOCAL) as mock_cls, patch.object(hass.config_entries, "async_schedule_reload"):
+        mock_cls.return_value.get_point = AsyncMock(return_value={})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_HOST: "192.168.1.77",
+                CONF_SCHEME: "https",
+                CONF_API_KEY: "",
+                CONF_CLOUD_EXTENSION: False,
+            },
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert mock_cls.call_args.kwargs["api_key"] == "local-key"
+    assert entry.data[CONF_API_KEY] == "local-key"
+
+
+async def test_switch_local_to_cloud_uses_remembered_cloud_key(hass):
+    """Lokal mit Cloud-Ergänzung -> Cloud: smId vorbelegt, leeres Key-Feld übernimmt den Key."""
+    entry = _local_options_entry(hass, extension=True)
+
+    flow_id = await _start_reconfigure_flow(hass, entry)
+    result = await hass.config_entries.flow.async_configure(flow_id, {CONF_MODE: MODE_CLOUD})
+    sm_key = next(k for k in result["data_schema"].schema if k == CONF_SM_ID)
+    assert sm_key.default() == "SM-0001"
+
+    with patch(_PATCH_CLOUD) as mock_cls, patch.object(hass.config_entries, "async_schedule_reload"):
+        mock_cls.return_value.login = AsyncMock()
+        mock_cls.return_value.stream_user_v3 = AsyncMock(return_value={})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_SM_ID: "SM-0001", CONF_API_KEY: "", CONF_EMAIL: "", CONF_PASSWORD: ""},
+        )
+
+    assert result["type"] == FlowResultType.ABORT
+    assert entry.data[CONF_MODE] == MODE_CLOUD
+    assert entry.data[CONF_API_KEY] == "cloud-key"
+    assert entry.data[CONF_HOST] == "192.168.1.100"

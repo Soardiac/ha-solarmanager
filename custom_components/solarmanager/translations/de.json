@@ -7,7 +7,7 @@
           "mode": "Modus"
         },
         "data_description": {
-          "mode": "Cloud: voller Funktionsumfang mit Account. Lokal: nur Sensoren, kein Internet nötig."
+          "mode": "Cloud: voller Funktionsumfang mit Account. Lokal: liest direkt vom Gateway; Steuerung, Prognose und Generatorleistung lassen sich über die optionale Cloud-Ergänzung dazunehmen."
         }
       },
       "cloud": {
@@ -29,12 +29,26 @@
         "data": {
           "host": "IP-Adresse / Hostname",
           "scheme": "Protokoll",
-          "api_key": "API Key (optional)"
+          "api_key": "API Key (optional)",
+          "cloud_extension": "Cloud-Ergänzung (optional)"
         },
         "data_description": {
           "host": "IP-Adresse oder Hostname des Solar Manager Gateways (z. B. 192.168.1.100).",
           "scheme": "HTTP für unverschlüsselt, HTTPS für verschlüsselt (selbst-signiertes Zertifikat wird akzeptiert).",
-          "api_key": "Optionaler API Key zur Absicherung der lokalen Verbindung. Leer lassen wenn kein Key konfiguriert."
+          "api_key": "Optionaler API Key zur Absicherung der lokalen Verbindung. Leer lassen wenn kein Key konfiguriert.",
+          "cloud_extension": "Ergänzt Steuerung (Betriebsmodi, Parameter), PV-Prognose und Generatorleistung über die Solar-Manager-Cloud. Gelesen wird weiterhin lokal vom Gateway. Benötigt einen Cloud API Key und die smId. Ist die Option aktiv, wird die Cloud regelmässig abgefragt (Geräte-Einstellungen jede Minute, Prognose alle 30 Minuten)."
+        }
+      },
+      "local_cloud": {
+        "title": "Cloud-Ergänzung",
+        "description": "Die lokale Verbindung funktioniert. Jetzt die Zugangsdaten der Solar-Manager-Cloud für die Ergänzung eintragen. Über die Cloud laufen nur Steuerbefehle und reine Cloud-Daten (Geräte-Einstellungen, Prognose, Generatorleistung) — gelesen wird weiterhin lokal.",
+        "data": {
+          "sm_id": "System-ID (smId)",
+          "cloud_api_key": "Cloud API Key"
+        },
+        "data_description": {
+          "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
+          "cloud_api_key": "Zu finden in den Profileinstellungen unter «Cloud API Keys». Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
         }
       },
       "reauth_confirm": {
@@ -83,7 +97,7 @@
       },
       "switch_to_cloud": {
         "title": "Auf Cloud-Modus wechseln",
-        "description": "Es genügt eines von beidem: entweder den **Cloud API Key** eintragen **oder** E-Mail und Passwort. Die Anmeldung mit E-Mail/Passwort funktioniert noch bis zum {deadline}.",
+        "description": "Gemerkte Zugangsdaten sind vorbelegt; leere Passwort- und API-Key-Felder übernehmen gemerkte Werte. Es genügt eines von beidem: entweder der **Cloud API Key** **oder** E-Mail und Passwort. Die Anmeldung mit E-Mail/Passwort funktioniert noch bis zum {deadline}.",
         "data": {
           "email": "E-Mail",
           "password": "Passwort",
@@ -97,16 +111,30 @@
       },
       "switch_to_local": {
         "title": "Auf lokalen Modus wechseln",
-        "description": "Achtung: Betriebsmodi, Parameter und Ladeziel-Termine (Select/Number/Datetime) gibt es nur im Cloud-Modus. Nach dem Wechsel sind sie nicht mehr verfügbar — Skripte, Automationen und Dashboards, die diese Steuerelemente verwenden, funktionieren dann nicht mehr. Beim Zurückwechseln zu Cloud werden dieselben Entity-IDs wiederverwendet.",
+        "description": "Gelesen wird danach direkt vom Gateway. Betriebsmodi, Parameter, Ladeziel-Termine und die PV-Prognose brauchen die Cloud — mit eingeschalteter **Cloud-Ergänzung** bleiben sie erhalten (die Cloud-Zugangsdaten dieses Eintrags werden übernommen). Ohne sie sind sie nicht mehr verfügbar, und Skripte, Automationen und Dashboards, die sie verwenden, funktionieren nicht mehr.\n\nAPI Key leer lassen, um einen gemerkten lokalen Key zu behalten.",
         "data": {
           "host": "IP-Adresse / Hostname",
           "scheme": "Protokoll",
-          "api_key": "API Key (optional)"
+          "api_key": "API Key (optional)",
+          "cloud_extension": "Cloud-Ergänzung (optional)"
         },
         "data_description": {
           "host": "IP-Adresse oder Hostname des Solar Manager Gateways (z. B. 192.168.1.100).",
           "scheme": "HTTP für unverschlüsselt, HTTPS für verschlüsselt (selbst-signiertes Zertifikat wird akzeptiert).",
-          "api_key": "Optionaler API Key zur Absicherung der lokalen Verbindung. Leer lassen wenn kein Key konfiguriert."
+          "api_key": "Optionaler API Key zur Absicherung der lokalen Verbindung. Leer lassen, um einen gemerkten Key zu behalten oder wenn kein Key konfiguriert ist.",
+          "cloud_extension": "Behält Steuerung (Betriebsmodi, Parameter), PV-Prognose und Generatorleistung über die Solar-Manager-Cloud. Gelesen wird lokal vom Gateway."
+        }
+      },
+      "switch_to_local_cloud": {
+        "title": "Cloud-Ergänzung",
+        "description": "Dieser Eintrag hat die Cloud bisher mit E-Mail und Passwort genutzt. Die Cloud-Ergänzung braucht einen Cloud API Key.",
+        "data": {
+          "sm_id": "System-ID (smId)",
+          "cloud_api_key": "Cloud API Key"
+        },
+        "data_description": {
+          "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
+          "cloud_api_key": "Zu finden in den Profileinstellungen unter «Cloud API Keys». Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
         }
       }
     },
@@ -114,7 +142,8 @@
       "auth": "Ungültige Anmeldedaten oder API Key. Bitte prüfen und erneut versuchen.",
       "cannot_connect": "Verbindung fehlgeschlagen. Gateway erreichbar?",
       "auth_method_required": "Bitte entweder einen Cloud API Key oder E-Mail und Passwort angeben.",
-      "unknown": "Unbekannter Fehler. Bitte Logs prüfen."
+      "unknown": "Unbekannter Fehler. Bitte Logs prüfen.",
+      "cloud_api_key_required": "Bitte einen Cloud API Key angeben."
     },
     "abort": {
       "already_configured": "Dieses Solarmanager-System ist bereits eingerichtet.",
@@ -130,19 +159,45 @@
         "data": {
           "api_key": "Cloud API Key",
           "scan_interval": "Abfrageintervall (Sekunden)",
-          "generator_kwp": "PV-Generatorleistung (kWp)"
+          "generator_kwp": "PV-Generatorleistung (kWp)",
+          "cloud_extension": "Cloud-Ergänzung (optional)"
         },
         "data_description": {
           "api_key": "Leer lassen um bestehende Zugangsdaten zu behalten. Neuen Key eingeben um auf API-Key-Authentifizierung umzusteigen oder den bestehenden zu ersetzen.",
           "scan_interval": "Wie oft die API abgefragt wird. Empfohlen: 10 Sekunden.",
-          "generator_kwp": "Summe der Modulleistung laut Anlagendokumentation — nicht die Leistung des Wechselrichters. Grundlage für Trigger und Conditions zum Einspeiselimit. Leer lassen, um den Wert aus Solar Manager („DC-Leistung“) zu verwenden."
+          "generator_kwp": "Summe der Modulleistung laut Anlagendokumentation — nicht die Leistung des Wechselrichters. Grundlage für Trigger und Conditions zum Einspeiselimit. Leer lassen, um den Wert aus Solar Manager („DC-Leistung“) zu verwenden.",
+          "cloud_extension": "Ergänzt Steuerung (Betriebsmodi, Parameter), PV-Prognose und Generatorleistung über die Solar-Manager-Cloud. Gelesen wird weiterhin lokal vom Gateway. Benötigt einen Cloud API Key und die smId. Ist die Option aktiv, wird die Cloud regelmässig abgefragt (Geräte-Einstellungen jede Minute, Prognose alle 30 Minuten)."
+        }
+      },
+      "cloud": {
+        "title": "Cloud-Ergänzung",
+        "description": "Cloud API Key: {key_status}\n\nKey leer lassen, um den gespeicherten Key zu behalten.",
+        "data": {
+          "sm_id": "System-ID (smId)",
+          "cloud_api_key": "Cloud API Key"
+        },
+        "data_description": {
+          "sm_id": "Die smId deines Solarmanager-Systems aus der Cloud-Oberfläche.",
+          "cloud_api_key": "Zu finden in den Profileinstellungen unter «Cloud API Keys». Token ohne Enddatum erstellen, alle vier Scopes aktivieren (read, write, externalOverride:read, externalOverride:write), «Erneuerung erlauben» NICHT aktivieren. Das Token ist nur direkt nach der Erstellung sichtbar — sofort kopieren!"
         }
       }
+    },
+    "error": {
+      "auth": "Ungültige Anmeldedaten oder API Key. Bitte prüfen und erneut versuchen.",
+      "cannot_connect": "Verbindung fehlgeschlagen. Ist die Cloud erreichbar?",
+      "unknown": "Unbekannter Fehler. Bitte Logs prüfen.",
+      "cloud_api_key_required": "Bitte einen Cloud API Key angeben."
     }
   },
   "exceptions": {
     "battery_settings_not_loaded": {
       "message": "Batterie-Einstellungen noch nicht geladen — Schreibvorgang abgebrochen, um ein Zurücksetzen anderer Felder auf Defaults zu verhindern. Bitte in ein paar Sekunden erneut versuchen."
+    },
+    "cloud_not_enabled": {
+      "message": "Steuern ist nur über die Solar-Manager-Cloud möglich. Bitte in den Optionen der Integration die Cloud-Ergänzung einschalten."
+    },
+    "cloud_write_failed": {
+      "message": "Die Solar-Manager-Cloud hat den Befehl abgelehnt: {error}"
     }
   },
   "issues": {
@@ -156,6 +211,10 @@
           }
         }
       }
+    },
+    "cloud_extension_auth": {
+      "title": "Cloud-Ergänzung Solar Manager: Zugriff verweigert",
+      "description": "Die Solar-Manager-Cloud lehnt den API Key der Cloud-Ergänzung ab. Die lokalen Messwerte laufen weiter, aber Steuerung, Prognose und Generatorleistung werden nicht mehr aktualisiert.\n\nErstelle im Solar Manager Portal einen neuen Cloud API Key und trage ihn in den Optionen der Integration (Cloud-Ergänzung) ein. Die Meldung verschwindet, sobald die Cloud den Key wieder akzeptiert."
     }
   },
   "triggers": {
