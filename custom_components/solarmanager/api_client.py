@@ -233,8 +233,8 @@ class SolarmanagerCloud:
         return await self._authed_request("GET", f"/v1/info/gateway/{self.sm_id}")
 
     async def list_devices(self) -> list[dict]:
-        """GET /v1/info/sensors/{smId} → Liste der Geräte mit _id und (tag.name | name)."""
-        return await self._authed_request("GET", f"/v1/info/sensors/{self.sm_id}")
+        """GET /v3/users/{smId}/devices → Geräte mit _id, type, tag/carName, priority, data."""
+        return await self._authed_request("GET", f"/v3/users/{self.sm_id}/devices")
 
     async def _put_control(self, path: str, payload: dict) -> None:
         """Generischer PUT-Helper für alle /control/… Endpunkte."""
@@ -276,7 +276,7 @@ class SolarmanagerCloud:
         """PUT /v1/configure/sensor-priority/{sensorId} — Body {"priority": N}.
 
         Der Server fügt das Gerät an Position N ein und nummeriert die übrigen
-        Verbraucher (device_type "device") selbst lückenlos neu.
+        Verbraucher (PRIORITY_DEVICE_TYPES) selbst lückenlos neu.
         """
         await self._put_control(f"/v1/configure/sensor-priority/{sensor_id}", payload)
 

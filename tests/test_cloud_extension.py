@@ -36,14 +36,14 @@ SM_ID = "SM1"
 POINT_URL = f"http://{HOST}/v2/point"
 DEVICES_URL = f"http://{HOST}/v2/devices"
 AUTH_URL = f"{CLOUD_BASE}/v3/auth/refresh"
-SENSORS_URL = f"{CLOUD_BASE}/v1/info/sensors/{SM_ID}"
+DEVICES_V3_URL = f"{CLOUD_BASE}/v3/users/{SM_ID}/devices"
 FORECAST_URL = f"{CLOUD_BASE}/v3/users/{SM_ID}/data/forecast"
 GATEWAY_URL = f"{CLOUD_BASE}/v1/info/gateway/{SM_ID}"
 
 POINT = {"t": "2026-08-01T10:00:00Z", "iv": 10, "pW": 3000, "cW": 800}
 LOCAL_DEVICES = [{"deviceId": "plug1", "description": "Entfeuchter", "type": "smartplug"}]
 CLOUD_SENSORS = [
-    {"_id": "plug1", "type": "Smart Plug", "tag": {"name": "Cloud-Name"}, "data": {"smartPlugChargingType": 5}}
+    {"_id": "plug1", "type": "smartplug", "tag": "Cloud-Name", "priority": 1, "data": {"smartPlugChargingType": 5}}
 ]
 FORECAST = {"data": [{"t": "2026-08-01T10:15:00.000Z", "pW": 2500, "pWmin": 2000, "pWmax": 3000}]}
 
@@ -73,7 +73,7 @@ def _mock_cloud(aioclient_mock, *, auth_status: int = 200, sensors_status: int =
         status=auth_status,
         json={"access_token": "tok", "expires_in": 86400},
     )
-    aioclient_mock.get(SENSORS_URL, status=sensors_status, json=CLOUD_SENSORS)
+    aioclient_mock.get(DEVICES_V3_URL, status=sensors_status, json=CLOUD_SENSORS)
     aioclient_mock.get(FORECAST_URL, json=FORECAST)
     aioclient_mock.get(GATEWAY_URL, json={"settings": {"kWp": 11.2}})
 

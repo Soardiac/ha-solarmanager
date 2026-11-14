@@ -40,6 +40,7 @@ from .const import (
     DEFAULT_SCAN,
     DOMAIN,
     MODE_LOCAL,
+    PLACEHOLDER_DEVICE_NAME,
 )
 from .forecast import (
     SLOT,
@@ -52,7 +53,7 @@ from .forecast import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Geräte-Metadaten-Cache: /v1/info/sensors ist ein separater API-Call pro
+# Geräte-Metadaten-Cache: /v3/users/{smId}/devices ist ein separater API-Call pro
 # Refresh — nicht bei jedem 10s-Poll neu laden (Rate-Limit-Schonung). Nach
 # PUTs wird gezielt via async_refresh_device_meta() aktualisiert.
 META_TTL = 60  # Sekunden
@@ -188,24 +189,27 @@ def cloud_extension_issue_id(entry: ConfigEntry) -> str:
 
 
 def _parse_device_items(raw: Any) -> dict[str, dict]:
-    """Geräteliste (Cloud /v1/info/sensors oder normalisiert lokal /v2/devices) → Meta je _id."""
-    items = raw.get("items", raw) if isinstance(raw, dict) else raw
+    """Geräteliste (Cloud /v3/users/{smId}/devices oder normalisiert lokal /v2/devices) → Meta je _id.
+
+    Name: "name" (lokal) → "tag" (v3, vom Nutzer vergeben) → "carName" (Fahrzeuge).
+    Fehlt alles, ist der Name nur ein Ersatz aus Modell bzw. Typ und als
+    `name_is_fallback` markiert — siehe get_device_name().
+    """
     meta: dict[str, dict] = {}
-    for d in items or []:
+    for d in raw if isinstance(raw, list) else []:
+        if not isinstance(d, dict):
+            continue
         dev_id = str(d.get("_id") or "")
         if not dev_id:
             continue
-        # Name-Prio: expliziter "name" (falls vorhanden) sonst tag.name, sonst Typen-Fallback
-        tag = d.get("tag") or {}
-        friendly = d.get("name") or tag.get("name") or None
-        typ = d.get("type") or d.get("device_type") or None
-        if not friendly:
-            dg = d.get("device_group") or ""
-            if typ and dg:
-                friendly = f"{typ} ({dg})"
-            elif typ:
-                friendly = typ
-        meta[dev_id] = {"name": friendly, "type": typ, "raw": d}
+        typ = d.get("type") or None
+        friendly = d.get("name") or d.get("tag") or d.get("carName") or None
+        meta[dev_id] = {
+            "name": friendly or d.get("deviceKey") or typ,
+            "name_is_fallback": not friendly,
+            "type": typ,
+            "raw": d,
+        }
     return meta
 
 
@@ -232,7 +236,7 @@ def resolve_coordinator_for_device(hass: HomeAssistant, device_id: str) -> "Sola
 
 
 class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Coordinator, der den v3-Stream pollt, Daten normalisiert und Geräte-Metadaten cached (aus /v1/info/sensors/{smId})."""
+    """Coordinator, der den v3-Stream pollt, Daten normalisiert und Geräte-Metadaten cached (aus /v3/users/{smId}/devices)."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
         super().__init__(
@@ -594,7 +598,7 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # -------------------- Geräte-Metadaten --------------------
 
     async def _load_device_meta(self) -> None:
-        """Geräte-Metadaten aus /v1/info/sensors/{smId} (Cloud) oder /v2/devices (Lokal) laden.
+        """Geräte-Metadaten aus /v3/users/{smId}/devices (Cloud) oder /v2/devices (Lokal) laden.
 
         Lokal mit Cloud-Ergänzung: Die lokale Liste bestimmt, welche Geräte es
         gibt, samt Name und Typ (keine Umbenennungen gegenüber dem rein lokalen
@@ -674,9 +678,24 @@ class SolarmanagerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self.async_refresh_device_meta()
 
     def get_device_name(self, dev_id: str) -> str | None:
-        """Freundlichen Namen für ein Gerät liefern (exaktes Mapping via _id)."""
+        """Freundlichen Namen für ein Gerät liefern (exaktes Mapping via _id).
+
+        Geräte ohne eigenen Namen (weder Tag noch carName, z. B. Wechselrichter,
+        Smart Meter) behalten ihren bereits registrierten Gerätenamen. Der
+        Ersatzname wurde bis 1.15 aus v1-Feldern gebildet ("Inverter (Fronius …)")
+        und soll sich durch die Umstellung auf v3 nicht ändern. Platzhalter aus
+        einem Start ohne Metadaten werden dabei nicht festgeschrieben.
+        """
         m = self.device_meta.get(str(dev_id))
-        return (m or {}).get("name")
+        if not m:
+            return None
+        if m.get("name_is_fallback"):
+            device = dr.async_get(self.hass).async_get_device_by_identifier(
+                (DOMAIN, f"device_{dev_id}"), self.entry.entry_id
+            )
+            if device and device.name and not device.name.startswith(PLACEHOLDER_DEVICE_NAME):
+                return device.name
+        return m.get("name")
 
     async def async_put_battery_merged(self, dev_id: str, changes: dict[str, Any]) -> None:
         """Batterie-Settings als vollständiges Objekt schreiben (read-modify-write).

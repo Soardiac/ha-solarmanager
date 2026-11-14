@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import PRIORITY_DEVICE_TYPES
 from .coordinator import SolarmanagerCoordinator
 from .entity import child_device_info
 
@@ -200,16 +201,11 @@ _BATTERY_NUMBERS = [
 DEVICE_NUMBER_CONFIG: dict[str, list[dict]] = {
     # Wechselrichter
     "inverter": _INVERTER_NUMBERS,
-    # Wallbox / Car Charger (alle bekannten Typ-Varianten)
-    "car": _CAR_CHARGER_NUMBERS,           # Cloud-API (bestätigt)
-    "car charger": _CAR_CHARGER_NUMBERS,
+    # Wallbox (Keys wie DEVICE_MODE_CONFIG in select.py; "car" = Fahrzeug)
+    "carcharging": _CAR_CHARGER_NUMBERS,   # v3 + lokal (bestätigt)
     "carcharger": _CAR_CHARGER_NUMBERS,
-    "carcharging": _CAR_CHARGER_NUMBERS,   # lokale API (bestätigt)
-    "car charging": _CAR_CHARGER_NUMBERS,  # Cloud-API (bestätigt)
-    "ocpp charger": _CAR_CHARGER_NUMBERS,
     "wallbox": _CAR_CHARGER_NUMBERS,
     # Warmwasser
-    "water heater": _WATER_HEATER_NUMBERS,
     "waterheater": _WATER_HEATER_NUMBERS,
     # Batterie
     "battery": _BATTERY_NUMBERS,
@@ -374,16 +370,18 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
 # ---------------------------------------------------------------------------
 # Priorität in der Verbraucher-Liste (Drag & Drop im Web/App)
 #
-# Nur Geräte mit device_type "device" stehen in der Liste (lückenlos 1…n);
-# Wechselrichter, Smart Meter und Fahrzeuge haben immer priority 1 und werden
-# ignoriert. Beim Setzen fügt der Server das Gerät an Position N ein und
+# Nur steuerbare Verbraucher (PRIORITY_DEVICE_TYPES) stehen in der Liste
+# (lückenlos 1…n); Wechselrichter, Smart Meter und Fahrzeuge haben immer
+# priority 1 und werden ignoriert. Beim Setzen fügt der Server das Gerät an Position N ein und
 # nummeriert die übrigen selbst neu — der anschliessende Meta-Reload
 # aktualisiert alle Prio-Entitäten.
 # ---------------------------------------------------------------------------
 
 def is_priority_device(meta: dict) -> bool:
+    # Typ aus dem Cloud-Rohobjekt: In der Cloud-Ergänzung stammt "type" der
+    # Meta aus der lokalen Liste, "priority" aber immer aus der Cloud.
     raw = meta.get("raw") or {}
-    return raw.get("device_type") == "device" and raw.get("priority") is not None
+    return raw.get("type") in PRIORITY_DEVICE_TYPES and raw.get("priority") is not None
 
 
 class DevicePriorityNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity):
