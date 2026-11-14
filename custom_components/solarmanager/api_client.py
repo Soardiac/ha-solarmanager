@@ -272,6 +272,14 @@ class SolarmanagerCloud:
         """PUT /v1/control/inverter/{sensorId}"""
         await self._put_control(f"/v1/control/inverter/{sensor_id}", payload)
 
+    async def put_sensor_priority(self, sensor_id: str, payload: dict) -> None:
+        """PUT /v1/configure/sensor-priority/{sensorId} — Body {"priority": N}.
+
+        Der Server fügt das Gerät an Position N ein und nummeriert die übrigen
+        Verbraucher (device_type "device") selbst lückenlos neu.
+        """
+        await self._put_control(f"/v1/configure/sensor-priority/{sensor_id}", payload)
+
     async def get_gateway_statistics(
         self, from_dt: str, to_dt: str, accuracy: str = "high"
     ) -> dict:

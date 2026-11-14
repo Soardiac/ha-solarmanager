@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.number import NumberEntity
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
+    EntityCategory,
     UnitOfElectricCurrent,
     UnitOfEnergy,
     UnitOfPower,
@@ -247,6 +248,13 @@ async def async_setup_entry(
                 if uid not in created:
                     created.add(uid)
                     new_entities.append(DeviceNumberEntity(coord, dev_id, cfg))
+
+            # Priorität in der Verbraucher-Liste (typunabhängig)
+            if is_priority_device(meta):
+                uid = f"{dev_id}_priority"
+                if uid not in created:
+                    created.add(uid)
+                    new_entities.append(DevicePriorityNumber(coord, dev_id))
         if new_entities:
             async_add_entities(new_entities, True)
 
@@ -361,3 +369,58 @@ class DeviceNumberEntity(CoordinatorEntity[SolarmanagerCoordinator], NumberEntit
                     payload[field] = raw_data[field]
 
         await self.coordinator.async_cloud_put(self._put_method, self._dev_id, payload)
+
+
+# ---------------------------------------------------------------------------
+# Priorität in der Verbraucher-Liste (Drag & Drop im Web/App)
+#
+# Nur Geräte mit device_type "device" stehen in der Liste (lückenlos 1…n);
+# Wechselrichter, Smart Meter und Fahrzeuge haben immer priority 1 und werden
+# ignoriert. Beim Setzen fügt der Server das Gerät an Position N ein und
+# nummeriert die übrigen selbst neu — der anschliessende Meta-Reload
+# aktualisiert alle Prio-Entitäten.
+# ---------------------------------------------------------------------------
+
+def is_priority_device(meta: dict) -> bool:
+    raw = meta.get("raw") or {}
+    return raw.get("device_type") == "device" and raw.get("priority") is not None
+
+
+class DevicePriorityNumber(CoordinatorEntity[SolarmanagerCoordinator], NumberEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "priority"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 1
+    _attr_native_step = 1
+
+    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str) -> None:
+        super().__init__(coordinator)
+        self._dev_id = dev_id
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_dev_{dev_id}_priority"
+
+    @property
+    def device_info(self) -> dict[str, Any]:
+        return child_device_info(self.coordinator, self._dev_id)
+
+    @property
+    def native_max_value(self) -> float:
+        count = sum(1 for m in self.coordinator.device_meta.values() if is_priority_device(m))
+        return max(count, 1)
+
+    @property
+    def native_value(self) -> float | None:
+        raw = (self.coordinator.device_meta.get(self._dev_id) or {}).get("raw") or {}
+        try:
+            return float(raw["priority"])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.native_value is not None
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_cloud_put(
+            "put_sensor_priority", self._dev_id, {"priority": round(value)}
+        )

@@ -124,3 +124,17 @@ async def test_rejected_refresh_token_falls_back_to_full_login(hass, aioclient_m
     methods_paths = [(m, u.path) for m, u, *_ in aioclient_mock.mock_calls]
     assert methods_paths.count(("POST", "/v1/oauth/login")) == 2
     assert methods_paths.count(("POST", "/v1/oauth/refresh")) == 1
+
+
+async def test_put_sensor_priority(hass, aioclient_mock):
+    """PUT /v1/configure/sensor-priority/{id} mit Body {"priority": N}."""
+    aioclient_mock.post(LOGIN_URL, json=_TOKEN_RESPONSE)
+    url = f"{BASE}/v1/configure/sensor-priority/dev1"
+    aioclient_mock.put(url, text="ok")
+
+    await _client(hass).put_sensor_priority("dev1", {"priority": 3})
+
+    method, called_url, body = aioclient_mock.mock_calls[-1][:3]
+    assert method == "PUT"
+    assert str(called_url) == url
+    assert body == {"priority": 3}

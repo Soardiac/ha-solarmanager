@@ -512,6 +512,10 @@ Einstellbare Werte pro Gerät. Die Werte wirken jeweils nur, wenn der passende M
 |---|---|---|
 | Leistung | % | 0 – 100 |
 
+#### Priorität (alle Verbraucher)
+
+Solar Manager verteilt den PV-Überschuss nach einer Prioritätsliste (im Web/App per Drag & Drop). Jeder Verbraucher – Batterie, Wallbox, Wärmepumpe, Smart Plug usw. – erhält die Entität **Priorität** (Konfiguration, 1 = zuerst bedient, bis Anzahl Verbraucher). Wird ein Gerät auf Position N gesetzt, fügt Solar Manager es dort ein und nummeriert die übrigen Geräte automatisch neu. Wechselrichter, Smart Meter und Fahrzeuge sind nicht Teil der Liste.
+
 ---
 
 ## Hinweise

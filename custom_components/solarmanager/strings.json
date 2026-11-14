@@ -339,6 +339,7 @@
       "battery_manual_mode": { "name": "Manual direction" }
     },
     "number": {
+      "priority": { "name": "Priority" },
       "eco_discharge_soc_limit": { "name": "Eco discharge limit" },
       "eco_morning_soc_limit": { "name": "Eco morning limit" },
       "eco_charging_soc_limit": { "name": "Eco charge limit" },

@@ -29,6 +29,7 @@
       "battery_manual_mode": { "default": "mdi:battery-arrow-up-outline" }
     },
     "number": {
+      "priority": { "default": "mdi:sort-numeric-ascending" },
       "eco_discharge_soc_limit": { "default": "mdi:battery-arrow-down" },
       "eco_morning_soc_limit": { "default": "mdi:weather-sunset-up" },
       "eco_charging_soc_limit": { "default": "mdi:battery-arrow-up" },
