@@ -333,6 +333,22 @@ Pro Gerät werden automatisch Sensoren erstellt, wenn das entsprechende Feld im 
 | Schaltzustand | – | – | Feld `switchState` vorhanden |
 | Heizungskorrektur | – | – | Feld `heatingAdjustment` vorhanden |
 | Restreichweite | km | – | Feld `remainingRange` vorhanden |
+| Aussentemperatur | °C | Temperatur | Feld `temperatureOutside` (z. B. Wärmepumpe) |
+| Vorlauftemperatur | °C | Temperatur | Feld `temperatureSupply` (z. B. Wärmepumpe) |
+| Rücklauftemperatur | °C | Temperatur | Feld `temperatureReturn` (z. B. Wärmepumpe) |
+| Innentemperatur | °C | Temperatur | Feld `temperatureInside` (z. B. Wärmepumpe) |
+| Strom L1 / L2 / L3 | A | Strom | Felder `currentL1`–`currentL3`, **per Default deaktiviert** |
+| Spannung L1 / L2 / L3 | V | Spannung | Felder `voltageL1`–`voltageL3`, **per Default deaktiviert** |
+| Sollleistung | W | Leistung | Feld `targetPower`, **per Default deaktiviert** |
+| Sollstrom | A | Strom | Feld `targetCurrent`, **per Default deaktiviert** |
+| Soll-Phasen | – | – | Feld `targetPhases`, **per Default deaktiviert** |
+| Verbrauch / Einspeisung (Intervall) | Wh | – | Felder `iWh` / `eWh`, **per Default deaktiviert** |
+| Letzte Datenaktualisierung | – | Zeitstempel | Feld `updatedAt`, Diagnose, **per Default deaktiviert** |
+
+> Welche Felder ein Gerät liefert, hängt vom Gerätetyp und der Anbindung ab. Die Rohwerte
+> `mode`, `limitType`, `percent` und `targetPercent` haben (noch) keinen eigenen Sensor, weil
+> ihre Bedeutung je Gerätetyp unterschiedlich ist; sie erscheinen als Attribute im
+> Diagnose-Sensor „Geräte (Stream-Übersicht)“.
 
 > **Tagesverbrauch / Tageseinspeisung:** Die Stream-Felder `iWhTotal`/`eWhTotal` sind kumulative
 > Zählerstände, die über Tage hinweg weiterlaufen. Die Integration summiert deren Zuwächse und

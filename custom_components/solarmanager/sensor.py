@@ -13,6 +13,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     EntityCategory,
+    UnitOfElectricCurrent,
+    UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfLength,
     UnitOfPower,
@@ -91,6 +93,31 @@ FORECAST_ENERGY_SENSORS = [
 # Länge der Prognose-Zeitreihe im Attribut von forecast_power_now
 FORECAST_SERIES_HOURS = 48
 
+# Weitere Messwerte je Gerät aus dem Stream (DataDeviceSchema der Cloud-API).
+# Ein Sensor entsteht nur, wenn das Feld im Geräteeintrag vorkommt.
+# (key, translation_key, device_class, unit, enabled_default)
+DEVICE_MEASUREMENT_SENSORS = [
+    # Wärmepumpe (u. a. Modbus-Anbindungen, Issue #38)
+    ("temperatureOutside", "temperature_outside", SensorDeviceClass.TEMPERATURE, UnitOfTemperature.CELSIUS, True),
+    ("temperatureSupply", "temperature_supply", SensorDeviceClass.TEMPERATURE, UnitOfTemperature.CELSIUS, True),
+    ("temperatureReturn", "temperature_return", SensorDeviceClass.TEMPERATURE, UnitOfTemperature.CELSIUS, True),
+    ("temperatureInside", "temperature_inside", SensorDeviceClass.TEMPERATURE, UnitOfTemperature.CELSIUS, True),
+    # Phasenwerte (z. B. Wallbox) — viele Entitäten, daher per Default aus
+    ("currentL1", "current_l1", SensorDeviceClass.CURRENT, UnitOfElectricCurrent.AMPERE, False),
+    ("currentL2", "current_l2", SensorDeviceClass.CURRENT, UnitOfElectricCurrent.AMPERE, False),
+    ("currentL3", "current_l3", SensorDeviceClass.CURRENT, UnitOfElectricCurrent.AMPERE, False),
+    ("voltageL1", "voltage_l1", SensorDeviceClass.VOLTAGE, UnitOfElectricPotential.VOLT, False),
+    ("voltageL2", "voltage_l2", SensorDeviceClass.VOLTAGE, UnitOfElectricPotential.VOLT, False),
+    ("voltageL3", "voltage_l3", SensorDeviceClass.VOLTAGE, UnitOfElectricPotential.VOLT, False),
+    # Sollwerte der Regelung
+    ("targetPower", "target_power", SensorDeviceClass.POWER, UnitOfPower.WATT, False),
+    ("targetCurrent", "target_current", SensorDeviceClass.CURRENT, UnitOfElectricCurrent.AMPERE, False),
+    ("targetPhases", "target_phases", None, None, False),
+    # Intervallwerte (Wh) — wie die Site-Intervallsensoren ohne ENERGY-Klasse
+    ("iWh", "device_import_energy_interval", None, UnitOfEnergy.WATT_HOUR, False),
+    ("eWh", "device_export_energy_interval", None, UnitOfEnergy.WATT_HOUR, False),
+]
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: SolarmanagerCoordinator = entry.runtime_data
@@ -157,6 +184,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 if key in dev and uid not in created:
                     created.add(uid)
                     new_entities.append(DeviceDailyEnergySensor(coord, dev_id, key, tkey))
+            for spec in DEVICE_MEASUREMENT_SENSORS:
+                uid = f"{dev_id}_{spec[0]}"
+                if spec[0] in dev and uid not in created:
+                    created.add(uid)
+                    new_entities.append(DeviceMeasurementSensor(coord, dev_id, *spec))
+            uid = f"{dev_id}_updatedAt"
+            if "updatedAt" in dev and uid not in created:
+                created.add(uid)
+                new_entities.append(DeviceUpdatedAtSensor(coord, dev_id))
         if new_entities:
             async_add_entities(new_entities, True)
 
@@ -304,6 +340,11 @@ class DevicesOverviewSensor(_Base, SensorEntity):
                 "temperature_C": it.get("temperature"),
                 "deviceState": it.get("deviceState"),
                 "switchState": it.get("switchState"),
+                # Rohwerte ohne eigenen Sensor, Bedeutung je Gerätetyp unklar
+                "mode": it.get("mode"),
+                "limitType": it.get("limitType"),
+                "percent": it.get("percent"),
+                "targetPercent": it.get("targetPercent"),
             })
         return {
             "timestamp": d.get("t"),
@@ -771,6 +812,57 @@ class DeviceHeatingAdjustmentSensor(_DeviceBase):
             return float(v) if v is not None else None
         except Exception:
             return None
+
+
+class DeviceMeasurementSensor(_DeviceBase):
+    """Generischer numerischer Gerätemesswert (siehe DEVICE_MEASUREMENT_SENSORS)."""
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: SolarmanagerCoordinator,
+        dev_id: str,
+        key: str,
+        translation_key: str,
+        device_class: SensorDeviceClass | None,
+        unit: str | None,
+        enabled_default: bool,
+    ):
+        super().__init__(coordinator, dev_id, key, translation_key)
+        self._attr_device_class = device_class
+        self._attr_native_unit_of_measurement = unit
+        self._attr_entity_registry_enabled_default = enabled_default
+
+    @property
+    def native_value(self) -> float | None:
+        v = self._dev_value()
+        if v is None or isinstance(v, bool):
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+
+class DeviceUpdatedAtSensor(_DeviceBase):
+    """Zeitpunkt der letzten Gerätedaten-Aktualisierung (nur bestimmte Gerätetypen)."""
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: SolarmanagerCoordinator, dev_id: str):
+        super().__init__(coordinator, dev_id, "updatedAt", "updated_at")
+
+    @property
+    def native_value(self) -> datetime | None:
+        v = self._dev_value()
+        if not isinstance(v, str):
+            return None
+        parsed = dt_util.parse_datetime(v)
+        # TIMESTAMP verlangt eine Zeitzone; ohne Angabe ist UTC gemeint
+        if parsed is not None and parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt_util.UTC)
+        return parsed
 
 
 class DeviceRemainingRangeSensor(_DeviceBase):
