@@ -6,7 +6,14 @@ from typing import Any
 
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, ENTRY_TITLE, MANUFACTURER, MODEL, MODEL_LOCAL
+from .const import (
+    DOMAIN,
+    ENTRY_TITLE,
+    MANUFACTURER,
+    MODEL,
+    MODEL_LOCAL,
+    PLACEHOLDER_DEVICE_NAME,
+)
 from .coordinator import SolarmanagerCoordinator
 
 SITE_DEVICE_NAME = ENTRY_TITLE
@@ -71,7 +78,7 @@ def child_device_info(
     short = dev_id[-6:] if len(dev_id) >= 6 else dev_id
     info: dict[str, Any] = {
         "identifiers": {(DOMAIN, f"device_{dev_id}")},
-        "name": friendly or f"Solarmanager Gerät {short}",
+        "name": friendly or f"{PLACEHOLDER_DEVICE_NAME} {short}",
         "manufacturer": MANUFACTURER,
         "model": "Stream device",
     }

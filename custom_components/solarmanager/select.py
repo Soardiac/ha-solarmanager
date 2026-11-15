@@ -21,7 +21,8 @@ OPTIMISTIC_TTL = 30  # Sekunden
 
 # ---------------------------------------------------------------------------
 # Konfig-Objekte für Hauptmodi (ein Select pro Gerät)
-# key  = device.type.lower() aus /v1/info/sensors
+# key  = device.type.lower() — v3-Schreibweise (/v3/users/{smId}/devices),
+#        identisch zur lokalen API /v2/devices
 # ---------------------------------------------------------------------------
 
 _BATTERY_CFG = {
@@ -129,32 +130,27 @@ _SWITCH_CFG = {
 }
 
 # Haupt-Modus pro Gerätetyp (unique_id endet auf "_mode")
+# Keys ohne v3-Entsprechung (carcharger, wallbox, v2xcharger, switch) stammen
+# aus der Zeit vor v3, ihre Herkunft ist unbelegt — sie bleiben, damit keine
+# Installation Entitäten verliert. "car" ist das Fahrzeug, keine Wallbox.
 DEVICE_MODE_CONFIG: dict[str, dict] = {
     # Batterie
     "battery": _BATTERY_CFG,
-    # Wallbox / Car Charger (alle bekannten Typ-Varianten)
-    "car": _CAR_CHARGER_CFG,           # Cloud-API (bestätigt)
-    "car charger": _CAR_CHARGER_CFG,
+    # Wallbox
+    "carcharging": _CAR_CHARGER_CFG,   # v3 + lokal (bestätigt)
     "carcharger": _CAR_CHARGER_CFG,
-    "carcharging": _CAR_CHARGER_CFG,   # lokale API (bestätigt)
-    "car charging": _CAR_CHARGER_CFG,  # Cloud-API (bestätigt)
-    "ocpp charger": _CAR_CHARGER_CFG,
     "wallbox": _CAR_CHARGER_CFG,
     # V2X
-    "v2x": _V2X_CFG,
-    "v2x charger": _V2X_CFG,
+    "v2x": _V2X_CFG,                   # v3
     "v2xcharger": _V2X_CFG,
     # Wärmepumpe
-    "heat pump": _HEAT_PUMP_CFG,
-    "heatpump": _HEAT_PUMP_CFG,        # lokale API (bestätigt)
-    "sg ready switch": _HEAT_PUMP_CFG,
+    "heatpump": _HEAT_PUMP_CFG,        # v3 + lokal (bestätigt)
     # Warmwasser
-    "water heater": _WATER_HEATER_CFG,
-    "waterheater": _WATER_HEATER_CFG,
+    "waterheater": _WATER_HEATER_CFG,  # v3
     # Smart Plug
-    "smart plug": _SMART_PLUG_CFG,
-    "smartplug": _SMART_PLUG_CFG,
+    "smartplug": _SMART_PLUG_CFG,      # v3 + lokal (bestätigt)
     # Switch
+    "switches": _SWITCH_CFG,           # v3
     "switch": _SWITCH_CFG,
 }
 

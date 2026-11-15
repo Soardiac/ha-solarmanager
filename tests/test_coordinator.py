@@ -29,7 +29,7 @@ LOGIN_URL = f"{CLOUD_BASE}/v1/oauth/login"
 
 SM_ID = "SM1"
 STREAM_URL = f"{CLOUD_BASE}/v3/users/{SM_ID}/data/stream"
-SENSORS_URL = f"{CLOUD_BASE}/v1/info/sensors/{SM_ID}"
+DEVICES_V3_URL = f"{CLOUD_BASE}/v3/users/{SM_ID}/devices"
 STATS_URL = f"{CLOUD_BASE}/v1/statistics/gateways/{SM_ID}"
 LOGIN_RESPONSE = {
     "accessToken": "tok",
@@ -116,7 +116,7 @@ async def test_cloud_grid_import_zero_at_night_despite_rest_stats_consumption(ha
     auch wenn die REST-Tagesstatistik consumption>0 und selfConsumption=0 zeigt (#25)."""
     entry = _cloud_entry(hass)
     aioclient_mock.post(LOGIN_URL, json=LOGIN_RESPONSE)
-    aioclient_mock.get(SENSORS_URL, json=[])
+    aioclient_mock.get(DEVICES_V3_URL, json=[])
     aioclient_mock.get(STREAM_URL, json={"t": "2026-08-01T02:00:00Z", "iv": 10, "iW": 0, "eW": 0})
     aioclient_mock.get(
         STATS_URL,
@@ -144,7 +144,7 @@ async def test_cloud_grid_import_accumulates_over_time(hass, aioclient_mock):
     """iW>0 über ein definiertes Zeitintervall → stat_grid_import wächst um P*dt/3600."""
     entry = _cloud_entry(hass)
     aioclient_mock.post(LOGIN_URL, json=LOGIN_RESPONSE)
-    aioclient_mock.get(SENSORS_URL, json=[])
+    aioclient_mock.get(DEVICES_V3_URL, json=[])
     aioclient_mock.get(STREAM_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10, "iW": 1200, "eW": 0})
     aioclient_mock.get(
         STATS_URL,
@@ -407,7 +407,7 @@ FORECAST_RESPONSE = {
 def _mock_cloud(aioclient_mock, forecast: dict | None = None, forecast_status: int = 200) -> None:
     aioclient_mock.clear_requests()
     aioclient_mock.post(LOGIN_URL, json=LOGIN_RESPONSE)
-    aioclient_mock.get(SENSORS_URL, json=[])
+    aioclient_mock.get(DEVICES_V3_URL, json=[])
     aioclient_mock.get(STREAM_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10})
     aioclient_mock.get(STATS_URL, json={})
     aioclient_mock.get(FORECAST_URL, json=forecast, status=forecast_status)
@@ -652,7 +652,7 @@ async def test_correction_slots_survive_restart(hass):
 async def test_correction_slots_filled_during_cloud_refresh_not_local(hass, aioclient_mock):
     entry = _cloud_entry(hass)
     aioclient_mock.post(LOGIN_URL, json=LOGIN_RESPONSE)
-    aioclient_mock.get(SENSORS_URL, json=[])
+    aioclient_mock.get(DEVICES_V3_URL, json=[])
     aioclient_mock.get(STREAM_URL, json={"t": "2026-08-01T10:00:00Z", "iv": 10, "pW": 1500})
     aioclient_mock.get(STATS_URL, json={})
     aioclient_mock.get(FORECAST_URL, json=_flat_forecast(2000))

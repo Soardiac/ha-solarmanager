@@ -31,13 +31,10 @@ _CAR_CHARGER_DATETIMES = [
     },
 ]
 
+# Keys wie DEVICE_MODE_CONFIG in select.py ("car" = Fahrzeug, keine Wallbox)
 DEVICE_DATETIME_CONFIG: dict[str, list[dict]] = {
-    "car": _CAR_CHARGER_DATETIMES,
-    "car charger": _CAR_CHARGER_DATETIMES,
-    "carcharger": _CAR_CHARGER_DATETIMES,
     "carcharging": _CAR_CHARGER_DATETIMES,
-    "car charging": _CAR_CHARGER_DATETIMES,
-    "ocpp charger": _CAR_CHARGER_DATETIMES,
+    "carcharger": _CAR_CHARGER_DATETIMES,
     "wallbox": _CAR_CHARGER_DATETIMES,
 }
 

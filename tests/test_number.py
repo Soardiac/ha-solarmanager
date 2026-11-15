@@ -13,20 +13,22 @@ from custom_components.solarmanager.const import (
 from custom_components.solarmanager.coordinator import SolarmanagerCoordinator
 
 
-def _meta(device_type: str, priority: int | None, typ: str = "Smart Plug") -> dict:
-    raw = {"device_type": device_type, "type": typ}
+def _meta(typ: str, priority: int | None) -> dict:
+    """Meta wie aus /v3/users/{smId}/devices (v3 liefert kein device_type)."""
+    raw = {"type": typ}
     if priority is not None:
         raw["priority"] = priority
     return {"name": typ, "type": typ, "raw": raw}
 
 
 DEVICE_META = {
-    "inv": _meta("inverter", 1, "Inverter"),
-    "meter": _meta("smart-meter", 1, "Smart Meter"),
-    "car": _meta("car", 1, "Car"),
-    "bat": _meta("device", 1, "Battery"),
-    "wallbox": _meta("device", 2, "Car Charging"),
-    "plug": _meta("device", 3),
+    "inv": _meta("inverter", 1),
+    "meter": _meta("smartmeter", 1),
+    "car": _meta("car", 1),
+    "bat": _meta("battery", 1),
+    "wallbox": _meta("carcharging", 2),
+    "plug": _meta("smartplug", 3),
+    "unset": _meta("smartplug", None),
 }
 
 

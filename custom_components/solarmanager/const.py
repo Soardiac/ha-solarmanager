@@ -54,3 +54,21 @@ MANUFACTURER = "Solarmanager"
 ENTRY_TITLE = "Solar Manager"
 MODEL = "Cloud v3 stream"
 MODEL_LOCAL = "Local API v2"
+# Gerätename, solange für ein Gerät noch keine Metadaten geladen sind
+PLACEHOLDER_DEVICE_NAME = "Solarmanager Gerät"
+
+# v3-Gerätetypen in der Prio-Liste der Verbraucher (/v3/users/{smId}/devices).
+# battery/carcharging/heatpump/smartplug am 14.11.2026 gegen v1
+# device_type == "device" verifiziert; die übrigen sind ebenfalls steuerbare
+# Verbraucher. Nicht enthalten: inverter, smartmeter, car (Fahrzeug) & Co.
+PRIORITY_DEVICE_TYPES = frozenset({
+    "appliances",
+    "battery",
+    "carcharging",
+    "carchargingsystem",
+    "heatpump",
+    "smartplug",
+    "switches",
+    "v2x",
+    "waterheater",
+})
