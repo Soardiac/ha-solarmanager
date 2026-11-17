@@ -20,6 +20,13 @@ TO_REDACT: set[str] = {
     "accessToken",
     "refreshToken",
     "Authorization",
+    # Netzwerk-Kennungen (Gateway-Host im Config-Entry, Geräte in device_metadata)
+    "host",
+    "ip",
+    "mac",
+    # OCPP-Wallbox: URL enthält die Ladestation-Kennung, ID identifiziert sie direkt
+    "OcppUrl",
+    "OCPPChargerID",
 }
 
 
