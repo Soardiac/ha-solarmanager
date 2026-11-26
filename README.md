@@ -381,7 +381,7 @@ Pro Gerät ein Haupt-Modus-Select. Die Optionen hängen vom Gerätetyp ab.
 | 3 | Manuell |
 | 4 | Tarif-Optimiert |
 | 5 | Standard (aktiv) |
-| 6 | KI-Optimierung |
+| 6 | Aria |
 
 Zusätzlich: **Manuell Richtung** (Select) — Laden / Entladen / AUS
 
@@ -425,7 +425,7 @@ Gerätetypen: `heat pump`, `heatpump`, `sg ready switch`
 | 5 | Keine Steuerung |
 | 6 | Normalbetrieb |
 | 7 | OEM 14 |
-| 8 | KI-Optimierung |
+| 8 | Aria |
 
 #### Warmwasser
 
@@ -437,7 +437,7 @@ Gerätetypen: `heat pump`, `heatpump`, `sg ready switch`
 | 4 | Solar & Tarif |
 | 5 | Keine Steuerung |
 | 6 | ECO |
-| 7 | KI-Optimierung |
+| 7 | Aria |
 
 #### Smart Plug
 
